@@ -10,7 +10,44 @@ import os
 from datetime import datetime
 import requests
 
+
 DATA_DIR = 'data_files/'
+
+# Define features list before loading best features
+features = [
+    'spread_line', 'total', 'homeTeamWinPct', 'awayTeamWinPct', 'homeTeamCloseGamePct', 'awayTeamCloseGamePct',
+    'homeTeamBlowoutPct', 'awayTeamBlowoutPct', 'homeTeamAvgScore', 'awayTeamAvgScore', 'homeTeamAvgScoreAllowed',
+    'awayTeamAvgScoreAllowed', 'homeTeamAvgPointDiff', 'awayTeamAvgPointDiff', 'homeTeamAvgTotalScore',
+    'awayTeamAvgTotalScore', 'homeTeamGamesPlayed', 'awayTeamGamesPlayed', 'homeTeamAvgPointSpread',
+    'awayTeamAvgPointSpread', 'homeTeamAvgTotal', 'awayTeamAvgTotal', 'homeTeamFavoredPct', 'awayTeamFavoredPct',
+    'homeTeamSpreadCoveredPct', 'awayTeamSpreadCoveredPct', 'homeTeamOverHitPct', 'awayTeamOverHitPct',
+    'homeTeamUnderHitPct', 'awayTeamUnderHitPct', 'homeTeamTotalHitPct', 'awayTeamTotalHitPct', 'total_line_diff'
+]
+
+# Load best features for spread
+try:
+    with open(path.join(DATA_DIR, 'best_features_spread.txt'), 'r') as f:
+        loaded_features = [line.strip() for line in f if line.strip()]
+    # Only keep features that are valid columns in the data
+    best_features_spread = [feat for feat in loaded_features if feat in features]
+    if not best_features_spread:
+        best_features_spread = features
+except FileNotFoundError:
+    best_features_spread = features  # fallback to all features
+
+# Load best features for moneyline
+try:
+    with open(path.join(DATA_DIR, 'best_features_moneyline.txt'), 'r') as f:
+        best_features_moneyline = [line.strip() for line in f if line.strip()]
+except FileNotFoundError:
+    best_features_moneyline = features
+
+# Load best features for totals
+try:
+    with open(path.join(DATA_DIR, 'best_features_totals.txt'), 'r') as f:
+        best_features_totals = [line.strip() for line in f if line.strip()]
+except FileNotFoundError:
+    best_features_totals = features
 
 # Set page config at the top
 st.set_page_config(
@@ -18,11 +55,11 @@ st.set_page_config(
     page_title="NFL Play Outcome Predictor",
     page_icon="data_files/favicon.ico"  # or use an emoji, e.g. "🏈"
 )
-
+st.set_page_config(layout="wide")
 
 # Load full NFL schedule from ESPN API (all regular season weeks) and save to CSV
 current_year = datetime.now().year
-historical_game_level_data = pd.read_csv(path.join(DATA_DIR, 'nfl_games_historical.csv'), sep='\t')
+historical_game_level_data = pd.read_csv(path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv'), sep='\t')
 
 # Uncomment below to pull down current year schedule from ESPN
 # Uncomment and run once to get data, then comment back
@@ -111,6 +148,103 @@ filter_keys = [
     'score_differential', 'posteam_score', 'defteam_score', 'epa', 'pass_attempt'
 ]
 
+
+# --- For Monte Carlo Feature Selection ---
+from sklearn.model_selection import train_test_split
+from xgboost import XGBClassifier
+
+# Feature list for modeling and Monte Carlo selection
+features = [
+    'spread_line', 'total', 'homeTeamWinPct', 'awayTeamWinPct', 'homeTeamCloseGamePct', 'awayTeamCloseGamePct',
+    'homeTeamBlowoutPct', 'awayTeamBlowoutPct', 'homeTeamAvgScore', 'awayTeamAvgScore', 'homeTeamAvgScoreAllowed',
+    'awayTeamAvgScoreAllowed', 'homeTeamAvgPointDiff', 'awayTeamAvgPointDiff', 'homeTeamAvgTotalScore',
+    'awayTeamAvgTotalScore', 'homeTeamGamesPlayed', 'awayTeamGamesPlayed', 'homeTeamAvgPointSpread',
+    'awayTeamAvgPointSpread', 'homeTeamAvgTotal', 'awayTeamAvgTotal', 'homeTeamFavoredPct', 'awayTeamFavoredPct',
+    'homeTeamSpreadCoveredPct', 'awayTeamSpreadCoveredPct', 'homeTeamOverHitPct', 'awayTeamOverHitPct',
+    'homeTeamUnderHitPct', 'awayTeamUnderHitPct', 'homeTeamTotalHitPct', 'awayTeamTotalHitPct', 'total_line_diff'
+]
+# Target
+if 'spreadCovered' in historical_game_level_data.columns:
+    target_spread = 'spreadCovered'
+else:
+    target_spread = st.selectbox('Select spread target column', historical_game_level_data.columns)
+
+# Prepare data for MC feature selection
+
+# Define X and y for spread
+X = historical_game_level_data[features]
+y_spread = historical_game_level_data[target_spread]
+
+# Spread model (using best features)
+X_spread = historical_game_level_data[best_features_spread]
+X_train_spread, X_test_spread, y_spread_train, y_spread_test = train_test_split(
+    X_spread, y_spread, test_size=0.2, random_state=42, stratify=y_spread)
+
+# --- Moneyline (underdogWon) target and split ---
+target_moneyline = 'underdogWon'
+y_moneyline = historical_game_level_data[target_moneyline]
+X_moneyline = historical_game_level_data[best_features_moneyline]
+X_train_ml, X_test_ml, y_train_ml, y_test_ml = train_test_split(
+    X_moneyline, y_moneyline, test_size=0.2, random_state=42, stratify=y_moneyline)
+
+# --- Totals (overHit) target and split ---
+target_totals = 'overHit'
+y_totals = historical_game_level_data[target_totals]
+X_totals = historical_game_level_data[best_features_totals]
+X_train_tot, X_test_tot, y_train_tot, y_test_tot = train_test_split(
+    X_totals, y_totals, test_size=0.2, random_state=42, stratify=y_totals)
+
+# --- End MC setup ---
+
+# # --- Monte Carlo Feature Selection UI ---
+# if st.checkbox("Run Monte Carlo Feature Selection", value=False):
+#     st.write("### Monte Carlo Feature Selection (Spread Model)")
+#     import random
+#     from sklearn.model_selection import cross_val_score
+#     from sklearn.metrics import make_scorer, roc_auc_score, f1_score
+#     # User controls
+#     num_iter = st.number_input("Number of Iterations", min_value=10, max_value=500, value=100, step=10)
+#     subset_size = st.number_input("Subset Size", min_value=2, max_value=len(features), value=8, step=1)
+#     random_seed = st.number_input("Random Seed", min_value=0, value=42, step=1)
+#     run_mc = st.button("Run Monte Carlo Search")
+#     if run_mc:
+#         with st.spinner("Running Monte Carlo feature selection..."):
+#             best_score = 0
+#             best_features = []
+#             random.seed(random_seed)
+#             scores_list = []
+#             for i in range(int(num_iter)):
+#                 subset = random.sample(features, int(subset_size))
+#                 X_subset = X_train[subset]
+#                 model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+#                 acc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='accuracy').mean()
+#                 # For AUC and F1, use make_scorer
+#                 try:
+#                     auc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='roc_auc').mean()
+#                 except Exception:
+#                     auc = float('nan')
+#                 try:
+#                     f1 = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='f1').mean()
+#                 except Exception:
+#                     f1 = float('nan')
+#                 scores_list.append({
+#                     'iteration': i+1,
+#                     'features': subset,
+#                     'accuracy': acc,
+#                     'AUC': auc,
+#                     'F1-score': f1
+#                 })
+#                 if acc > best_score:
+#                     best_score = acc
+#                     best_features = subset
+#         st.success(f"Best mean CV accuracy: {best_score:.4f}")
+#         st.write(f"Best feature subset:")
+#         st.code(best_features)
+#         # Show top 10 results
+#         scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
+#         st.write("#### Top 10 Feature Subsets (by Accuracy)")
+#         st.dataframe(scores_df, use_container_width=True, hide_index=True)
+
 if st.checkbox("Show Raw Historical Play By Play Data", value=False):
     st.write("### Historical Data Sample")
     st.dataframe(historical_data.head(50), width=800, hide_index=True)
@@ -118,6 +252,7 @@ if st.checkbox("Show Raw Historical Play By Play Data", value=False):
 
 if st.checkbox("Show Historical Game Summaries", value=False):
     st.write("### Historical Game Summaries Sample")
+    historical_game_level_data = historical_game_level_data.sort_values(by='gameday', ascending=False)
     st.dataframe(historical_game_level_data.head(50), width=800, hide_index=True)
     st.write(f"Game summaries data shape: {historical_game_level_data.shape}")
 
@@ -136,9 +271,10 @@ if st.checkbox("Show Schedule Data", value=False):
 
 
 if st.checkbox("Show Model Predictions vs Actuals", value=False):
+    
     if predictions_df is not None:
         display_cols = [
-            'game_id', 'date', 'home_team', 'away_team', 'home_score', 'away_score',
+            'game_id', 'gameday', 'home_team', 'away_team', 'home_score', 'away_score',
             'total_line', 'spread_line',
             'predictedSpreadCovered', 'spreadCovered',
             'predictedOverHit', 'overHit'
@@ -146,10 +282,95 @@ if st.checkbox("Show Model Predictions vs Actuals", value=False):
         # Only show columns that exist
         display_cols = [col for col in display_cols if col in predictions_df.columns]
         st.write("### Model Predictions vs Actual Results")
-        st.dataframe(predictions_df[display_cols].head(50), width=1000, hide_index=True)
+        predictions_df = predictions_df.copy()
+        predictions_df['gameday'] = pd.to_datetime(predictions_df['gameday'], errors='coerce')
+        mask = predictions_df['gameday'] <= pd.to_datetime(datetime.now())
+        predictions_df = predictions_df[mask]
+        predictions_df.sort_values(by='gameday', ascending=False, inplace=True)
+        st.dataframe(predictions_df[display_cols].head(50), use_container_width=True, hide_index=True)
         st.write(f"Predictions data shape: {predictions_df.shape}")
     else:
         st.warning("Predictions CSV not found. Run the model script to generate predictions.")
+
+# --- New: Display model probabilities, implied probabilities, and edge columns ---
+if st.checkbox("Show Model Probabilities, Implied Probabilities, and Edges", value=True):
+    if predictions_df is not None:
+        st.write("### Model Probabilities, Implied Probabilities, and Edges")
+        prob_cols = [
+            'game_id', 'gameday', 'home_team', 'away_team', 'home_score', 'away_score',
+            'spread_line', 'total_line',
+            'prob_underdogCovered', 'implied_prob_underdog_spread', 'edge_underdog_spread',
+            'prob_underdogWon', 'implied_prob_underdog_ml', 'edge_underdog_ml',
+            'prob_overHit', 'implied_prob_over', 'edge_over',
+            'implied_prob_under', 'edge_under'
+        ]
+        # Only show columns that exist
+        # Add favored_team column
+        def get_favored_team(row):
+            if not pd.isnull(row.get('spread_line', None)):
+                if row['spread_line'] < 0:
+                    return row['home_team']
+                elif row['spread_line'] > 0:
+                    return row['away_team']
+                else:
+                    return 'Pick'
+            return None
+        predictions_df['favored_team'] = predictions_df.apply(get_favored_team, axis=1)
+        # Build display_cols: all columns in prob_cols that exist, plus favored_team after away_team
+        display_cols = [col for col in prob_cols if col in predictions_df.columns]
+        if 'favored_team' in predictions_df.columns and 'favored_team' not in display_cols:
+            # Insert after away_team if possible, else at the end
+            if 'away_team' in display_cols:
+                idx = display_cols.index('away_team') + 1
+                display_cols.insert(idx, 'favored_team')
+            else:
+                display_cols.append('favored_team')
+        predictions_df['gameday'] = pd.to_datetime(predictions_df['gameday'], errors='coerce')
+        today = pd.to_datetime(datetime.now().date())
+        next_week = today + pd.Timedelta(days=7)
+        mask = (predictions_df['gameday'] >= today) & (predictions_df['gameday'] < next_week)
+        predictions_df = predictions_df[mask]
+        st.dataframe(predictions_df[display_cols].sort_values(by='gameday', ascending=False).head(50), use_container_width=True, hide_index=True)
+        st.write(f"Probabilities/edges data shape: {predictions_df.shape}")
+        st.markdown("""
+        **Column meanings:**
+        - `prob_underdogCovered`: Model probability underdog covers the spread
+        - `implied_prob_underdog_spread`: Implied probability from sportsbook odds for underdog covering
+        - `edge_underdog_spread`: Model edge for underdog spread bet
+        - `prob_underdogWon`: Model probability underdog wins outright (moneyline)
+        - `implied_prob_underdog_ml`: Implied probability from sportsbook odds for underdog moneyline
+        - `edge_underdog_ml`: Model edge for underdog moneyline bet
+        - `prob_overHit`: Model probability total goes over
+        - `implied_prob_over`: Implied probability from sportsbook odds for over
+        - `edge_over`: Model edge for over bet
+        - `implied_prob_under`: Implied probability from sportsbook odds for under
+        - `edge_under`: Model edge for under bet
+        """)
+    else:
+        st.warning("Predictions CSV not found. Run the model script to generate predictions.")
+
+if st.checkbox("Show Model Feature Importances & Metrics", value=False):
+    st.write("### Model Feature Importances and Error Metrics")
+    # Try to load feature importances and metrics if saved as a CSV or JSON
+    import json
+    metrics_path = path.join(DATA_DIR, 'model_metrics.json')
+    importances_path = path.join(DATA_DIR, 'model_feature_importances.csv')
+    # Display metrics
+    if os.path.exists(metrics_path):
+        with open(metrics_path, 'r') as f:
+            metrics = json.load(f)
+        st.write("#### Model Error Metrics")
+        for k, v in metrics.items():
+            st.write(f"{k}: {v}")
+    else:
+        st.info("No model metrics file found. Run the model script to generate metrics.")
+    # Display feature importances
+    if os.path.exists(importances_path):
+        importances_df = pd.read_csv(importances_path)
+        st.write("#### Feature Importances (Top 10)")
+        st.dataframe(importances_df.head(10), use_container_width=True, hide_index=True)
+    else:
+        st.info("No feature importances file found. Run the model script to generate importances.")
 
 if st.checkbox("Show/Apply Filters", value=False):
     import math
@@ -295,3 +516,249 @@ if st.checkbox("Show/Apply Filters", value=False):
     st.write("### Filtered Historical Data")
     st.dataframe(filtered_data.head(50), width=800)
     st.write(f"Filtered data shape: {filtered_data.shape}")
+
+if st.checkbox("Run Monte Carlo Feature Selection", value=False):
+    st.write("### Monte Carlo Feature Selection (Spread Model)")
+    import random
+    from sklearn.model_selection import cross_val_score
+    from sklearn.metrics import make_scorer, roc_auc_score, f1_score
+    # User controls
+    num_iter = st.number_input("Number of Iterations", min_value=10, max_value=500, value=100, step=10)
+    subset_size = st.number_input("Subset Size", min_value=2, max_value=len(features), value=8, step=1)
+    random_seed = st.number_input("Random Seed", min_value=0, value=42, step=1)
+    run_mc = st.button("Run Monte Carlo Search")
+    if run_mc:
+        with st.spinner("Running Monte Carlo feature selection..."):
+            best_score = 0
+            best_features = []
+            random.seed(random_seed)
+            scores_list = []
+            for i in range(int(num_iter)):
+                subset = random.sample(features, int(subset_size))
+                X_subset = X_train_spread[subset]
+                model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+                acc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='accuracy').mean()
+                # For AUC and F1, use make_scorer
+                try:
+                    auc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='roc_auc').mean()
+                except Exception:
+                    auc = float('nan')
+                try:
+                    f1 = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='f1').mean()
+                except Exception:
+                    f1 = float('nan')
+                scores_list.append({
+                    'iteration': i+1,
+                    'features': subset,
+                    'accuracy': acc,
+                    'AUC': auc,
+                    'F1-score': f1
+                })
+                if acc > best_score:
+                    best_score = acc
+                    best_features = subset
+        st.success(f"Best mean CV accuracy: {best_score:.4f}")
+        st.write(f"Best feature subset:")
+        st.code(best_features)
+        # Save best features to file (spread)
+        with open(path.join(DATA_DIR, 'best_features_spread.txt'), 'w') as f:
+            f.write("\n".join(best_features))
+        # Retrain model using best_features and calibrate probabilities
+        X_train_best = X_train_spread[best_features]
+        X_test_best = X_test_spread[best_features]
+        from sklearn.calibration import CalibratedClassifierCV
+        model_spread_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+        calibrated_model = CalibratedClassifierCV(model_spread_best, method='isotonic', cv=3)
+        calibrated_model.fit(X_train_best, y_spread_train)
+        y_spread_pred_best = calibrated_model.predict(X_test_best)
+        spread_accuracy_best = accuracy_score(y_spread_test, y_spread_pred_best)
+        # Probability sanity check
+        probs = calibrated_model.predict_proba(X_test_best)[:, 1]
+        mean_pred_prob = np.mean(probs)
+        actual_rate = np.mean(y_spread_test)
+        st.write(f"Accuracy with best features: {spread_accuracy_best:.4f}")
+        st.write(f"Mean predicted probability (test set): {mean_pred_prob:.4f}")
+        st.write(f"Actual outcome rate (test set): {actual_rate:.4f}")
+        # Show top 10 results
+        scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
+        st.write("#### Top 10 Feature Subsets (by Accuracy)")
+        st.dataframe(scores_df, use_container_width=True, hide_index=True)
+
+if st.checkbox("Run Monte Carlo Feature Selection (Favorites v. Underdogs)", value=False):
+    st.write("### Monte Carlo Feature Selection (Spread Model)")
+    import random
+    from sklearn.model_selection import cross_val_score
+    from sklearn.metrics import make_scorer, roc_auc_score, f1_score
+    # User controls
+    num_iter = st.number_input("Number of Iterations", min_value=10, max_value=500, value=100, step=10)
+    subset_size = st.number_input("Subset Size", min_value=2, max_value=len(features), value=8, step=1)
+    random_seed = st.number_input("Random Seed", min_value=0, value=42, step=1)
+    run_mc = st.button("Run Monte Carlo Search")
+    if run_mc:
+        with st.spinner("Running Monte Carlo feature selection..."):
+            best_score = 0
+            best_features = []
+            random.seed(random_seed)
+            scores_list = []
+            for i in range(int(num_iter)):
+                subset = random.sample(features, int(subset_size))
+                X_subset = X_train_spread[subset]
+                model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+                acc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='accuracy').mean()
+                # For AUC and F1, use make_scorer
+                try:
+                    auc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='roc_auc').mean()
+                except Exception:
+                    auc = float('nan')
+                try:
+                    f1 = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='f1').mean()
+                except Exception:
+                    f1 = float('nan')
+                scores_list.append({
+                    'iteration': i+1,
+                    'features': subset,
+                    'accuracy': acc,
+                    'AUC': auc,
+                    'F1-score': f1
+                })
+                if acc > best_score:
+                    best_score = acc
+                    best_features = subset
+        st.success(f"Best mean CV accuracy: {best_score:.4f}")
+        st.write(f"Best feature subset:")
+        st.code(best_features)
+        # Retrain model using best_features
+        X_train_best = X_train_spread[best_features]
+        X_test_best = X_test_spread[best_features]
+        model_spread_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+        model_spread_best.fit(X_train_best, y_spread_train)
+        y_spread_pred_best = model_spread_best.predict(X_test_best)
+        spread_accuracy_best = accuracy_score(y_spread_test, y_spread_pred_best)
+        st.write(f"Accuracy with best features: {spread_accuracy_best:.4f}")
+        # Show top 10 results
+        scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
+        st.write("#### Top 10 Feature Subsets (by Accuracy)")
+        st.dataframe(scores_df, use_container_width=True, hide_index=True)
+
+# --- Monte Carlo Feature Selection: Moneyline ---
+if st.checkbox("Run Monte Carlo Feature Selection (Moneyline)", value=False):
+    st.write("### Monte Carlo Feature Selection (Moneyline Model)")
+    import random
+    from sklearn.model_selection import cross_val_score
+    from sklearn.metrics import make_scorer, roc_auc_score, f1_score
+    num_iter = st.number_input("Number of Iterations (Moneyline)", min_value=10, max_value=500, value=100, step=10)
+    subset_size = st.number_input("Subset Size (Moneyline)", min_value=2, max_value=len(features), value=8, step=1)
+    random_seed = st.number_input("Random Seed (Moneyline)", min_value=0, value=42, step=1)
+    run_mc = st.button("Run Monte Carlo Search (Moneyline)")
+    if run_mc:
+        with st.spinner("Running Monte Carlo feature selection..."):
+            best_score = 0
+            best_features = []
+            random.seed(random_seed)
+            scores_list = []
+            for i in range(int(num_iter)):
+                subset = random.sample(features, int(subset_size))
+                X_subset = X_train_ml[subset]
+                model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+                acc = cross_val_score(model, X_subset, y_train_ml, cv=3, scoring='accuracy').mean()
+                try:
+                    auc = cross_val_score(model, X_subset, y_train_ml, cv=3, scoring='roc_auc').mean()
+                except Exception:
+                    auc = float('nan')
+                try:
+                    f1 = cross_val_score(model, X_subset, y_train_ml, cv=3, scoring='f1').mean()
+                except Exception:
+                    f1 = float('nan')
+                scores_list.append({
+                    'iteration': i+1,
+                    'features': subset,
+                    'accuracy': acc,
+                    'AUC': auc,
+                    'F1-score': f1
+                })
+                if acc > best_score:
+                    best_score = acc
+                    best_features = subset
+        st.success(f"Best mean CV accuracy: {best_score:.4f}")
+        st.write(f"Best feature subset:")
+        st.code(best_features)
+        # Save best features to file (moneyline)
+        with open(path.join(DATA_DIR, 'best_features_moneyline.txt'), 'w') as f:
+            f.write("\n".join(best_features))
+        # Retrain model using best_features (Moneyline)
+        X_train_ml_best = X_train_ml[best_features]
+        X_test_ml_best = X_test_ml[best_features]
+        model_moneyline_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+        model_moneyline_best.fit(X_train_ml_best, y_train_ml)
+        y_moneyline_pred_best = model_moneyline_best.predict(X_test_ml_best)
+        moneyline_accuracy_best = accuracy_score(y_test_ml, y_moneyline_pred_best)
+        st.write(f"Accuracy with best features (Moneyline): {moneyline_accuracy_best:.4f}")
+        scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
+        st.write("#### Top 10 Feature Subsets (by Accuracy)")
+        st.dataframe(scores_df, use_container_width=True, hide_index=True)
+
+# --- Monte Carlo Feature Selection: Totals (Over) ---
+if st.checkbox("Run Monte Carlo Feature Selection (Totals)", value=False):
+    st.write("### Monte Carlo Feature Selection (Totals Model)")
+    import random
+    from sklearn.model_selection import cross_val_score
+    from sklearn.metrics import make_scorer, roc_auc_score, f1_score
+    num_iter = st.number_input("Number of Iterations (Totals)", min_value=10, max_value=500, value=100, step=10)
+    subset_size = st.number_input("Subset Size (Totals)", min_value=2, max_value=len(features), value=8, step=1)
+    random_seed = st.number_input("Random Seed (Totals)", min_value=0, value=42, step=1)
+    run_mc = st.button("Run Monte Carlo Search (Totals)")
+    if run_mc:
+        with st.spinner("Running Monte Carlo feature selection..."):
+            best_score = 0
+            best_features = []
+            random.seed(random_seed)
+            scores_list = []
+            valid_totals_features = list(X_train_tot.columns)
+            for i in range(int(num_iter)):
+                subset = random.sample(valid_totals_features, int(subset_size))
+                X_subset = X_train_tot[subset]
+                model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+                acc = cross_val_score(model, X_subset, y_train_tot, cv=3, scoring='accuracy').mean()
+                try:
+                    auc = cross_val_score(model, X_subset, y_train_tot, cv=3, scoring='roc_auc').mean()
+                except Exception:
+                    auc = float('nan')
+                try:
+                    f1 = cross_val_score(model, X_subset, y_train_tot, cv=3, scoring='f1').mean()
+                except Exception:
+                    f1 = float('nan')
+                scores_list.append({
+                    'iteration': i+1,
+                    'features': subset,
+                    'accuracy': acc,
+                    'AUC': auc,
+                    'F1-score': f1
+                })
+                if acc > best_score:
+                    best_score = acc
+                    best_features = subset
+        st.success(f"Best mean CV accuracy: {best_score:.4f}")
+        st.write(f"Best feature subset:")
+        st.code(best_features)
+        # Save best features to file (totals)
+        with open(path.join(DATA_DIR, 'best_features_totals.txt'), 'w') as f:
+            f.write("\n".join(best_features))
+        # Retrain model using best_features and calibrate probabilities (Totals)
+        X_train_tot_best = X_train_tot[best_features]
+        X_test_tot_best = X_test_tot[best_features]
+        from sklearn.calibration import CalibratedClassifierCV
+        model_totals_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+        calibrated_model_totals = CalibratedClassifierCV(model_totals_best, method='isotonic', cv=3)
+        calibrated_model_totals.fit(X_train_tot_best, y_train_tot)
+        y_totals_pred_best = calibrated_model_totals.predict(X_test_tot_best)
+        totals_accuracy_best = accuracy_score(y_test_tot, y_totals_pred_best)
+        # Probability sanity check
+        probs_totals = calibrated_model_totals.predict_proba(X_test_tot_best)[:, 1]
+        mean_pred_prob_totals = np.mean(probs_totals)
+        actual_rate_totals = np.mean(y_test_tot)
+        st.write(f"Accuracy with best features (Totals): {totals_accuracy_best:.4f}")
+        st.write(f"Mean predicted probability (test set): {mean_pred_prob_totals:.4f}")
+        st.write(f"Actual outcome rate (test set): {actual_rate_totals:.4f}")
+        scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
+        st.write("#### Top 10 Feature Subsets (by Accuracy)")
+        st.dataframe(scores_df, use_container_width=True, hide_index=True)
