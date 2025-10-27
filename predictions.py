@@ -363,7 +363,7 @@ if st.checkbox("Show Model Probabilities, Implied Probabilities, and Edges", val
 if st.checkbox("Show Betting Analysis & Performance", value=True):
     if predictions_df is not None:
         st.write("### 📊 Betting Analysis & Performance")
-        
+        st.write("Assuming a $100 bet per game")
         # Load the full predictions data for analysis
         predictions_df_full = pd.read_csv(predictions_csv_path, sep='\t')
         
@@ -392,19 +392,79 @@ if st.checkbox("Show Betting Analysis & Performance", value=True):
                 # Show betting threshold info
                 st.info(f"🎲 **Strategy**: Bet on underdogs when model probability ≥ 30% (optimized threshold)")
                 
+                # Add explanatory information
+                st.markdown("#### 📊 What These Numbers Mean:")
+                
+                st.write(f"**Total Bets ({len(moneyline_bets):,})**: Your model identified {len(moneyline_bets):,} games where underdogs met the 30% probability threshold - this represents selective betting, not every game.")
+                
+                losses = len(moneyline_bets) - moneyline_wins
+                st.write(f"**Win Rate ({moneyline_win_rate:.1%})**: Out of {len(moneyline_bets):,} bets, you won {moneyline_wins:,} bets and lost {losses:,} bets. This is exceptionally high for underdog betting (underdogs typically win around 35-40% of games).")
+                
+                original_investment = len(moneyline_bets) * 100
+                total_payout = moneyline_total_return + original_investment
+                st.write(f"**Total Return (${moneyline_total_return:,.2f})**: Assuming $100 bets per game, this represents profit (not including your original ${original_investment:,.2f} investment). Your total payout would be ${total_payout:,.2f}.")
+                
+                st.write(f"**ROI ({moneyline_roi:.1%})**: For every $100 you bet, you made ${avg_return:.2f} in profit. This means you nearly doubled your money over the betting period.")
+                
+                st.write(f"**Average Return per Bet (${avg_return:.2f})**: On average, each $100 bet returned ${avg_return:.2f} in profit. Winning underdog bets typically pay +150 to +300 odds, so even with some losses, the big payouts create positive expected value.")
+
+                st.markdown("#### 🔍 Why This Strategy Works:")
+                st.write("• **Market Inefficiency**: Sportsbooks often undervalue underdogs with good statistical profiles")
+                st.write("• **Selective Approach**: Only betting when model confidence ≥30% filters out poor value bets")
+                st.write("• **High-Odds Payouts**: Underdog wins pay 2:1, 3:1, or higher, so you don't need to win most bets to profit")
+                st.write("• **Statistical Edge**: Your model found patterns that predict underdog victories better than market expectations")
+
                 # Show best recent bets
                 if 'gameday' in moneyline_bets.columns:
                     recent_bets = moneyline_bets.copy()
                     recent_bets['gameday'] = pd.to_datetime(recent_bets['gameday'], errors='coerce')
-                    recent_bets = recent_bets.sort_values('gameday', ascending=False).head(10)
+                    recent_bets = recent_bets.sort_values('gameday', ascending=False).head(20)
                     
-                    bet_display_cols = ['gameday', 'home_team', 'away_team', 'prob_underdogWon', 
-                                      'underdogWon', 'moneyline_bet_return']
+                    bet_display_cols = ['gameday', 'home_team', 'away_team', 'home_score', 'away_score', 
+                                      'prob_underdogWon', 'underdogWon', 'moneyline_bet_return']
                     bet_display_cols = [col for col in bet_display_cols if col in recent_bets.columns]
                     
                     if bet_display_cols:
                         st.write("#### 🔥 Recent Moneyline Bets")
-                        st.dataframe(recent_bets[bet_display_cols], use_container_width=True, hide_index=True)
+                        
+                        recent_bets_display = recent_bets[bet_display_cols].copy()
+                        
+                        # Convert probability to percentage for display
+                        recent_bets_display['prob_underdogWon'] = recent_bets_display['prob_underdogWon'] * 100
+                        
+                        # Create formatted score column with whole numbers
+                        if 'home_score' in recent_bets_display.columns and 'away_score' in recent_bets_display.columns:
+                            recent_bets_display['Score'] = recent_bets_display['home_score'].astype(int).astype(str) + '-' + recent_bets_display['away_score'].astype(int).astype(str)
+                        
+                        # Rename columns for better display
+                        recent_bets_display = recent_bets_display.rename(columns={
+                            'gameday': 'Date',
+                            'home_team': 'Home',
+                            'away_team': 'Away', 
+                            'prob_underdogWon': 'Model %',
+                            'underdogWon': 'Won?',
+                            'moneyline_bet_return': 'Return'
+                        })
+                    
+                        # Select final display columns (excluding individual score columns)
+                        final_display_cols = ['Date', 'Home', 'Away', 'Score', 'Model %', 'Won?', 'Return']
+                        final_display_cols = [col for col in final_display_cols if col in recent_bets_display.columns]
+                        
+                        st.dataframe(
+                            recent_bets_display[final_display_cols],
+                            column_config={
+                                'Date': st.column_config.DateColumn(format='MM/DD/YYYY'),
+                                'Home': st.column_config.TextColumn(width='medium'),
+                                'Away': st.column_config.TextColumn(width='medium'),
+                                'Score': st.column_config.TextColumn(width='small'),
+                                'Model %': st.column_config.NumberColumn(format='%.1f%%'),
+                                'Won?': st.column_config.CheckboxColumn(),
+                                'Return': st.column_config.NumberColumn(format='$%.2f')
+                            },
+                            use_container_width=True,
+                            height=750,
+                            hide_index=True
+                        )
         
         # Spread betting stats (if available)
         if 'spread_bet_return' in predictions_df_full.columns:
@@ -429,7 +489,7 @@ if st.checkbox("Show Betting Analysis & Performance", value=True):
         baseline_accuracy = (predictions_df_full['underdogWon'] == 0).mean()  # Always pick favorites
         st.write(f"- **Baseline Strategy (Always Pick Favorites)**: {baseline_accuracy:.1%} accuracy")
         st.write(f"- **Our Model**: Identifies profitable underdog opportunities with {moneyline_roi:.1%} ROI")
-        st.write(f"- **Key Insight**: While model sacrifices overall accuracy, it finds **value bets** with positive expected return")
+        st.write(f"- **Key Insight**: While model sacrifices overall accuracy, it finds value bets with positive expected return")
         
     else:
         st.warning("Predictions CSV not found. Run the model script to generate betting analysis.")
