@@ -1,0 +1,5 @@
+awayTeamFavoredPct
+homeTeamUnderHitPct
+awayTeamWinPct
+homeTeamTotalHitPct
+spread_line

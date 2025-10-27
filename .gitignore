@@ -1,0 +1,28 @@
+# Created by venv; see https://docs.python.org/3/library/venv.html
+/Lib/*
+/Scripts/*
+/Include/*
+/pyvenv.cfg
+/share/*
+/data_files/stats_player*
+/data_files/stats_team*
+/data_files/Gemini*
+/data_files/espn_schedule*
+/data_files/logo for *
+logo for NFL predict.png
+.DS_Store
+.vscode/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3   
+*.db
+*.log
+# Uncomment the following line to ignore pip cache directory
+__pypackages__/  
+create_nflfastR_fields_md.py
+/etc/*
+fetch_espn_weekly_scores.py
+espn_nfl_scores_2020_2024.csv
+nflfastR_games_2020_2024.csv
