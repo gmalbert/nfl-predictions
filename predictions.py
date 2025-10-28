@@ -356,7 +356,7 @@ if st.checkbox("Show Model Probabilities, Implied Probabilities, and Edges", val
         - `implied_prob_underdog_spread`: Implied probability from sportsbook odds for underdog covering
         - `edge_underdog_spread`: Model edge for underdog spread bet
         - `prob_underdogWon`: Model probability underdog wins outright (moneyline)
-        - `pred_underdogWon_optimal`: **🎯 BETTING SIGNAL** ✓ = Bet on underdog (optimized threshold ≥30%)
+        - `pred_underdogWon_optimal`: **🎯 BETTING SIGNAL** ✅ = Bet on underdog (optimized threshold ≥30%)
         - `implied_prob_underdog_ml`: Implied probability from sportsbook odds for underdog moneyline
         - `edge_underdog_ml`: Model edge for underdog moneyline bet
         - `prob_overHit`: Model probability total goes over

@@ -19,7 +19,6 @@ __pycache__/
 *.sqlite3   
 *.db
 *.log
-# Uncomment the following line to ignore pip cache directory
 __pypackages__/  
 create_nflfastR_fields_md.py
 /etc/*
@@ -27,3 +26,10 @@ fetch_espn_weekly_scores.py
 espn_nfl_scores_2020_2024.csv
 nflfastR_games_2020_2024.csv
 /data_files/qbr*
+create-play-by-play - Copy.py
+/data_files/nfl_play_by_play_thru_2025.csv.gz
+/data_files/nfl_history_2020_2024.csv
+create-nfl-historical - Copy.py
+create-play-by-play - Copy.py
+nfl-gather-data - Copy.py
+/data_files/players.csv
