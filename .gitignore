@@ -20,9 +20,8 @@ __pycache__/
 *.db
 # Large data files
 /data_files/nfl_history_2020_2024.csv
-/data_files/nfl_history_2020_2024.csv.gz
 /data_files/nfl_play_by_play_thru_2025.csv.gz
-# *.csv.gz
+# Note: nfl_history_2020_2024.csv.gz is tracked by Git LFS
 *.log
 __pypackages__/  
 create_nflfastR_fields_md.py
@@ -32,8 +31,6 @@ espn_nfl_scores_2020_2024.csv
 nflfastR_games_2020_2024.csv
 /data_files/qbr*
 create-play-by-play - Copy.py
-/data_files/nfl_play_by_play_thru_2025.csv.gz
-/data_files/nfl_history_2020_2024.csv
 create-nfl-historical - Copy.py
 create-play-by-play - Copy.py
 nfl-gather-data - Copy.py

@@ -1,0 +1,1 @@
+data_files/nfl_history_2020_2024.csv.gz filter=lfs diff=lfs merge=lfs -text
