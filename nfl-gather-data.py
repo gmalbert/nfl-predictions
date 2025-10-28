@@ -217,7 +217,7 @@ thresholds = np.arange(0.1, 0.6, 0.02)
 f1_scores = []
 for threshold in thresholds:
     y_pred_thresh = (y_moneyline_proba >= threshold).astype(int)
-    f1 = f1_score(y_test_ml, y_pred_thresh)
+    f1 = f1_score(y_test_ml, y_pred_thresh, zero_division=0)
     f1_scores.append(f1)
 
 best_threshold = thresholds[np.argmax(f1_scores)]
@@ -321,9 +321,9 @@ print(f"Totals Prediction Accuracy: {totals_accuracy:.4f}")
 # Additional metrics for moneyline model (focus on underdog prediction)
 baseline_accuracy = (y_test_ml == 0).mean()  # Always predict favorite wins
 improvement = moneyline_accuracy - baseline_accuracy
-moneyline_precision = precision_score(y_test_ml, y_moneyline_pred)
-moneyline_recall = recall_score(y_test_ml, y_moneyline_pred)
-moneyline_f1 = f1_score(y_test_ml, y_moneyline_pred)
+moneyline_precision = precision_score(y_test_ml, y_moneyline_pred, zero_division=0)
+moneyline_recall = recall_score(y_test_ml, y_moneyline_pred, zero_division=0)
+moneyline_f1 = f1_score(y_test_ml, y_moneyline_pred, zero_division=0)
 
 print(f"\nMoneyline Model Deep Analysis:")
 print(f"Baseline (always favorite): {baseline_accuracy:.4f}")
@@ -335,9 +335,9 @@ print(f"Underdog win probabilities - Mean: {y_moneyline_proba.mean():.4f}, Min: 
 # Use optimal threshold for predictions (calculated earlier)
 y_moneyline_pred_optimal = (y_moneyline_proba >= optimal_moneyline_threshold).astype(int)
 optimal_accuracy = accuracy_score(y_test_ml, y_moneyline_pred_optimal)
-optimal_precision = precision_score(y_test_ml, y_moneyline_pred_optimal)
-optimal_recall = recall_score(y_test_ml, y_moneyline_pred_optimal)
-best_f1 = f1_score(y_test_ml, y_moneyline_pred_optimal)
+optimal_precision = precision_score(y_test_ml, y_moneyline_pred_optimal, zero_division=0)
+optimal_recall = recall_score(y_test_ml, y_moneyline_pred_optimal, zero_division=0)
+best_f1 = f1_score(y_test_ml, y_moneyline_pred_optimal, zero_division=0)
 
 print(f"Optimal threshold: {optimal_moneyline_threshold:.2f}")
 print(f"With optimal threshold - Accuracy: {optimal_accuracy:.4f}, Precision: {optimal_precision:.4f}, Recall: {optimal_recall:.4f}, F1: {best_f1:.4f}")

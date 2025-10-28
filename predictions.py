@@ -2,7 +2,7 @@ import streamlit as st
 
 # Set page config FIRST - must be the very first Streamlit command
 st.set_page_config(
-    page_title="NFL Play Outcome Predictor",
+    page_title="NFL Outcome Predictor",
     page_icon="🏈",
     layout="wide"
 )
@@ -289,7 +289,7 @@ if st.checkbox("Show Model Predictions vs Actuals", value=False):
         mask = predictions_df['gameday'] <= pd.to_datetime(datetime.now())
         predictions_df = predictions_df[mask]
         predictions_df.sort_values(by='gameday', ascending=False, inplace=True)
-        st.dataframe(predictions_df[display_cols].head(50), use_container_width=True, hide_index=True)
+        st.dataframe(predictions_df[display_cols].head(50), width='stretch', hide_index=True)
         st.write(f"Predictions data shape: {predictions_df.shape}")
     else:
         st.warning("Predictions CSV not found. Run the model script to generate predictions.")
@@ -338,8 +338,17 @@ if st.checkbox("Show Model Probabilities, Implied Probabilities, and Edges", val
         
         # Format gameday to show only date (no time)
         predictions_df['gameday'] = predictions_df['gameday'].dt.strftime('%Y-%m-%d')
+        predictions_df['pred_underdogWon_optimal'] = predictions_df['pred_underdogWon_optimal'].astype(int)
         
-        st.dataframe(predictions_df[display_cols].sort_values(by='gameday', ascending=False).head(50), use_container_width=True, hide_index=True, height=470)
+        st.dataframe(
+            predictions_df[display_cols].sort_values(by='gameday', ascending=False).head(50), 
+            width='stretch', 
+            hide_index=True, 
+            height=470,
+            column_config={
+                'pred_underdogWon_optimal': st.column_config.CheckboxColumn('Betting Signal')
+            }
+        )
         # st.write(f"Probabilities/edges data shape: {predictions_df.shape}")
         st.markdown("""
         **Column meanings:**
@@ -347,7 +356,7 @@ if st.checkbox("Show Model Probabilities, Implied Probabilities, and Edges", val
         - `implied_prob_underdog_spread`: Implied probability from sportsbook odds for underdog covering
         - `edge_underdog_spread`: Model edge for underdog spread bet
         - `prob_underdogWon`: Model probability underdog wins outright (moneyline)
-        - `pred_underdogWon_optimal`: **🎯 BETTING SIGNAL** - 1 = Bet on underdog (optimized threshold ≥30%)
+        - `pred_underdogWon_optimal`: **🎯 BETTING SIGNAL** ✓ = Bet on underdog (optimized threshold ≥30%)
         - `implied_prob_underdog_ml`: Implied probability from sportsbook odds for underdog moneyline
         - `edge_underdog_ml`: Model edge for underdog moneyline bet
         - `prob_overHit`: Model probability total goes over
@@ -402,11 +411,6 @@ if st.checkbox("Show Betting Analysis & Performance", value=True):
                 
                 original_investment = len(moneyline_bets) * 100
                 total_payout = moneyline_total_return + original_investment
-                st.write(f"**Total Return (${moneyline_total_return:,.2f})**: Assuming $100 bets per game, this represents profit (not including your original ${original_investment:,.2f} investment). Your total payout would be ${total_payout:,.2f}.")
-                
-                st.write(f"**ROI ({moneyline_roi:.1%})**: For every $100 you bet, you made ${avg_return:.2f} in profit. This means you nearly doubled your money over the betting period.")
-                
-                st.write(f"**Average Return per Bet (${avg_return:.2f})**: On average, each $100 bet returned ${avg_return:.2f} in profit. Winning underdog bets typically pay +150 to +300 odds, so even with some losses, the big payouts create positive expected value.")
 
                 st.markdown("#### 🔍 Why This Strategy Works:")
                 st.write("• **Market Inefficiency**: Sportsbooks often undervalue underdogs with good statistical profiles")
@@ -461,7 +465,7 @@ if st.checkbox("Show Betting Analysis & Performance", value=True):
                                 'Won?': st.column_config.CheckboxColumn(),
                                 'Return': st.column_config.NumberColumn(format='$%.2f')
                             },
-                            use_container_width=True,
+                            width='stretch',
                             height=750,
                             hide_index=True
                         )
@@ -513,7 +517,7 @@ if st.checkbox("Show Model Feature Importances & Metrics", value=False):
     if os.path.exists(importances_path):
         importances_df = pd.read_csv(importances_path)
         st.write("#### Feature Importances (Top 10)")
-        st.dataframe(importances_df.head(10), use_container_width=True, hide_index=True)
+        st.dataframe(importances_df.head(10), width='stretch', hide_index=True)
     else:
         st.info("No feature importances file found. Run the model script to generate importances.")
 
@@ -727,7 +731,7 @@ if st.checkbox("Run Monte Carlo Feature Selection", value=False):
         # Show top 10 results
         scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
         st.write("#### Top 10 Feature Subsets (by Accuracy)")
-        st.dataframe(scores_df, use_container_width=True, hide_index=True)
+        st.dataframe(scores_df, width='stretch', hide_index=True)
 
 if st.checkbox("Run Monte Carlo Feature Selection (Favorites v. Underdogs)", value=False):
     st.write("### Monte Carlo Feature Selection (Spread Model)")
@@ -783,7 +787,7 @@ if st.checkbox("Run Monte Carlo Feature Selection (Favorites v. Underdogs)", val
         # Show top 10 results
         scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
         st.write("#### Top 10 Feature Subsets (by Accuracy)")
-        st.dataframe(scores_df, use_container_width=True, hide_index=True)
+        st.dataframe(scores_df, width='stretch', hide_index=True)
 
 # --- Monte Carlo Feature Selection: Moneyline ---
 if st.checkbox("Run Monte Carlo Feature Selection (Moneyline)", value=False):
@@ -840,7 +844,7 @@ if st.checkbox("Run Monte Carlo Feature Selection (Moneyline)", value=False):
         st.write(f"Accuracy with best features (Moneyline): {moneyline_accuracy_best:.4f}")
         scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
         st.write("#### Top 10 Feature Subsets (by Accuracy)")
-        st.dataframe(scores_df, use_container_width=True, hide_index=True)
+        st.dataframe(scores_df, width='stretch', hide_index=True)
 
 # --- Monte Carlo Feature Selection: Totals (Over) ---
 if st.checkbox("Run Monte Carlo Feature Selection (Totals)", value=False):
@@ -906,4 +910,4 @@ if st.checkbox("Run Monte Carlo Feature Selection (Totals)", value=False):
         st.write(f"Actual outcome rate (test set): {actual_rate_totals:.4f}")
         scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
         st.write("#### Top 10 Feature Subsets (by Accuracy)")
-        st.dataframe(scores_df, use_container_width=True, hide_index=True)
+        st.dataframe(scores_df, width='stretch', hide_index=True)
