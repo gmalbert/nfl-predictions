@@ -18,6 +18,11 @@ __pycache__/
 *.pyd
 *.sqlite3   
 *.db
+# Large data files
+/data_files/nfl_history_2020_2024.csv
+/data_files/nfl_history_2020_2024.csv.gz
+/data_files/nfl_play_by_play_thru_2025.csv.gz
+# *.csv.gz
 *.log
 __pypackages__/  
 create_nflfastR_fields_md.py
