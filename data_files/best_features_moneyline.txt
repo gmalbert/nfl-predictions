@@ -1,5 +1,8 @@
-awayTeamFavoredPct
-homeTeamUnderHitPct
+homeTeamBlowoutPct
 awayTeamWinPct
-homeTeamTotalHitPct
+homeTeamAvgTotal
+awayTeamGamesPlayed
+homeTeamOverHitPct
 spread_line
+homeTeamWinPct
+homeTeamSpreadCoveredPct
