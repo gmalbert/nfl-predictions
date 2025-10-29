@@ -1,8 +1,8 @@
 {
-  "Spread Accuracy": 0.5535714285714286,
+  "Spread Accuracy": 0.5625,
   "Moneyline Accuracy": 0.7023809523809523,
   "Totals Accuracy": 0.5773809523809523,
-  "Spread MAE": 0.44642857142857145,
+  "Spread MAE": 0.4375,
   "Moneyline MAE": 0.2976190476190476,
   "Totals MAE": 0.4226190476190476
 }

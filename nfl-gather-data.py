@@ -83,6 +83,77 @@ def calc_rolling_count(df, team_col):
         counts.append(len(prior_games))
     return counts
 
+def calc_current_season_stat(df, team_col, stat_col):
+    # Calculate stat for team using only current season games prior to this week
+    stats = []
+    for idx, row in df.iterrows():
+        team = row[team_col]
+        week = row['week']
+        season = row['season']
+        current_season_games = df[(df[team_col] == team) & (df['season'] == season) & (df['week'] < week)]
+        if len(current_season_games) > 0:
+            stats.append(current_season_games[stat_col].mean())
+        else:
+            stats.append(0)  # No games played yet this season
+    return stats
+
+def calc_prior_season_record(df, team_col):
+    # Calculate final win percentage from previous complete season
+    records = []
+    for idx, row in df.iterrows():
+        team = row[team_col]
+        current_season = row['season']
+        prior_season = current_season - 1
+        
+        # Get all games from prior season for this team
+        prior_season_games = df[(df['season'] == prior_season) & 
+                               ((df['home_team'] == team) | (df['away_team'] == team))]
+        
+        if len(prior_season_games) > 0:
+            # Calculate wins from prior season
+            home_wins = len(prior_season_games[(prior_season_games['home_team'] == team) & 
+                                             (prior_season_games['home_score'] > prior_season_games['away_score'])])
+            away_wins = len(prior_season_games[(prior_season_games['away_team'] == team) & 
+                                             (prior_season_games['away_score'] > prior_season_games['home_score'])])
+            total_wins = home_wins + away_wins
+            total_games = len(prior_season_games)
+            win_pct = total_wins / total_games if total_games > 0 else 0
+            records.append(win_pct)
+        else:
+            records.append(0.5)  # Default to .500 if no prior season data
+    return records
+
+def calc_head_to_head_record(df):
+    # Calculate historical head-to-head win percentage for home team vs away team
+    h2h_records = []
+    for idx, row in df.iterrows():
+        home_team = row['home_team']
+        away_team = row['away_team']
+        current_season = row['season']
+        current_week = row['week']
+        
+        # Get all historical games between these teams before this game
+        h2h_games = df[((df['home_team'] == home_team) & (df['away_team'] == away_team)) |
+                      ((df['home_team'] == away_team) & (df['away_team'] == home_team))]
+        h2h_games = h2h_games[(h2h_games['season'] < current_season) | 
+                             ((h2h_games['season'] == current_season) & (h2h_games['week'] < current_week))]
+        
+        if len(h2h_games) > 0:
+            # Count wins for home team in this matchup
+            home_team_wins = 0
+            for _, game in h2h_games.iterrows():
+                if game['home_team'] == home_team and game['home_score'] > game['away_score']:
+                    home_team_wins += 1
+                elif game['away_team'] == home_team and game['away_score'] > game['home_score']:
+                    home_team_wins += 1
+            
+            win_pct = home_team_wins / len(h2h_games)
+            h2h_records.append(win_pct)
+        else:
+            h2h_records.append(0.5)  # No historical data, assume 50/50
+    
+    return h2h_records
+
 historical_game_level_data['homeTeamWinPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'homeWin')
 historical_game_level_data['awayTeamWinPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'awayWin')
 historical_game_level_data['homeTeamCloseGamePct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'isCloseGame')
@@ -114,8 +185,25 @@ historical_game_level_data['awayTeamUnderHitPct'] = historical_game_level_data['
 historical_game_level_data['homeTeamTotalHitPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['totalHit'].mean())
 historical_game_level_data['awayTeamTotalHitPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['totalHit'].mean())
 
+# Add new enhanced features
+print("Calculating current season records...")
+historical_game_level_data['homeTeamCurrentSeasonWinPct'] = calc_current_season_stat(historical_game_level_data, 'home_team', 'homeWin')
+historical_game_level_data['awayTeamCurrentSeasonWinPct'] = calc_current_season_stat(historical_game_level_data, 'away_team', 'awayWin')
+historical_game_level_data['homeTeamCurrentSeasonAvgScore'] = calc_current_season_stat(historical_game_level_data, 'home_team', 'home_score')
+historical_game_level_data['awayTeamCurrentSeasonAvgScore'] = calc_current_season_stat(historical_game_level_data, 'away_team', 'away_score')
+historical_game_level_data['homeTeamCurrentSeasonAvgScoreAllowed'] = calc_current_season_stat(historical_game_level_data, 'home_team', 'away_score')
+historical_game_level_data['awayTeamCurrentSeasonAvgScoreAllowed'] = calc_current_season_stat(historical_game_level_data, 'away_team', 'home_score')
+
+print("Calculating prior season records...")
+historical_game_level_data['homeTeamPriorSeasonRecord'] = calc_prior_season_record(historical_game_level_data, 'home_team')
+historical_game_level_data['awayTeamPriorSeasonRecord'] = calc_prior_season_record(historical_game_level_data, 'away_team')
+
+print("Calculating head-to-head records...")
+historical_game_level_data['headToHeadHomeTeamWinPct'] = calc_head_to_head_record(historical_game_level_data)
+
 historical_game_level_data.fillna(0, inplace=True)
 historical_game_level_data.replace([np.inf, -np.inf], 0, inplace=True)
+
 # Load best feature subsets from disk
 def load_best_features(filename, all_features):
     try:
@@ -139,6 +227,10 @@ features = [
     'homeTeamAvgTotalScore', 'awayTeamAvgTotalScore', 'homeTeamGamesPlayed', 'awayTeamGamesPlayed', 'homeTeamAvgPointSpread', 'awayTeamAvgPointSpread',
     'homeTeamAvgTotal', 'awayTeamAvgTotal', 'homeTeamFavoredPct', 'awayTeamFavoredPct', 'homeTeamSpreadCoveredPct', 'awayTeamSpreadCoveredPct',
     'homeTeamOverHitPct', 'awayTeamOverHitPct', 'homeTeamUnderHitPct', 'awayTeamUnderHitPct', 'homeTeamTotalHitPct', 'awayTeamTotalHitPct',
+    # Enhanced season and matchup features
+    'homeTeamCurrentSeasonWinPct', 'awayTeamCurrentSeasonWinPct', 'homeTeamCurrentSeasonAvgScore', 'awayTeamCurrentSeasonAvgScore',
+    'homeTeamCurrentSeasonAvgScoreAllowed', 'awayTeamCurrentSeasonAvgScoreAllowed', 'homeTeamPriorSeasonRecord', 'awayTeamPriorSeasonRecord',
+    'headToHeadHomeTeamWinPct',
     # Upset-specific features
     'spreadSize', 'isCloseSpread', 'isMediumSpread', 'isLargeSpread'
 ]
