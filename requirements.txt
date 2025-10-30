@@ -1,0 +1,38 @@
+# NFL Predictions - Streamlit Application Requirements
+# Core Dependencies for production-ready NFL betting analytics platform
+
+# Web Framework
+streamlit>=1.28.0
+
+# Data Science & Machine Learning
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+xgboost>=1.7.0
+
+# NFL Data Source
+nfl-data-py>=0.3.0
+
+# HTTP Requests & Data Fetching
+requests>=2.31.0
+
+# File I/O & Serialization (built-in modules, listed for reference)
+# json - built-in
+# os - built-in
+# datetime - built-in
+# random - built-in
+# pickle - built-in (if needed for model serialization)
+
+# Optional: Enhanced Streamlit Features
+# plotly>=5.17.0  # For advanced visualizations
+# altair>=5.0.0   # For statistical visualizations
+
+# Development & Testing (uncomment if needed)
+# pytest>=7.4.0
+# jupyter>=1.0.0
+# matplotlib>=3.7.0
+# seaborn>=0.12.0
+
+# Production Deployment (uncomment for cloud deployment)
+# gunicorn>=21.2.0
+# watchdog>=3.0.0

@@ -172,18 +172,21 @@ historical_game_level_data['homeTeamGamesPlayed'] = calc_rolling_count(historica
 historical_game_level_data['awayTeamGamesPlayed'] = calc_rolling_count(historical_game_level_data, 'away_team')
 historical_game_level_data['homeTeamAvgPointSpread'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'spread_line')
 historical_game_level_data['awayTeamAvgPointSpread'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'spread_line')
-historical_game_level_data['homeTeamAvgTotal'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'total')
-historical_game_level_data['awayTeamAvgTotal'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'total')
-historical_game_level_data['homeTeamFavoredPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['homeFavored'].mean())
-historical_game_level_data['awayTeamFavoredPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['awayFavored'].mean())
-historical_game_level_data['homeTeamSpreadCoveredPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['spreadCovered'].mean())
-historical_game_level_data['awayTeamSpreadCoveredPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['spreadCovered'].mean())
-historical_game_level_data['homeTeamOverHitPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['overHit'].mean())
-historical_game_level_data['awayTeamOverHitPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['overHit'].mean())
-historical_game_level_data['homeTeamUnderHitPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['underHit'].mean())
-historical_game_level_data['awayTeamUnderHitPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['underHit'].mean())
-historical_game_level_data['homeTeamTotalHitPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['totalHit'].mean())
-historical_game_level_data['awayTeamTotalHitPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['totalHit'].mean())
+# Fix data leakage: Use betting total_line instead of actual game total
+historical_game_level_data['homeTeamAvgTotal'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'total_line')
+historical_game_level_data['awayTeamAvgTotal'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'total_line')
+# Fix data leakage: Use rolling stats instead of all-time averages
+print("Calculating time-aware percentage statistics...")
+historical_game_level_data['homeTeamFavoredPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'homeFavored')
+historical_game_level_data['awayTeamFavoredPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'awayFavored')
+historical_game_level_data['homeTeamSpreadCoveredPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'spreadCovered')
+historical_game_level_data['awayTeamSpreadCoveredPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'spreadCovered')
+historical_game_level_data['homeTeamOverHitPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'overHit')
+historical_game_level_data['awayTeamOverHitPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'overHit')
+historical_game_level_data['homeTeamUnderHitPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'underHit')
+historical_game_level_data['awayTeamUnderHitPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'underHit')
+historical_game_level_data['homeTeamTotalHitPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'totalHit')
+historical_game_level_data['awayTeamTotalHitPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'totalHit')
 
 # Add new enhanced features
 print("Calculating current season records...")
@@ -277,8 +280,33 @@ print(y_train_tot.value_counts())
 
 # Train models
 
+# Optimal XGBoost parameters for NFL predictions
+optimal_xgb_params = {
+    # Core parameters
+    'n_estimators': 300,           # More trees for better learning, with early stopping
+    'learning_rate': 0.05,         # Lower rate for stable convergence
+    'max_depth': 6,                # Moderate depth to prevent overfitting
+    'min_child_weight': 3,         # Minimum samples per leaf (higher for sports data)
+    'subsample': 0.8,              # Row sampling to reduce overfitting
+    'colsample_bytree': 0.8,       # Feature sampling per tree
+    
+    # Regularization
+    'reg_alpha': 0.1,              # L1 regularization
+    'reg_lambda': 1.0,             # L2 regularization
+    
+    # Performance
+    'eval_metric': 'logloss',      # Log loss for probability calibration
+    'random_state': 42,            # Reproducibility
+    'n_jobs': -1,                  # Use all CPU cores
+    'verbosity': 0                 # Reduce output noise
+}
+
 # Train and calibrate models for each target
-model_spread = CalibratedClassifierCV(XGBClassifier(eval_metric='logloss'), method='sigmoid', cv=3)
+print("Training Spread model with optimal parameters...")
+model_spread = CalibratedClassifierCV(
+    XGBClassifier(**optimal_xgb_params), 
+    method='sigmoid', cv=3
+)
 model_spread.fit(X_train_spread, y_spread_train)
 
 # Calculate class weights for moneyline model to handle imbalance
@@ -286,13 +314,21 @@ from sklearn.utils.class_weight import compute_class_weight
 class_weights = compute_class_weight('balanced', classes=np.unique(y_train_ml), y=y_train_ml)
 scale_pos_weight = class_weights[1] / class_weights[0]
 
+print("Training Moneyline model with optimal parameters + class weighting...")
+moneyline_params = optimal_xgb_params.copy()
+moneyline_params['scale_pos_weight'] = scale_pos_weight  # Handle class imbalance
 model_moneyline = CalibratedClassifierCV(
-    XGBClassifier(eval_metric='logloss', scale_pos_weight=scale_pos_weight), 
+    XGBClassifier(**moneyline_params), 
     method='sigmoid', cv=3
 )
 model_moneyline.fit(X_train_ml, y_train_ml)
 
-model_totals = CalibratedClassifierCV(XGBClassifier(eval_metric='logloss'), method='isotonic', cv=3)
+print("Training Totals model with optimal parameters...")
+# Totals model benefits from isotonic calibration due to different probability distribution
+model_totals = CalibratedClassifierCV(
+    XGBClassifier(**optimal_xgb_params), 
+    method='isotonic', cv=3
+)
 model_totals.fit(X_train_tot, y_train_tot)
 
 # Predict
@@ -526,31 +562,179 @@ fi_totals = pd.DataFrame({
 fi_all = pd.concat([fi_spread, fi_totals], ignore_index=True)
 fi_all.to_csv(path.join(DATA_DIR, 'model_feature_importances.csv'), index=False)
 
-# Monte Carlo feature selection to find best features
-NUM_ITER = 100
-SUBSET_SIZE = 8  # Number of features to try in each subset
-best_score = 0
-best_features = []
+# Monte Carlo feature selection for all three models
+print("\n" + "="*60)
+print("MONTE CARLO FEATURE SELECTION FOR ALL MODELS")
+print("="*60)
+
+NUM_ITER = 200  # More iterations for better optimization
+SUBSET_SIZE = 15  # More features to capture NFL complexity (was too low at 8)
 random.seed(42)
 
-for i in range(NUM_ITER):
-    subset = random.sample(best_features_spread, SUBSET_SIZE)
-    # Filter subset to only valid columns
-    valid_subset = [col for col in subset if col in X_train_spread.columns]
-    if len(valid_subset) < SUBSET_SIZE:
-        print(f"Warning: Dropped invalid features from subset: {set(subset) - set(valid_subset)}")
-    X_subset = X_train_spread[valid_subset]
-    model = XGBClassifier(eval_metric='logloss')
-    scores = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='accuracy')
-    mean_score = scores.mean()
-    if mean_score > best_score:
-        best_score = mean_score
-        best_features = subset
+# Feature count analysis:
+print(f"Total available features: {len(features)}")
+print(f"Using subset size of {SUBSET_SIZE} features per iteration")
+print(f"This represents ~{SUBSET_SIZE/len(features)*100:.1f}% of available features")
 
-print(f"Best feature subset (spread, Monte Carlo {NUM_ITER} iters): {best_features}")
-print(f"Best mean CV accuracy: {best_score:.4f}")
+# Monte Carlo parameters (lighter for faster iteration)
+monte_carlo_params = {
+    'n_estimators': 100,           # Fewer trees for faster Monte Carlo
+    'learning_rate': 0.1,          # Slightly higher for faster convergence
+    'max_depth': 4,                # Shallower trees for speed
+    'min_child_weight': 3,
+    'subsample': 0.8,
+    'colsample_bytree': 0.8,
+    'reg_alpha': 0.05,             # Light regularization
+    'reg_lambda': 0.5,
+    'eval_metric': 'logloss',
+    'random_state': 42,
+    'n_jobs': -1,
+    'verbosity': 0
+}
 
-# Save best features to a file
-with open(path.join(DATA_DIR, 'best_features_spread.txt'), 'w') as f:
-    f.write("\n".join(best_features))
-    f.write(f"\nBest mean CV accuracy: {best_score:.4f}\n")
+# Define models and their data
+models_config = [
+    {
+        'name': 'Spread',
+        'X_train': X_train_spread,
+        'y_train': y_spread_train,
+        'features': best_features_spread,
+        'filename': 'best_features_spread.txt',
+        'model_params': monte_carlo_params.copy()
+    },
+    {
+        'name': 'Moneyline',
+        'X_train': X_train_ml,
+        'y_train': y_train_ml,
+        'features': best_features_moneyline,
+        'filename': 'best_features_moneyline.txt',
+        'model_params': {**monte_carlo_params, 'scale_pos_weight': scale_pos_weight}
+    },
+    {
+        'name': 'Totals',
+        'X_train': X_train_tot,
+        'y_train': y_train_tot,
+        'features': best_features_totals,
+        'filename': 'best_features_totals.txt',
+        'model_params': monte_carlo_params.copy()
+    }
+]
+
+# Run Monte Carlo for each model
+all_results = []
+
+for config in models_config:
+    print(f"\n🎲 Monte Carlo Feature Selection - {config['name']} Model")
+    print(f"Testing {NUM_ITER} random combinations of {SUBSET_SIZE} features...")
+    
+    best_score = 0
+    best_features = []
+    scores_list = []
+    
+    for i in range(NUM_ITER):
+        # Sample features from available set
+        subset = random.sample(config['features'], min(SUBSET_SIZE, len(config['features'])))
+        
+        # Filter subset to only valid columns in training data
+        valid_subset = [col for col in subset if col in config['X_train'].columns]
+        
+        if len(valid_subset) < 2:  # Need at least 2 features
+            continue
+            
+        if len(valid_subset) < SUBSET_SIZE:
+            print(f"  Warning (iter {i+1}): Dropped invalid features: {set(subset) - set(valid_subset)}")
+        
+        X_subset = config['X_train'][valid_subset]
+        model = XGBClassifier(**config['model_params'])
+        
+        try:
+            # Calculate multiple metrics
+            acc_scores = cross_val_score(model, X_subset, config['y_train'], cv=3, scoring='accuracy')
+            acc_mean = acc_scores.mean()
+            
+            # Try to calculate AUC and F1, handle exceptions gracefully
+            try:
+                auc_scores = cross_val_score(model, X_subset, config['y_train'], cv=3, scoring='roc_auc')
+                auc_mean = auc_scores.mean()
+            except:
+                auc_mean = float('nan')
+                
+            try:
+                f1_scores = cross_val_score(model, X_subset, config['y_train'], cv=3, scoring='f1')
+                f1_mean = f1_scores.mean()
+            except:
+                f1_mean = float('nan')
+            
+            scores_list.append({
+                'iteration': i+1,
+                'features': valid_subset,
+                'accuracy': acc_mean,
+                'auc': auc_mean,
+                'f1': f1_mean,
+                'feature_count': len(valid_subset)
+            })
+            
+            # Track best based on accuracy
+            if acc_mean > best_score:
+                best_score = acc_mean
+                best_features = valid_subset
+                
+        except Exception as e:
+            print(f"  Error in iteration {i+1}: {e}")
+            continue
+    
+    # Results summary
+    print(f"✅ {config['name']} Model Results:")
+    print(f"   Best feature subset: {best_features}")
+    print(f"   Best CV accuracy: {best_score:.4f}")
+    print(f"   Total valid iterations: {len(scores_list)}")
+    
+    # Save best features to file
+    with open(path.join(DATA_DIR, config['filename']), 'w') as f:
+        f.write("\n".join(best_features))
+        f.write(f"\n# Best mean CV accuracy: {best_score:.4f}\n")
+        f.write(f"# Generated by Monte Carlo with {NUM_ITER} iterations\n")
+    
+    # Store results for comparison
+    all_results.append({
+        'model': config['name'],
+        'best_features': best_features,
+        'best_score': best_score,
+        'scores_list': scores_list
+    })
+
+# Summary comparison across all models
+print(f"\n🏆 MONTE CARLO RESULTS SUMMARY")
+print("="*50)
+for result in all_results:
+    print(f"{result['model']:>10}: {result['best_score']:.4f} accuracy, {len(result['best_features'])} features")
+
+# Save comprehensive results to JSON for analysis
+monte_carlo_results = {
+    'parameters': {
+        'num_iterations': NUM_ITER,
+        'subset_size': SUBSET_SIZE,
+        'random_seed': 42
+    },
+    'results': all_results
+}
+
+with open(path.join(DATA_DIR, 'monte_carlo_results.json'), 'w') as f:
+    # Convert numpy types to JSON serializable
+    def convert_numpy(obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return obj
+    
+    import json
+    json.dump(monte_carlo_results, f, indent=2, default=convert_numpy)
+
+print(f"\n💾 Saved optimized features to:")
+for config in models_config:
+    print(f"   - {config['filename']}")
+print(f"   - monte_carlo_results.json")
+print("\n🎯 Feature optimization complete for all models!")
