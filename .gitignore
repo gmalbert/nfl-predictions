@@ -36,12 +36,16 @@ __pypackages__/
 /data_files/logo for *
 /data_files/qbr*
 /data_files/players.csv
-/data_files/nfl-logo.jpg
-/data_files/NFL-Logo.png
+/data_files/otc*
+/data_files/schedule*
 
 # Images and logos
 logo for NFL predict.png
 /data_files/qbr_season_level.csv
+/data_files/nfl-logo.jpg
+/data_files/NFL-Logo.png
+/data_files/nfl_favicon.ico
+/data_files/gridiron-oracle_nonwhitebkgd.png
 
 # Temporary/backup files
 create_nflfastR_fields_md.py
