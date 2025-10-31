@@ -432,13 +432,13 @@ if st.checkbox("Show Model Probabilities, Implied Probabilities, and Edges", val
             'implied_prob_under', 'edge_under'
         ]
         # Only show columns that exist
-        # Add favored_team column
+        # Add favored_team column (spread_line is from away team perspective)
         def get_favored_team(row):
             if not pd.isnull(row.get('spread_line', None)):
                 if row['spread_line'] < 0:
-                    return row['home_team']
+                    return row['away_team']  # Away team favored (negative spread)
                 elif row['spread_line'] > 0:
-                    return row['away_team']
+                    return row['home_team']  # Home team favored (positive spread)
                 else:
                     return 'Pick'
             return None
@@ -550,13 +550,26 @@ if st.checkbox("Show Betting Analysis & Performance", value=True):
                     recent_bets = recent_bets.sort_values('gameday', ascending=False).head(20)
                     
                     bet_display_cols = ['gameday', 'home_team', 'away_team', 'home_score', 'away_score', 
-                                      'prob_underdogWon', 'underdogWon', 'moneyline_bet_return']
+                                      'spread_line', 'prob_underdogWon', 'underdogWon', 'moneyline_bet_return']
                     bet_display_cols = [col for col in bet_display_cols if col in recent_bets.columns]
                     
                     if bet_display_cols:
                         st.write("#### 🔥 Recent Moneyline Bets")
+                        st.write("*Shows underdog bets only. ✅ = Underdog won outright*")
                         
                         recent_bets_display = recent_bets[bet_display_cols].copy()
+                        
+                        # Add favored team column (spread_line is from away team perspective)
+                        def get_favored_team(row):
+                            if not pd.isnull(row.get('spread_line', None)):
+                                if row['spread_line'] < 0:
+                                    return row['away_team'] + ' (A)'  # Away team favored (negative spread)
+                                elif row['spread_line'] > 0:
+                                    return row['home_team'] + ' (H)'  # Home team favored (positive spread)
+                                else:
+                                    return 'Pick'
+                            return 'N/A'
+                        recent_bets_display['Favored'] = recent_bets_display.apply(get_favored_team, axis=1)
                         
                         # Convert probability to percentage for display
                         recent_bets_display['prob_underdogWon'] = recent_bets_display['prob_underdogWon'] * 100
@@ -571,12 +584,12 @@ if st.checkbox("Show Betting Analysis & Performance", value=True):
                             'home_team': 'Home',
                             'away_team': 'Away', 
                             'prob_underdogWon': 'Model %',
-                            'underdogWon': 'Won?',
+                            'underdogWon': 'Underdog Won?',
                             'moneyline_bet_return': 'Return'
                         })
                     
                         # Select final display columns (excluding individual score columns)
-                        final_display_cols = ['Date', 'Home', 'Away', 'Score', 'Model %', 'Won?', 'Return']
+                        final_display_cols = ['Date', 'Home', 'Away', 'Favored', 'Score', 'Model %', 'Underdog Won?', 'Return']
                         final_display_cols = [col for col in final_display_cols if col in recent_bets_display.columns]
                         
                         st.dataframe(
@@ -585,9 +598,10 @@ if st.checkbox("Show Betting Analysis & Performance", value=True):
                                 'Date': st.column_config.DateColumn(format='MM/DD/YYYY'),
                                 'Home': st.column_config.TextColumn(width='medium'),
                                 'Away': st.column_config.TextColumn(width='medium'),
+                                'Favored': st.column_config.TextColumn(width='medium'),
                                 'Score': st.column_config.TextColumn(width='small'),
                                 'Model %': st.column_config.NumberColumn(format='%.1f%%'),
-                                'Won?': st.column_config.CheckboxColumn(),
+                                'Underdog Won?': st.column_config.CheckboxColumn(),
                                 'Return': st.column_config.NumberColumn(format='$%.2f')
                             },
                             height=750,
@@ -621,6 +635,116 @@ if st.checkbox("Show Betting Analysis & Performance", value=True):
         
     else:
         st.warning("Predictions CSV not found. Run the model script to generate betting analysis.")
+
+# --- New: Upcoming Underdog Bets Section ---
+if st.checkbox("🔥 Show Next 10 Underdog Betting Opportunities", value=True):
+    if predictions_df is not None:
+        st.write("### 🎯 Next 10 Recommended Underdog Bets")
+        st.write("*Games where model recommends betting on underdog to win (≥28% confidence)*")
+        
+        # Filter for upcoming games where we should bet on underdog, sort by date, take first 10
+        upcoming_bets = predictions_df[predictions_df['pred_underdogWon_optimal'] == 1].copy()
+        
+        if len(upcoming_bets) > 0:
+            # Sort by date and take first 10
+            if 'gameday' in upcoming_bets.columns:
+                upcoming_bets = upcoming_bets.sort_values('gameday').head(10)
+            else:
+                upcoming_bets = upcoming_bets.head(10)
+            # Add columns for better display
+            upcoming_bets_display = upcoming_bets.copy()
+            
+            # Add favored team column (corrected logic)
+            def get_favored_team_upcoming(row):
+                if not pd.isnull(row.get('spread_line', None)):
+                    if row['spread_line'] < 0:
+                        return row['away_team'] + ' (A)'  # Away team favored
+                    elif row['spread_line'] > 0:
+                        return row['home_team'] + ' (H)'  # Home team favored
+                    else:
+                        return 'Pick'
+                return 'N/A'
+            
+            upcoming_bets_display['Favored'] = upcoming_bets_display.apply(get_favored_team_upcoming, axis=1)
+            
+            # Add underdog team column
+            def get_underdog_team(row):
+                if not pd.isnull(row.get('spread_line', None)):
+                    if row['spread_line'] < 0:
+                        return row['home_team'] + ' (H)'  # Home team underdog
+                    elif row['spread_line'] > 0:
+                        return row['away_team'] + ' (A)'  # Away team underdog
+                    else:
+                        return 'Pick'
+                return 'N/A'
+            
+            upcoming_bets_display['Underdog'] = upcoming_bets_display.apply(get_underdog_team, axis=1)
+            
+            # Convert probability to percentage for display
+            if 'prob_underdogWon' in upcoming_bets_display.columns:
+                upcoming_bets_display['Model %'] = upcoming_bets_display['prob_underdogWon'] * 100
+            
+            # Get underdog moneyline odds for expected payout
+            def get_underdog_odds_payout(row):
+                if not pd.isnull(row.get('away_moneyline', None)) and not pd.isnull(row.get('home_moneyline', None)):
+                    underdog_odds = max(row['away_moneyline'], row['home_moneyline'])  # Higher odds = underdog
+                    if underdog_odds > 0:
+                        return f"+{int(underdog_odds)} (${underdog_odds} profit on $100)"
+                    else:
+                        profit = 100 / abs(underdog_odds) * 100
+                        return f"{int(underdog_odds)} (${profit:.0f} profit on $100)"
+                return 'N/A'
+            
+            upcoming_bets_display['Expected Payout'] = upcoming_bets_display.apply(get_underdog_odds_payout, axis=1)
+            
+            # Select and rename columns for display
+            display_cols = ['gameday', 'home_team', 'away_team', 'Favored', 'Underdog', 'spread_line', 'Model %', 'Expected Payout']
+            display_cols = [col for col in display_cols if col in upcoming_bets_display.columns]
+            
+            final_display = upcoming_bets_display[display_cols].rename(columns={
+                'gameday': 'Date',
+                'home_team': 'Home',
+                'away_team': 'Away',
+                'spread_line': 'Spread'
+            })
+            
+            # Sort by date
+            if 'Date' in final_display.columns:
+                final_display = final_display.sort_values('Date')
+            
+            st.dataframe(
+                final_display,
+                column_config={
+                    'Date': st.column_config.DateColumn(format='MM/DD/YYYY'),
+                    'Home': st.column_config.TextColumn(width='medium'),
+                    'Away': st.column_config.TextColumn(width='medium'),
+                    'Favored': st.column_config.TextColumn(width='medium'),
+                    'Underdog': st.column_config.TextColumn(width='medium'),
+                    'Spread': st.column_config.NumberColumn(format='%.1f'),
+                    'Model %': st.column_config.NumberColumn(format='%.1f%%'),
+                    'Expected Payout': st.column_config.TextColumn(width='large')
+                },
+                height=400,
+                hide_index=True
+            )
+            
+            st.write(f"**📊 Showing**: {len(upcoming_bets)} next underdog betting opportunities")
+            
+            # Add explanatory note
+            st.info("""
+            **💡 How to Use This:**
+            - **Underdog**: Team recommended to bet on (model gives them ≥28% chance to win outright)
+            - **Expected Payout**: Amount you'd win on a $100 bet if underdog wins
+            - **Model %**: Model's confidence the underdog will win (higher = more confident)
+            - **Strategy**: These are value bets where the model thinks the underdog is undervalued
+            """)
+            
+        else:
+            st.info("No upcoming games with underdog betting signals found in current predictions.")
+            st.write("*The model may not have enough confidence (≥28%) in any upcoming underdog victories.*")
+    
+    else:
+        st.warning("Predictions CSV not found. Run the model script to generate betting opportunities.")
 
 if st.checkbox("Show Model Feature Importances & Metrics", value=False):
     st.write("### Model Feature Importances and Error Metrics")

@@ -5,9 +5,10 @@ A sophisticated NFL analytics platform that uses advanced machine learning to id
 ## 🎯 Key Features
 
 ### 📊 **Interactive Dashboard**
+- **🔥 Next 10 Underdog Bets**: NEW actionable section showing chronological betting opportunities with complete payout calculations
 - **Live Game Predictions**: Real-time probability calculations for upcoming NFL games
-- **Betting Signals**: Clear recommendations for when to bet on underdogs with optimized thresholds
-- **Performance Tracking**: Historical betting performance with ROI calculations
+- **Enhanced Betting Signals**: Clear recommendations with favored team identification and corrected spread logic
+- **Performance Tracking**: Historical betting performance with ROI calculations and improved recent bets display
 - **Edge Analysis**: Compare model predictions against sportsbook odds to find value bets
 - **Monte Carlo Feature Selection**: Interactive experimentation with feature combinations for model optimization
 - **Enhanced Reliability**: Robust error handling and graceful fallbacks for uninterrupted analysis
@@ -74,15 +75,23 @@ streamlit run predictions.py
 
 ### **2. Dashboard Sections**
 
-#### **📋 Model Predictions**
+#### **� Next 10 Underdog Betting Opportunities** ⭐ *NEW*
+- **Most Actionable Section**: Shows your next 10 recommended underdog bets
+- **Chronological order**: Upcoming games where model has ≥28% confidence
+- **Complete betting info**: Favored team, underdog, spread, model confidence, expected payout
+- **Real payout calculations**: Exact profit amounts for $100 bets using live moneyline odds
+- **Example**: "Vikings (H) +180 ($180 profit on $100)" when Chargers are favored
+
+#### **�📋 Model Predictions**
 - View upcoming game predictions with probabilities
 - See historical performance vs actual results
 - Filter by date ranges and teams
 
 #### **🎯 Betting Analysis & Performance**
 - **Key Section**: Shows the profitable betting strategy results
-- View recent winning bets and performance metrics
+- View recent winning bets and performance metrics with "Favored" column
 - Compare model performance vs naive baselines
+- **Enhanced Recent Bets**: Now shows who was favored and confirms underdog wins
 
 #### **📈 Probabilities & Edges**
 - **Most Important**: Look for games where `pred_underdogWon_optimal = 1`
@@ -210,6 +219,15 @@ nfl-predictions/
 - **Upgraded**: From 8-feature subsets to 15-feature subsets for better coverage
 - **Iterations**: Increased from 100 to 200 iterations for more thorough optimization
 - **Results**: Found optimal 7-8 feature models through comprehensive search space
+
+### **🔥 NEW: Streamlit Dashboard Enhancements**
+- **Next 10 Underdog Bets**: New prominent section showing actionable betting opportunities
+  - Chronological order of next 10 recommended underdog bets
+  - Complete betting info: favored team, underdog, spread, model confidence
+  - Real payout calculations with exact profit amounts for $100 bets
+- **Enhanced Recent Bets Display**: Added "Favored" column showing who sportsbooks favored
+- **Corrected Spread Logic**: Fixed favorite/underdog identification (spread_line interpretation)
+- **Improved User Experience**: Clear explanations, better formatting, actionable insights
 - **Quality**: Better feature combinations leading to improved model stability
 
 ### **✅ Fixed Threshold Documentation**
