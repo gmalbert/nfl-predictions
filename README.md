@@ -2,6 +2,33 @@
 
 A sophisticated NFL analytics platform that uses advanced machine learning to identify profitable betting opportunities. This system analyzes historical NFL data with **50+ enhanced features** across multiple time scales to predict game outcomes and provides actionable betting insights with proven **60.9% ROI** performance on data-leakage-free models.
 
+## 📋 Table of Contents
+
+- [🎯 Key Features](#-key-features)
+  - [📊 Interactive Dashboard](#-interactive-dashboard)
+  - [💰 Proven Betting Strategy](#-proven-betting-strategy)
+  - [🤖 Advanced Machine Learning](#-advanced-machine-learning)
+- [📈 Model Performance](#-model-performance-data-leakage-free)
+- [📊 Data Sources](#-data-sources)
+  - [Primary Data: NFLverse](#primary-data-nflverse)
+  - [Betting Lines: ESPN](#betting-lines-espn)
+- [🎮 How to Use](#-how-to-use)
+  - [Running the System](#1-running-the-system)
+  - [Dashboard Sections](#2-dashboard-sections)
+- [📁 Enhanced Features](#-enhanced-features)
+  - [Current Season Performance Tracking](#current-season-performance-tracking)
+  - [Historical Season Context](#historical-season-context)
+  - [Head-to-Head Matchup History](#head-to-head-matchup-history)
+- [🔧 Technical Architecture](#-technical-architecture)
+  - [Machine Learning Pipeline](#machine-learning-pipeline)
+  - [Data Engineering](#data-engineering)
+  - [Betting Strategy Architecture](#betting-strategy-architecture)
+- [📁 Recent Updates](#-recent-updates-october-2025)
+- [🎯 Getting Started](#-getting-started)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [⚠️ Responsible Gambling Notice](#️-responsible-gambling-notice)
+- [🤝 Contributing](#-contributing)
+
 ## 🎯 Key Features
 
 ### 📊 **Interactive Dashboard**
@@ -26,6 +53,8 @@ A sophisticated NFL analytics platform that uses advanced machine learning to id
 - **Data Leakage Prevention**: Strict temporal boundaries ensuring only pre-game information
 - **Class Balancing** with computed scale weights for imbalanced datasets
 - **Multi-Target Prediction**: Spread (56.3%), moneyline (64.2%), totals (56.2%) accuracy
+
+[⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
 ## 📈 **Model Performance** (Data Leakage Free)
 
@@ -61,6 +90,8 @@ A sophisticated NFL analytics platform that uses advanced machine learning to id
 - **Head-to-Head Matchups**: Team-specific historical performance data
 - **Situational Data**: Home/away performance, division games, weather conditions
 - **Advanced Metrics**: Blowout rates, close game performance, coaching records
+
+[⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
 ## 🎮 **How to Use**
 
@@ -163,6 +194,8 @@ ROI Expectation: 60.9% based on historical performance
 - **Robust Error Handling**: Graceful fallbacks for missing data and feature inconsistencies
 - **Production Ready**: No future information leakage, realistic performance expectations
 
+[⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
+
 ## 📁 **Project Structure**
 
 ```
@@ -200,7 +233,9 @@ nfl-predictions/
 - **Edge Calculation**: `model_prob - implied_odds_prob` for value identification
 - **ROI Focus**: Optimizes for profit margin, not raw accuracy percentage
 
-## �📁 **Recent Updates (October 2025)**
+[⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
+
+## � **Recent Updates (October 2025)**
 
 ### **🔥 CRITICAL: Data Leakage Elimination (Latest)**
 - **Issue Discovered**: Historical statistics were using ALL-TIME data (including future games during training)
@@ -267,7 +302,9 @@ nfl-predictions/
 - **Real-Time Validation**: Added live feature availability checking during Monte Carlo experiments
 - **Automated Fallbacks**: System degrades gracefully when optional features are unavailable
 
-## �🎯 **Getting Started**
+[⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
+
+## 🎯 **Getting Started**
 
 1. **Install Dependencies**
    ```bash
@@ -310,6 +347,8 @@ nfl-predictions/
 - **Monte Carlo time**: ~3-5 minutes for feature selection (200 iterations, 15-feature subsets)  
 - **Dashboard load time**: ~10-30 seconds for full data processing
 - **Memory usage**: ~500MB-1GB during model training with enhanced features
+
+[⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
 ## 🔧 **Troubleshooting**
 
@@ -366,5 +405,7 @@ This project welcomes contributions! Areas for improvement:
 - UI/UX improvements
 
 ---
+
+[⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
 **Built with**: Python • Streamlit • XGBoost • Scikit-learn • NFLverse Data
