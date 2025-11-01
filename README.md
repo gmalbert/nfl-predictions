@@ -106,14 +106,14 @@ streamlit run predictions.py
 
 ### **2. Dashboard Sections**
 
-#### **� Next 10 Underdog Betting Opportunities** ⭐ *NEW*
+#### **🔥 Next 10 Underdog Betting Opportunities** ⭐ *NEW*
 - **Most Actionable Section**: Shows your next 10 recommended underdog bets
 - **Chronological order**: Upcoming games where model has ≥28% confidence
 - **Complete betting info**: Favored team, underdog, spread, model confidence, expected payout
 - **Real payout calculations**: Exact profit amounts for $100 bets using live moneyline odds
 - **Example**: "Vikings (H) +180 ($180 profit on $100)" when Chargers are favored
 
-#### **�📋 Model Predictions**
+#### ** Model Predictions**
 - View upcoming game predictions with probabilities
 - See historical performance vs actual results
 - Filter by date ranges and teams
@@ -207,7 +207,7 @@ nfl-predictions/
 └── espn_nfl_scores_2020_2024.csv # Betting lines data
 ```
 
-## � **Technical Architecture**
+## 🔧 **Technical Architecture**
 
 ### **Machine Learning Pipeline**
 - **Primary Algorithm**: XGBoost with production-optimized parameters
@@ -235,7 +235,7 @@ nfl-predictions/
 
 [⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
-## � **Recent Updates (October 2025)**
+## 📁 **Recent Updates (October 2025)**
 
 ### **🔥 CRITICAL: Data Leakage Elimination (Latest)**
 - **Issue Discovered**: Historical statistics were using ALL-TIME data (including future games during training)
