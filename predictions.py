@@ -71,7 +71,17 @@ except FileNotFoundError:
 
 # Load full NFL schedule from ESPN API (all regular season weeks) and save to CSV
 current_year = datetime.now().year
-historical_game_level_data = pd.read_csv(path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv'), sep='\t')
+
+# Load historical game data with error handling
+try:
+    historical_game_level_data = pd.read_csv(path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv'), sep='\t')
+except FileNotFoundError:
+    st.error("Critical file missing: nfl_games_historical_with_predictions.csv")
+    st.info("Please run 'python nfl-gather-data.py' first to generate the required data files.")
+    st.stop()  # Stop execution if critical data is missing
+except Exception as e:
+    st.error(f"Error loading historical game data: {str(e)}")
+    st.stop()
 
 # Uncomment below to pull down current year schedule from ESPN
 # Uncomment and run once to get data, then comment back
@@ -146,8 +156,15 @@ historical_data = load_data()
 
 @st.cache_data
 def load_schedule():
-    schedule_data = pd.read_csv(path.join(DATA_DIR, f'espn_schedule_{current_year}.csv'), low_memory=False)
-    return schedule_data
+    try:
+        schedule_data = pd.read_csv(path.join(DATA_DIR, f'espn_schedule_{current_year}.csv'), low_memory=False)
+        return schedule_data
+    except FileNotFoundError:
+        st.warning(f"Schedule file for {current_year} not found. Schedule data will be unavailable.")
+        return pd.DataFrame()  # Return empty DataFrame as fallback
+    except Exception as e:
+        st.error(f"Error loading schedule data: {str(e)}")
+        return pd.DataFrame()
 
 schedule = load_schedule()
 
@@ -498,10 +515,15 @@ if st.checkbox("Show Betting Analysis & Performance", value=True):
         st.write("### 📊 Betting Analysis & Performance")
         st.write("Assuming a $100 bet per game")
         # Load the full predictions data for analysis
-        predictions_df_full = pd.read_csv(predictions_csv_path, sep='\t')
+        try:
+            predictions_df_full = pd.read_csv(predictions_csv_path, sep='\t')
+        except Exception as e:
+            st.error(f"Error loading predictions data for betting analysis: {str(e)}")
+            st.info("Please run 'python nfl-gather-data.py' to generate the required data files.")
+            predictions_df_full = None
         
         # Calculate betting statistics
-        if 'pred_underdogWon_optimal' in predictions_df_full.columns:
+        if predictions_df_full is not None and 'pred_underdogWon_optimal' in predictions_df_full.columns:
             # Moneyline betting stats
             moneyline_bets = predictions_df_full[predictions_df_full['pred_underdogWon_optimal'] == 1]
             if len(moneyline_bets) > 0:
