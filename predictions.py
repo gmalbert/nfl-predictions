@@ -4,7 +4,8 @@ import streamlit as st
 st.set_page_config(
     page_title="NFL Outcome Predictor",
     page_icon="🏈",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 import pandas as pd
@@ -508,19 +509,70 @@ X_totals_full = historical_game_level_data[available_totals_features].select_dty
 X_train_tot, X_test_tot, y_train_tot, y_test_tot = train_test_split(
     X_totals_full, y_totals, test_size=0.2, random_state=42, stratify=y_totals)
 
-if st.checkbox("Show Raw Historical Play By Play Data", value=False):
-    st.write("### Historical Data Sample")
+# Create tabs for different data views
+tab1, tab2, tab3, tab4 = st.tabs(["🏈 Play-by-Play Data", "📊 Game Summaries", "📅 Schedule", "🔍 Filters"])
+
+with tab1:
+    st.write("### Historical Play-by-Play Data Sample for " + f"{current_year-4} to {current_year-1} Seasons")
     if not historical_data.empty:
         # Play-by-play data uses 'game_date' instead of 'gameday'  
         if 'game_date' in historical_data.columns:
-            # Convert to datetime if needed
-            if historical_data['game_date'].dtype == 'object':
-                historical_data['game_date'] = pd.to_datetime(historical_data['game_date'])
-            # Filter for historical games (games that have already happened) and sort
+            # Convert to datetime and filter for completed games
+            filtered_data = historical_data.copy()
+            if filtered_data['game_date'].dtype == 'object':
+                filtered_data['game_date'] = pd.to_datetime(filtered_data['game_date'], errors='coerce')
             current_date = pd.Timestamp(datetime.now().date())
-            filtered_data = historical_data[historical_data['game_date'] <= current_date]
+            filtered_data = filtered_data[filtered_data['game_date'] <= current_date]
             filtered_data = filtered_data.sort_values(by='game_date', ascending=False)
-            st.dataframe(filtered_data.head(50), hide_index=True)
+            
+            # Select key play-by-play columns for display
+            display_cols = [
+                'game_date', 'week', 'season', 'home_team', 'away_team', 'posteam', 'defteam',
+                'game_seconds_remaining', 'qtr', 'down', 'ydstogo', 'yardline_100',
+                'play_type', 'yards_gained', 'desc', 'epa', 'wp',
+                'posteam_score', 'defteam_score', 'score_differential',
+                'pass_attempt', 'rush_attempt', 'complete_pass', 'interception', 'fumble_lost',
+                'td_prob', 'touchdown', 'field_goal_result'
+            ]
+            
+            # Only use columns that exist
+            display_cols = [col for col in display_cols if col in filtered_data.columns]
+            
+            st.dataframe(
+                filtered_data[display_cols].head(50),
+                hide_index=True,
+                height=600,
+                column_config={
+                    'game_date': st.column_config.DateColumn('Game Date', format='MM/DD/YYYY'),
+                    'week': st.column_config.NumberColumn('Week', format='%d'),
+                    'season': st.column_config.NumberColumn('Season', format='%d'),
+                    'home_team': st.column_config.TextColumn('Home Team', width='small'),
+                    'away_team': st.column_config.TextColumn('Away Team', width='small'),
+                    'posteam': st.column_config.TextColumn('Offense', width='small'),
+                    'defteam': st.column_config.TextColumn('Defense', width='small'),
+                    'game_seconds_remaining': st.column_config.NumberColumn('Time Left (s)', format='%d'),
+                    'qtr': st.column_config.NumberColumn('Qtr', format='%d'),
+                    'down': st.column_config.NumberColumn('Down', format='%d'),
+                    'ydstogo': st.column_config.NumberColumn('To Go', format='%d'),
+                    'yardline_100': st.column_config.NumberColumn('Yardline', format='%d', help='Distance from opponent endzone'),
+                    'play_type': st.column_config.TextColumn('Play Type', width='small'),
+                    'yards_gained': st.column_config.NumberColumn('Yards', format='%d'),
+                    'desc': st.column_config.TextColumn('Play Description', width='large'),
+                    'epa': st.column_config.NumberColumn('EPA', format='%.2f', help='Expected Points Added'),
+                    'wp': st.column_config.NumberColumn('Win Prob', format='%.1f%%', help='Win probability after play'),
+                    'posteam_score': st.column_config.NumberColumn('Off Score', format='%d'),
+                    'defteam_score': st.column_config.NumberColumn('Def Score', format='%d'),
+                    'score_differential': st.column_config.NumberColumn('Score Diff', format='%d'),
+                    'pass_attempt': st.column_config.CheckboxColumn('Pass?'),
+                    'rush_attempt': st.column_config.CheckboxColumn('Rush?'),
+                    'complete_pass': st.column_config.CheckboxColumn('Complete?'),
+                    'interception': st.column_config.CheckboxColumn('INT?'),
+                    'fumble_lost': st.column_config.CheckboxColumn('Fumble?'),
+                    'td_prob': st.column_config.NumberColumn('TD Prob', format='%.1f%%'),
+                    'touchdown': st.column_config.CheckboxColumn('TD?'),
+                    'field_goal_result': st.column_config.TextColumn('FG Result', width='small')
+                }
+            )
             
         else:
             # Fallback: show all data without date filtering
@@ -529,12 +581,57 @@ if st.checkbox("Show Raw Historical Play By Play Data", value=False):
     else:
         st.info("No historical play-by-play data available. The nfl_history_2020_2024.csv.gz file may be missing or empty.")
 
-if st.checkbox("Show Historical Game Summaries", value=False):
-    st.write("### Historical Game Summaries Sample")
-    historical_game_level_data = historical_game_level_data.sort_values(by='gameday', ascending=False)
-    st.dataframe(historical_game_level_data.head(50), hide_index=True)
+with tab2:
+    st.write("### Historical Game Summaries")
+    historical_game_level_data_display = historical_game_level_data.copy()
+    
+    # Convert gameday to datetime and filter for completed games only (≤ today)
+    historical_game_level_data_display['gameday'] = pd.to_datetime(historical_game_level_data_display['gameday'], errors='coerce')
+    today = pd.to_datetime(datetime.now().date())
+    historical_game_level_data_display = historical_game_level_data_display[historical_game_level_data_display['gameday'] <= today]
+    
+    # Sort by most recent games first
+    historical_game_level_data_display = historical_game_level_data_display.sort_values(by='gameday', ascending=False)
+    
+    # Select key columns for display
+    display_cols = [
+        'gameday', 'week', 'season', 'home_team', 'away_team', 'home_qb_name', 'away_qb_name',
+        'home_score', 'away_score', 'spread_line', 'home_spread_odds', 'away_spread_odds',
+        'total_line', 'spreadCovered', 'overHit', 'underdogWon',
+        'homeTeamWinPct', 'awayTeamWinPct', 'home_moneyline', 'away_moneyline'
+    ]
+    # Only use columns that exist
+    display_cols = [col for col in display_cols if col in historical_game_level_data_display.columns]
+    
+    st.dataframe(
+        historical_game_level_data_display[display_cols].head(50),
+        hide_index=True,
+        height=600,
+        column_config={
+            'gameday': st.column_config.DateColumn('Game Date', format='MM/DD/YYYY'),
+            'week': st.column_config.NumberColumn('Week', format='%d'),
+            'season': st.column_config.NumberColumn('Season', format='%d'),
+            'home_team': st.column_config.TextColumn('Home Team', width='medium'),
+            'away_team': st.column_config.TextColumn('Away Team', width='medium'),
+            'home_qb_name': st.column_config.TextColumn('Home QB', width='medium', help='Shows 0 for upcoming games'),
+            'away_qb_name': st.column_config.TextColumn('Away QB', width='medium', help='Shows 0 for upcoming games'),
+            'home_score': st.column_config.NumberColumn('Home Score', format='%d'),
+            'away_score': st.column_config.NumberColumn('Away Score', format='%d'),
+            'spread_line': st.column_config.NumberColumn('Spread', format='%.1f', help='Negative = away favored'),
+            'home_spread_odds': st.column_config.NumberColumn('Home Spread Odds', format='%d'),
+            'away_spread_odds': st.column_config.NumberColumn('Away Spread Odds', format='%d'),
+            'total_line': st.column_config.NumberColumn('O/U Line', format='%.1f'),
+            'spreadCovered': st.column_config.CheckboxColumn('Spread Covered?'),
+            'overHit': st.column_config.CheckboxColumn('Over Hit?'),
+            'underdogWon': st.column_config.CheckboxColumn('Underdog Won?'),
+            'homeTeamWinPct': st.column_config.NumberColumn('Home Win %', format='%.1f%%', help='Historical win percentage'),
+            'awayTeamWinPct': st.column_config.NumberColumn('Away Win %', format='%.1f%%', help='Historical win percentage'),
+            'home_moneyline': st.column_config.NumberColumn('Home ML', format='%d'),
+            'away_moneyline': st.column_config.NumberColumn('Away ML', format='%d')
+        }
+    )
 
-if st.checkbox("Show Schedule Data", value=False):
+with tab3:
     st.write(f"### {current_year} NFL Schedule")
     if not schedule.empty:
         display_cols = ['week', 'date', 'home_team', 'away_team', 'venue']
@@ -545,12 +642,12 @@ if st.checkbox("Show Schedule Data", value=False):
     else:
         st.warning(f"Schedule data for {current_year} is not available.")
 
-if st.checkbox("Show/Apply Filters", value=False):
+with tab4:
     import math
-    def clean_default(default_list, valid_options):
-        # Remove nan/None/invalids from default list
-        return [x for x in default_list if x in valid_options and not (isinstance(x, float) and math.isnan(x))]
-
+    
+    # Helpful message to open sidebar
+    st.info("👈 Open the sidebar (click arrow in top-left) to see filter controls")
+    
     with st.sidebar:
         st.header("Filters")
         if 'reset' not in st.session_state:
@@ -558,8 +655,10 @@ if st.checkbox("Show/Apply Filters", value=False):
         # Initialize session state for filters
         for key in filter_keys:
             if key not in st.session_state:
-                if key in ['down', 'posteam', 'defteam', 'play_type', 'qtr', 'pass_attempt']:
+                if key in ['down', 'posteam', 'defteam', 'play_type', 'qtr']:
                     st.session_state[key] = []
+                elif key == 'pass_attempt':
+                    st.session_state[key] = False  # Checkbox default
                 elif key == 'ydstogo':
                     st.session_state[key] = (int(historical_data['ydstogo'].min()), int(historical_data['ydstogo'].max()))
                 elif key == 'yardline_100':
@@ -575,8 +674,10 @@ if st.checkbox("Show/Apply Filters", value=False):
 
         if st.button("Reset Filters"):
             for key in filter_keys:
-                if key in ['down', 'posteam', 'defteam', 'play_type', 'qtr', 'pass_attempt']:
+                if key in ['down', 'posteam', 'defteam', 'play_type', 'qtr']:
                     st.session_state[key] = []
+                elif key == 'pass_attempt':
+                    st.session_state[key] = False  # Reset checkbox
                 else:
                     st.session_state[key] = None
             st.session_state['reset'] = True
@@ -594,21 +695,18 @@ if st.checkbox("Show/Apply Filters", value=False):
             'posteam_score': (int(historical_data['posteam_score'].min()), int(historical_data['posteam_score'].max())),
             'defteam_score': (int(historical_data['defteam_score'].min()), int(historical_data['defteam_score'].max())),
             'epa': (float(historical_data['epa'].min()), float(historical_data['epa'].max())),
-            'pass_attempt': [0, 1]
+            'pass_attempt': False
         }
 
         # Filters
         posteam_options = historical_data['posteam'].unique().tolist()
-        posteam_default = clean_default(st.session_state['posteam'], posteam_options)
-        posteam = st.multiselect("Possession Team", posteam_options, default=posteam_default, key="posteam")
+        posteam = st.multiselect("Possession Team", posteam_options, key="posteam")
         # Defense Team
         defteam_options = historical_data['defteam'].unique().tolist()
-        defteam_default = clean_default(st.session_state['defteam'], defteam_options)
-        defteam = st.multiselect("Defense Team", defteam_options, default=defteam_default, key="defteam")
+        defteam = st.multiselect("Defense Team", defteam_options, key="defteam")
         # Down
         down_options = [1,2,3,4]
-        down_default = clean_default(st.session_state['down'], down_options)
-        down = st.multiselect("Down", down_options, default=down_default, key="down")
+        down = st.multiselect("Down", down_options, key="down")
         # Yards To Go
         if st.session_state['ydstogo'] is None:
             st.session_state['ydstogo'] = (int(historical_data['ydstogo'].min()), int(historical_data['ydstogo'].max()))
@@ -619,12 +717,10 @@ if st.checkbox("Show/Apply Filters", value=False):
         yardline_100 = st.slider("Yardline 100", int(historical_data['yardline_100'].min()), int(historical_data['yardline_100'].max()), value=st.session_state['yardline_100'], key="yardline_100")
         # Play Type
         play_type_options = historical_data['play_type'].dropna().unique().tolist()
-        play_type_default = clean_default(st.session_state['play_type'], play_type_options)
-        play_type = st.multiselect("Play Type", play_type_options, default=play_type_default, key="play_type")
+        play_type = st.multiselect("Play Type", play_type_options, key="play_type")
         # Quarter
         qtr_options = sorted([q for q in historical_data['qtr'].dropna().unique() if not (isinstance(q, float) and math.isnan(q))])
-        qtr_default = clean_default(st.session_state['qtr'], qtr_options)
-        qtr = st.multiselect("Quarter", qtr_options, default=qtr_default, key="qtr")
+        qtr = st.multiselect("Quarter", qtr_options, key="qtr")
         # Score Differential
         if st.session_state['score_differential'] is None:
             st.session_state['score_differential'] = (int(historical_data['score_differential'].min()), int(historical_data['score_differential'].max()))
@@ -650,9 +746,7 @@ if st.checkbox("Show/Apply Filters", value=False):
             float(historical_data['epa'].max()),
             value=default_filters['epa'] if st.session_state['reset'] else (float(historical_data['epa'].min()), float(historical_data['epa'].max()))
         )
-        pass_attempt_options = [0,1]
-        pass_attempt_default = clean_default(st.session_state['pass_attempt'], pass_attempt_options)
-        pass_attempt = st.multiselect("Pass Attempt", pass_attempt_options, default=pass_attempt_default, key="pass_attempt")
+        pass_attempt = st.checkbox("Pass Attempts Only", key="pass_attempt")
 
         # Reset session state after applying
         if st.session_state['reset']:
@@ -684,12 +778,50 @@ if st.checkbox("Show/Apply Filters", value=False):
         if epa:
             filtered_data = filtered_data[(filtered_data['epa'] >= epa[0]) & (filtered_data['epa'] <= epa[1])]
         if pass_attempt:
-            filtered_data = filtered_data[filtered_data['pass_attempt'].isin(pass_attempt)]
-
+            filtered_data = filtered_data[filtered_data['pass_attempt'] == 1]
+    
     st.write("### Filtered Historical Data")
-    st.dataframe(filtered_data.head(50))
+    
+    # Create display copy and convert probability columns to percentages
+    display_data = filtered_data.head(50).copy()
+    
+    # Identify probability columns (typically range 0-1) and convert to percentages
+    prob_columns = ['wp', 'def_wp', 'home_wp', 'away_wp', 'vegas_wp', 'vegas_home_wp', 
+                    'cp', 'cpoe', 'success', 'pass_oe', 'qb_epa', 'xyac_epa']
+    
+    for col in prob_columns:
+        if col in display_data.columns:
+            # Check if values are in 0-1 range (probabilities)
+            if display_data[col].notna().any() and display_data[col].between(0, 1).all():
+                display_data[col] = display_data[col] * 100
+    
+    # Configure columns with appropriate formatting
+    column_config = {}
+    for col in display_data.columns:
+        if col in prob_columns and col in display_data.columns:
+            column_config[col] = st.column_config.NumberColumn(col, format='%.1f%%')
+        elif col in ['epa', 'wpa', 'air_epa', 'yac_epa', 'comp_air_epa', 'comp_yac_epa',
+                     'air_wpa', 'yac_wpa', 'comp_air_wpa', 'comp_yac_wpa', 'ep', 'vegas_wpa']:
+            column_config[col] = st.column_config.NumberColumn(col, format='%.3f')
+        elif col in ['yards_gained', 'air_yards', 'yards_after_catch', 'ydstogo', 
+                     'yardline_100', 'score_differential', 'posteam_score', 'defteam_score']:
+            column_config[col] = st.column_config.NumberColumn(col, format='%d')
+    
+    st.dataframe(display_data, hide_index=True, column_config=column_config if column_config else None)
 
-if st.checkbox("Show Model Predictions vs Actuals", value=False):
+# Create tabs for prediction and betting sections
+st.write("---")
+st.write("## 📈 Model Performance & Betting Analysis")
+pred_tab1, pred_tab2, pred_tab3, pred_tab4, pred_tab5, pred_tab6 = st.tabs([
+    "📊 Model Predictions", 
+    "🎯 Probabilities & Edges",
+    "💰 Betting Performance",
+    "🔥 Underdog Bets",
+    "🏈 Spread Bets",
+    "📋 Betting Log"
+])
+
+with pred_tab1:
     
     if predictions_df is not None:
         display_cols = [
@@ -706,13 +838,31 @@ if st.checkbox("Show Model Predictions vs Actuals", value=False):
         mask = predictions_df['gameday'] <= pd.to_datetime(datetime.now())
         predictions_df = predictions_df[mask]
         predictions_df.sort_values(by='gameday', ascending=False, inplace=True)
-        st.dataframe(predictions_df[display_cols].head(50), hide_index=True)
-        st.write(f"Predictions data shape: {predictions_df.shape}")
+        
+        st.dataframe(
+            predictions_df[display_cols].head(50), 
+            hide_index=True,
+            height=600,
+            column_config={
+                'game_id': None,
+                'gameday': st.column_config.DateColumn('Game Date', format='MM/DD/YYYY'),
+                'home_team': st.column_config.TextColumn('Home Team', width='medium'),
+                'away_team': st.column_config.TextColumn('Away Team', width='medium'),
+                'home_score': st.column_config.NumberColumn('Home Score', format='%d'),
+                'away_score': st.column_config.NumberColumn('Away Score', format='%d'),
+                'total_line': st.column_config.NumberColumn('O/U Line', format='%.1f', help='Over/Under betting line'),
+                'spread_line': st.column_config.NumberColumn('Spread', format='%.1f', help='Point spread (negative = away favored)'),
+                'predictedSpreadCovered': st.column_config.CheckboxColumn('Predicted Spread', help='Model prediction: underdog covers spread'),
+                'spreadCovered': st.column_config.CheckboxColumn('Actual Spread', help='Actual result: underdog covered spread'),
+                'predictedOverHit': st.column_config.CheckboxColumn('Predicted Over', help='Model prediction: total goes over'),
+                'overHit': st.column_config.CheckboxColumn('Actual Over', help='Actual result: total went over')
+            }
+        )
+        st.caption(f"Showing 50 most recent completed games • Total predictions: {predictions_df.shape[0]:,} games")
     else:
         st.warning("Predictions CSV not found. Run the model script to generate predictions.")
 
-# --- New: Display model probabilities, implied probabilities, and edge columns ---
-if st.checkbox("Show Model Probabilities, Implied Probabilities, and Edges", value=True):
+with pred_tab2:
     if predictions_df is not None:
         st.write("### Model Probabilities, Implied Probabilities, and Edges")
         prob_cols = [
@@ -753,39 +903,62 @@ if st.checkbox("Show Model Probabilities, Implied Probabilities, and Edges", val
         # Filter out games with zero spread lines (no betting data available)
         predictions_df = predictions_df[predictions_df['spread_line'] != 0.0]
         
-        # Format gameday to show only date (no time)
-        predictions_df['gameday'] = predictions_df['gameday'].dt.strftime('%Y-%m-%d')
+        # Don't convert gameday to string yet - keep as datetime for sorting
         predictions_df['pred_underdogWon_optimal'] = predictions_df['pred_underdogWon_optimal'].astype(int)
         
+        # Create a display copy and convert probabilities/edges to percentages
+        display_df = predictions_df[display_cols].sort_values(by='gameday', ascending=False).head(50).copy()
+        
+        # Convert probability and edge columns from decimal to percentage
+        prob_cols = ['prob_underdogCovered', 'implied_prob_underdog_spread', 'edge_underdog_spread',
+                     'prob_underdogWon', 'implied_prob_underdog_ml', 'edge_underdog_ml',
+                     'prob_overHit', 'implied_prob_over', 'edge_over', 'implied_prob_under', 'edge_under']
+        for col in prob_cols:
+            if col in display_df.columns:
+                display_df[col] = display_df[col] * 100
+        
         st.dataframe(
-            predictions_df[display_cols].sort_values(by='gameday', ascending=False).head(50), 
+            display_df, 
             hide_index=True, 
-            height=545,
+            height=600,
             column_config={
-                'pred_underdogWon_optimal': st.column_config.CheckboxColumn('Betting Signal')
+                'gameday': st.column_config.DateColumn('Date', format='MM/DD/YYYY', width='small'),
+                'home_team': st.column_config.TextColumn('Home', width='small'),
+                'away_team': st.column_config.TextColumn('Away', width='small'),
+                'favored_team': st.column_config.TextColumn('Favored', width='small', help='Team favored to win'),
+                'home_score': st.column_config.NumberColumn('Home Pts', format='%d', width='small'),
+                'away_score': st.column_config.NumberColumn('Away Pts', format='%d', width='small'),
+                'spread_line': st.column_config.NumberColumn('Spread', format='%.1f', width='small', help='Point spread (negative = away favored)'),
+                'total_line': st.column_config.NumberColumn('O/U', format='%.1f', width='small', help='Over/Under line'),
+                'prob_underdogCovered': st.column_config.NumberColumn('Spread Prob', format='%.1f%%', width='small', help='Model probability underdog covers spread'),
+                'implied_prob_underdog_spread': st.column_config.NumberColumn('Implied Spread', format='%.1f%%', width='small', help='Sportsbook implied probability for underdog covering'),
+                'edge_underdog_spread': st.column_config.NumberColumn('Spread Edge', format='%.1f%%', width='small', help='Model edge for underdog spread bet'),
+                'prob_underdogWon': st.column_config.NumberColumn('ML Prob', format='%.1f%%', width='small', help='Model probability underdog wins outright'),
+                'pred_underdogWon_optimal': st.column_config.CheckboxColumn('ML Signal', help='🎯 Betting signal: Bet on underdog (≥28% threshold)'),
+                'implied_prob_underdog_ml': st.column_config.NumberColumn('Implied ML', format='%.1f%%', width='small', help='Sportsbook implied probability for underdog moneyline'),
+                'edge_underdog_ml': st.column_config.NumberColumn('ML Edge', format='%.1f%%', width='small', help='Model edge for underdog moneyline bet'),
+                'prob_overHit': st.column_config.NumberColumn('Over Prob', format='%.1f%%', width='small', help='Model probability total goes over'),
+                'implied_prob_over': st.column_config.NumberColumn('Implied Over', format='%.1f%%', width='small', help='Sportsbook implied probability for over'),
+                'edge_over': st.column_config.NumberColumn('Over Edge', format='%.1f%%', width='small', help='Model edge for over bet'),
+                'implied_prob_under': st.column_config.NumberColumn('Implied Under', format='%.1f%%', width='small', help='Sportsbook implied probability for under'),
+                'edge_under': st.column_config.NumberColumn('Under Edge', format='%.1f%%', width='small', help='Model edge for under bet')
             }
         )
-        # st.write(f"Probabilities/edges data shape: {predictions_df.shape}")
-        st.markdown("""
-        **Column meanings:**
-        - `prob_underdogCovered`: Model probability underdog covers the spread
-        - `implied_prob_underdog_spread`: Implied probability from sportsbook odds for underdog covering
-        - `edge_underdog_spread`: Model edge for underdog spread bet
-        - `prob_underdogWon`: Model probability underdog wins outright (moneyline)
-        - `pred_underdogWon_optimal`: **🎯 BETTING SIGNAL** ✅ = Bet on underdog (optimized threshold ≥24%)
-        - `implied_prob_underdog_ml`: Implied probability from sportsbook odds for underdog moneyline
-        - `edge_underdog_ml`: Model edge for underdog moneyline bet
-        - `prob_overHit`: Model probability total goes over
-        - `implied_prob_over`: Implied probability from sportsbook odds for over
-        - `edge_over`: Model edge for over bet
-        - `implied_prob_under`: Implied probability from sportsbook odds for under
-        - `edge_under`: Model edge for under bet
+        st.caption(f"Showing next 50 upcoming games with betting data • {len(predictions_df):,} games in next week")
+        
+        st.info("""
+        **📌 Quick Reference:**
+        - **Prob Columns**: Model's predicted probability (higher = more confident)
+        - **Implied Columns**: Probability implied by sportsbook odds
+        - **Edge Columns**: Model advantage vs sportsbook (positive = value bet)
+        - **ML Signal (✅)**: Automated betting signal when model probability ≥ 28% (F1-optimized threshold)
+        
+        💡 **Positive edge = value bet opportunity** (model thinks probability is higher than sportsbook odds suggest)
         """)
     else:
         st.warning("Predictions CSV not found. Run the model script to generate predictions.")
 
-# --- New: Betting Analysis Section ---
-if st.checkbox("Show Betting Analysis & Performance", value=True):
+with pred_tab3:
     if predictions_df is not None:
         st.write("### 📊 Betting Analysis & Performance")
         st.write("Assuming a $100 bet per game")
@@ -933,8 +1106,7 @@ if st.checkbox("Show Betting Analysis & Performance", value=True):
     else:
         st.warning("Predictions CSV not found. Run the model script to generate betting analysis.")
 
-# --- New: Upcoming Underdog Bets Section ---
-if st.checkbox("🔥 Show Next 10 Underdog Betting Opportunities", value=True):
+with pred_tab4:
     if predictions_df is not None:
         st.write("### 🎯 Next 10 Recommended Underdog Bets")
         st.write("*Games where model recommends betting on underdog to win (≥28% confidence)*")
@@ -1051,8 +1223,7 @@ if st.checkbox("🔥 Show Next 10 Underdog Betting Opportunities", value=True):
     else:
         st.warning("Predictions CSV not found. Run the model script to generate betting opportunities.")
 
-# --- New: Upcoming Spread Bets Section ---
-if st.checkbox("🎯 Show Next 10 Spread Betting Opportunities", value=True):
+with pred_tab5:
     if predictions_df is not None:
         st.write("### 🏈 Next 10 Recommended Spread Bets")
         st.write("*Games where model thinks underdog will cover spread (>50% confidence)*")
@@ -1195,8 +1366,7 @@ if st.checkbox("🎯 Show Next 10 Spread Betting Opportunities", value=True):
     else:
         st.warning("Predictions CSV not found. Run the model script to generate spread betting opportunities.")
 
-# --- New: View Betting Recommendations Log ---
-if st.checkbox("📋 View Betting Recommendations Log", value=True):
+with pred_tab6:
     st.write("### 📋 Betting Recommendations Tracking Log")
     st.write("*All logged betting recommendations with performance tracking*")
     
@@ -1354,7 +1524,15 @@ if st.checkbox("📋 View Betting Recommendations Log", value=True):
     else:
         st.warning("No betting log file found. The log will be created automatically when predictions with betting signals are available.")
 
-if st.checkbox("Show Model Feature Importances & Metrics", value=False):
+# Create tabs for advanced model features
+st.write("---")
+st.write("## 🔬 Advanced Model Features")
+adv_tab1, adv_tab2 = st.tabs([
+    "📊 Feature Importances",
+    "🎲 Monte Carlo Selection"
+])
+
+with adv_tab1:
     st.write("### Model Feature Importances and Error Metrics")
     # Try to load feature importances and metrics if saved as a CSV or JSON
     import json
@@ -1364,280 +1542,336 @@ if st.checkbox("Show Model Feature Importances & Metrics", value=False):
     if os.path.exists(metrics_path):
         with open(metrics_path, 'r') as f:
             metrics = json.load(f)
-        st.write("#### Model Error Metrics")
-        for k, v in metrics.items():
-            st.write(f"{k}: {v}")
+        st.write("#### 📊 Model Performance Metrics")
+        
+        # Organize metrics into a clean table format
+        metrics_data = []
+        
+        # Extract model names and their metrics
+        models = set()
+        for key in metrics.keys():
+            if 'Spread' in key:
+                models.add('Spread')
+            elif 'Moneyline' in key:
+                models.add('Moneyline')
+            elif 'Totals' in key:
+                models.add('Totals')
+        
+        # Build table rows
+        for model in sorted(models):
+            row = {'Model': model}
+            
+            # Get accuracy
+            acc_key = f"{model} Accuracy"
+            if acc_key in metrics:
+                row['Accuracy'] = f"{metrics[acc_key]:.1%}"
+            
+            # Get MAE
+            mae_key = f"{model} MAE"
+            if mae_key in metrics:
+                row['MAE'] = f"{metrics[mae_key]:.3f}"
+            
+            # Get threshold
+            threshold_key = f"Optimal {model} Threshold"
+            if threshold_key in metrics:
+                row['Optimal Threshold'] = f"{metrics[threshold_key]:.1%}"
+            
+            metrics_data.append(row)
+        
+        # Display as a clean dataframe
+        if metrics_data:
+            metrics_df = pd.DataFrame(metrics_data)
+            st.dataframe(
+                metrics_df,
+                hide_index=True,
+                width=600,
+                column_config={
+                    'Model': st.column_config.TextColumn('Model', width='medium', help='Betting market type'),
+                    'Accuracy': st.column_config.TextColumn('Accuracy', width='medium', help='Out-of-sample prediction accuracy'),
+                    'MAE': st.column_config.TextColumn('MAE', width='medium', help='Mean Absolute Error (lower is better)'),
+                    'Optimal Threshold': st.column_config.TextColumn('Betting Threshold', width='medium', help='Probability threshold for placing bets (F1-score optimized)')
+                }
+            )
+            
+            # Add helpful explanation
+            st.info("""
+            **📌 Quick Guide:**
+            - **Accuracy**: How often the model correctly predicts outcomes on unseen data
+            - **MAE**: Average prediction error (lower = better calibration)
+            - **Betting Threshold**: Minimum probability to trigger a bet (optimized for F1-score, NOT 50%)
+            
+            💡 **Why thresholds aren't 50%**: These are optimized to maximize the F1-score (balance of precision and recall), 
+            which produces better long-term betting results than simple 50% cutoffs.
+            """)
+        
     else:
         st.info("No model metrics file found. Run the model script to generate metrics.")
     # Display feature importances
     if os.path.exists(importances_path):
         importances_df = pd.read_csv(importances_path)
-        st.write("#### Feature Importances (Top 10)")
-        st.dataframe(importances_df.head(10), hide_index=True)
+        st.write("#### Feature Importances (Top 25)")
+        
+        # Format the dataframe for better display
+        importances_display = importances_df.head(25).copy()
+        
+        st.dataframe(
+            importances_display,
+            hide_index=True,
+            height=600,
+            width=800,
+            column_config={
+                'feature': st.column_config.TextColumn('Feature Name'),
+                'importance_mean': st.column_config.NumberColumn('Importance Mean', format='%.3f', help='Average feature importance across folds'),
+                'importance_std': st.column_config.NumberColumn('Importance Std', format='%.3f', help='Standard deviation of feature importance'),
+                'model': st.column_config.TextColumn('Model', width='small', help='Model type: spread or totals')
+            }
+        )
     else:
         st.info("No feature importances file found. Run the model script to generate importances.")
 
-if st.checkbox("Run Monte Carlo Feature Selection", value=False):
-    st.write("### Monte Carlo Feature Selection (Spread Model)")
-    import random
-    from sklearn.model_selection import cross_val_score
-    from sklearn.metrics import make_scorer, roc_auc_score, f1_score
-    # User controls
-    num_iter = st.number_input("Number of Iterations", min_value=10, max_value=500, value=100, step=10, key="mc_iter_1")
-    subset_size = st.number_input("Subset Size", min_value=2, max_value=len(features), value=8, step=1, key="mc_subset_1")
-    random_seed = st.number_input("Random Seed", min_value=0, value=42, step=1, key="mc_seed_1")
-    run_mc = st.button("Run Monte Carlo Search", key="mc_run_1")
-    if run_mc:
-        with st.spinner("Running Monte Carlo feature selection..."):
-            # Filter features to only those available in the spread dataset
-            available_spread_features = list(X_train_spread.columns)
-            
-            best_score = 0
-            best_features = []
-            random.seed(random_seed)
-            scores_list = []
-            for i in range(int(num_iter)):
-                subset = random.sample(available_spread_features, min(int(subset_size), len(available_spread_features)))
-                X_subset = X_train_spread[subset]
-                model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
-                acc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='accuracy').mean()
-                # For AUC and F1, use make_scorer
-                try:
-                    auc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='roc_auc').mean()
-                except Exception:
-                    auc = float('nan')
-                try:
-                    f1 = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='f1').mean()
-                except Exception:
-                    f1 = float('nan')
-                scores_list.append({
-                    'iteration': i+1,
-                    'features': subset,
-                    'accuracy': acc,
-                    'AUC': auc,
-                    'F1-score': f1
-                })
-                if acc > best_score:
-                    best_score = acc
-                    best_features = subset
-        st.success(f"Best mean CV accuracy: {best_score:.4f}")
-        st.write(f"Best feature subset:")
-        st.code(best_features)
-        # Save best features to file (spread)
-        with open(path.join(DATA_DIR, 'best_features_spread.txt'), 'w') as f:
-            f.write("\n".join(best_features))
-        # Retrain model using best_features and calibrate probabilities
-        X_train_best = X_train_spread[best_features]
-        X_test_best = X_test_spread[best_features]
-        from sklearn.calibration import CalibratedClassifierCV
-        model_spread_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
-        calibrated_model = CalibratedClassifierCV(model_spread_best, method='isotonic', cv=3)
-        calibrated_model.fit(X_train_best, y_spread_train)
-        y_spread_pred_best = calibrated_model.predict(X_test_best)
-        spread_accuracy_best = accuracy_score(y_spread_test, y_spread_pred_best)
-        # Probability sanity check
-        probs = calibrated_model.predict_proba(X_test_best)[:, 1]
-        mean_pred_prob = np.mean(probs)
-        actual_rate = np.mean(y_spread_test)
-        st.write(f"Accuracy with best features: {spread_accuracy_best:.4f}")
-        st.write(f"Mean predicted probability (test set): {mean_pred_prob:.4f}")
-        st.write(f"Actual outcome rate (test set): {actual_rate:.4f}")
-        # Show top 10 results
-        scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
-        st.write("#### Top 10 Feature Subsets (by Accuracy)")
-        st.dataframe(scores_df, hide_index=True)
-
-if st.checkbox("Run Monte Carlo Feature Selection (Favorites v. Underdogs)", value=False):
-    st.write("### Monte Carlo Feature Selection (Spread Model)")
-    import random
-    from sklearn.model_selection import cross_val_score
-    from sklearn.metrics import make_scorer, roc_auc_score, f1_score
-    # User controls
-    num_iter = st.number_input("Number of Iterations", min_value=10, max_value=500, value=100, step=10, key="mc_iter_2")
-    subset_size = st.number_input("Subset Size", min_value=2, max_value=len(features), value=8, step=1, key="mc_subset_2")
-    random_seed = st.number_input("Random Seed", min_value=0, value=42, step=1, key="mc_seed_2")
-    run_mc = st.button("Run Monte Carlo Search", key="mc_run_2")
-    if run_mc:
-        with st.spinner("Running Monte Carlo feature selection..."):
-            # Filter features to only those available in the spread dataset
-            available_spread_features = list(X_train_spread.columns)
-            
-            best_score = 0
-            best_features = []
-            random.seed(random_seed)
-            scores_list = []
-            for i in range(int(num_iter)):
-                subset = random.sample(available_spread_features, min(int(subset_size), len(available_spread_features)))
-                X_subset = X_train_spread[subset]
-                model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
-                acc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='accuracy').mean()
-                # For AUC and F1, use make_scorer
-                try:
-                    auc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='roc_auc').mean()
-                except Exception:
-                    auc = float('nan')
-                try:
-                    f1 = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='f1').mean()
-                except Exception:
-                    f1 = float('nan')
-                scores_list.append({
-                    'iteration': i+1,
-                    'features': subset,
-                    'accuracy': acc,
-                    'AUC': auc,
-                    'F1-score': f1
-                })
-                if acc > best_score:
-                    best_score = acc
-                    best_features = subset
-        st.success(f"Best mean CV accuracy: {best_score:.4f}")
-        st.write(f"Best feature subset:")
-        st.code(best_features)
-        # Retrain model using best_features
-        X_train_best = X_train_spread[best_features]
-        X_test_best = X_test_spread[best_features]
-        model_spread_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
-        model_spread_best.fit(X_train_best, y_spread_train)
-        y_spread_pred_best = model_spread_best.predict(X_test_best)
-        spread_accuracy_best = accuracy_score(y_spread_test, y_spread_pred_best)
-        st.write(f"Accuracy with best features: {spread_accuracy_best:.4f}")
-        # Show top 10 results
-        scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
-        st.write("#### Top 10 Feature Subsets (by Accuracy)")
-        st.dataframe(scores_df, hide_index=True)
-
-# --- Monte Carlo Feature Selection: Moneyline ---
-if st.checkbox("Run Monte Carlo Feature Selection (Moneyline)", value=False):
-    st.write("### Monte Carlo Feature Selection (Moneyline Model)")
-    import random
-    from sklearn.model_selection import cross_val_score
-    from sklearn.metrics import make_scorer, roc_auc_score, f1_score
-    num_iter = st.number_input("Number of Iterations (Moneyline)", min_value=10, max_value=500, value=100, step=10)
-    # Get available numeric features for validation
-    available_features = [f for f in features if f in historical_game_level_data.columns]
-    numeric_features_count = len(historical_game_level_data[available_features].select_dtypes(include=["number", "bool", "category"]).columns)
-    subset_size = st.number_input("Subset Size (Moneyline)", min_value=2, max_value=numeric_features_count, value=min(8, numeric_features_count), step=1)
-    random_seed = st.number_input("Random Seed (Moneyline)", min_value=0, value=42, step=1)
-    run_mc = st.button("Run Monte Carlo Search (Moneyline)")
-    if run_mc:
-        with st.spinner("Running Monte Carlo feature selection..."):
-            # Filter features to only those available in the dataset
-            available_features = [f for f in features if f in historical_game_level_data.columns]
-            numeric_features = historical_game_level_data[available_features].select_dtypes(include=["number", "bool", "category"]).columns.tolist()
-            
-            best_score = 0
-            best_features = []
-            random.seed(random_seed)
-            scores_list = []
-            for i in range(int(num_iter)):
-                subset = random.sample(numeric_features, min(int(subset_size), len(numeric_features)))
-                # Create a fresh dataset slice for this subset to avoid column mismatch
-                X_subset_data = historical_game_level_data[subset]
-                X_train_subset, _, y_train_subset, _ = train_test_split(
-                    X_subset_data, y_moneyline, test_size=0.2, random_state=42, stratify=y_moneyline)
+with adv_tab2:
+    st.write("### 🎲 Monte Carlo Feature Selection")
+    st.write("*Advanced feature selection using Monte Carlo simulation*")
+    
+    mc_sub_tab1, mc_sub_tab2, mc_sub_tab3 = st.tabs([
+        "📈 Spread Model",
+        "💰 Moneyline Model",
+        "🎯 Totals Model"
+    ])
+    
+    with mc_sub_tab1:
+        st.write("### Monte Carlo Feature Selection (Spread Model)")
+        import random
+        from sklearn.model_selection import cross_val_score
+        from sklearn.metrics import make_scorer, roc_auc_score, f1_score
+        # User controls
+        num_iter = st.number_input("Number of Iterations", min_value=10, max_value=500, value=100, step=10, key="mc_iter_1")
+        subset_size = st.number_input("Subset Size", min_value=2, max_value=len(features), value=8, step=1, key="mc_subset_1")
+        random_seed = st.number_input("Random Seed", min_value=0, value=42, step=1, key="mc_seed_1")
+        run_mc = st.button("Run Monte Carlo Search", key="mc_run_1")
+        if run_mc:
+            with st.spinner("Running Monte Carlo feature selection..."):
+                # Filter features to only those available in the spread dataset
+                available_spread_features = list(X_train_spread.columns)
                 
-                model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
-                acc = cross_val_score(model, X_train_subset, y_train_subset, cv=3, scoring='accuracy').mean()
-                try:
-                    auc = cross_val_score(model, X_train_subset, y_train_subset, cv=3, scoring='roc_auc').mean()
-                except Exception:
-                    auc = float('nan')
-                try:
-                    f1 = cross_val_score(model, X_train_subset, y_train_subset, cv=3, scoring='f1').mean()
-                except Exception:
-                    f1 = float('nan')
-                scores_list.append({
-                    'iteration': i+1,
-                    'features': subset,
-                    'accuracy': acc,
-                    'AUC': auc,
-                    'F1-score': f1
-                })
-                if acc > best_score:
-                    best_score = acc
-                    best_features = subset
-        st.success(f"Best mean CV accuracy: {best_score:.4f}")
-        st.write(f"Best feature subset:")
-        st.code(best_features)
-        # Save best features to file (moneyline)
-        with open(path.join(DATA_DIR, 'best_features_moneyline.txt'), 'w') as f:
-            f.write("\n".join(best_features))
-        # Retrain model using best_features (Moneyline) - create new dataset with selected features
-        X_moneyline_best = historical_game_level_data[best_features]
-        X_train_ml_best, X_test_ml_best, _, _ = train_test_split(
-            X_moneyline_best, y_moneyline, test_size=0.2, random_state=42, stratify=y_moneyline)
-        model_moneyline_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
-        model_moneyline_best.fit(X_train_ml_best, y_train_ml)
-        y_moneyline_pred_best = model_moneyline_best.predict(X_test_ml_best)
-        moneyline_accuracy_best = accuracy_score(y_test_ml, y_moneyline_pred_best)
-        st.write(f"Accuracy with best features (Moneyline): {moneyline_accuracy_best:.4f}")
-        scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
-        st.write("#### Top 10 Feature Subsets (by Accuracy)")
-        st.dataframe(scores_df, hide_index=True)
+                best_score = 0
+                best_features = []
+                random.seed(random_seed)
+                scores_list = []
+                for i in range(int(num_iter)):
+                    subset = random.sample(available_spread_features, min(int(subset_size), len(available_spread_features)))
+                    X_subset = X_train_spread[subset]
+                    model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+                    acc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='accuracy').mean()
+                    # For AUC and F1, use make_scorer
+                    try:
+                        auc = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='roc_auc').mean()
+                    except Exception:
+                        auc = float('nan')
+                    try:
+                        f1 = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='f1').mean()
+                    except Exception:
+                        f1 = float('nan')
+                    scores_list.append({
+                        'iteration': i+1,
+                        'features': subset,
+                        'accuracy': acc,
+                        'AUC': auc,
+                        'F1-score': f1
+                    })
+                    if acc > best_score:
+                        best_score = acc
+                        best_features = subset
+            st.success(f"Best mean CV accuracy: {best_score:.3f}")
+            st.write(f"Best feature subset:")
+            st.code(best_features)
+            # Save best features to file (spread)
+            with open(path.join(DATA_DIR, 'best_features_spread.txt'), 'w') as f:
+                f.write("\n".join(best_features))
+            # Retrain model using best_features and calibrate probabilities
+            X_train_best = X_train_spread[best_features]
+            X_test_best = X_test_spread[best_features]
+            from sklearn.calibration import CalibratedClassifierCV
+            model_spread_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+            calibrated_model = CalibratedClassifierCV(model_spread_best, method='isotonic', cv=3)
+            calibrated_model.fit(X_train_best, y_spread_train)
+            y_spread_pred_best = calibrated_model.predict(X_test_best)
+            spread_accuracy_best = accuracy_score(y_spread_test, y_spread_pred_best)
+            # Probability sanity check
+            probs = calibrated_model.predict_proba(X_test_best)[:, 1]
+            mean_pred_prob = np.mean(probs)
+            actual_rate = np.mean(y_spread_test)
+            st.write(f"Accuracy with best features: {spread_accuracy_best:.3f}")
+            st.write(f"Mean predicted probability (test set): {mean_pred_prob:.3f}")
+            st.write(f"Actual outcome rate (test set): {actual_rate:.3f}")
+            # Show top 10 results
+            scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
+            st.write("#### Top 10 Feature Subsets (by Accuracy)")
+            
+            st.dataframe(
+                scores_df,
+                hide_index=True,
+                column_config={
+                    'iteration': st.column_config.NumberColumn('Iteration', format='%d'),
+                    'accuracy': st.column_config.NumberColumn('Accuracy', format='%.3f'),
+                    'AUC': st.column_config.NumberColumn('AUC', format='%.3f'),
+                    'F1-score': st.column_config.NumberColumn('F1-Score', format='%.3f'),
+                    'features': st.column_config.TextColumn('Features', width='large')
+                }
+            )
 
-# --- Monte Carlo Feature Selection: Totals (Over) ---
-if st.checkbox("Run Monte Carlo Feature Selection (Totals)", value=False):
-    st.write("### Monte Carlo Feature Selection (Totals Model)")
-    import random
-    from sklearn.model_selection import cross_val_score
-    from sklearn.metrics import make_scorer, roc_auc_score, f1_score
-    num_iter = st.number_input("Number of Iterations (Totals)", min_value=10, max_value=500, value=100, step=10)
-    subset_size = st.number_input("Subset Size (Totals)", min_value=2, max_value=len(features), value=8, step=1)
-    random_seed = st.number_input("Random Seed (Totals)", min_value=0, value=42, step=1)
-    run_mc = st.button("Run Monte Carlo Search (Totals)")
-    if run_mc:
-        with st.spinner("Running Monte Carlo feature selection..."):
-            best_score = 0
-            best_features = []
-            random.seed(random_seed)
-            scores_list = []
-            valid_totals_features = list(X_train_tot.columns)
-            for i in range(int(num_iter)):
-                subset = random.sample(valid_totals_features, int(subset_size))
-                X_subset = X_train_tot[subset]
-                model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
-                acc = cross_val_score(model, X_subset, y_train_tot, cv=3, scoring='accuracy').mean()
-                try:
-                    auc = cross_val_score(model, X_subset, y_train_tot, cv=3, scoring='roc_auc').mean()
-                except Exception:
-                    auc = float('nan')
-                try:
-                    f1 = cross_val_score(model, X_subset, y_train_tot, cv=3, scoring='f1').mean()
-                except Exception:
-                    f1 = float('nan')
-                scores_list.append({
-                    'iteration': i+1,
-                    'features': subset,
-                    'accuracy': acc,
-                    'AUC': auc,
-                    'F1-score': f1
-                })
-                if acc > best_score:
-                    best_score = acc
-                    best_features = subset
-        st.success(f"Best mean CV accuracy: {best_score:.4f}")
-        st.write(f"Best feature subset:")
-        st.code(best_features)
-        # Save best features to file (totals)
-        with open(path.join(DATA_DIR, 'best_features_totals.txt'), 'w') as f:
-            f.write("\n".join(best_features))
-        # Retrain model using best_features and calibrate probabilities (Totals)
-        X_totals_best = historical_game_level_data[best_features].select_dtypes(include=["number", "bool", "category"])
-        X_train_tot_best, X_test_tot_best, _, _ = train_test_split(
-            X_totals_best, y_totals, test_size=0.2, random_state=42, stratify=y_totals)
-        from sklearn.calibration import CalibratedClassifierCV
-        model_totals_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
-        calibrated_model_totals = CalibratedClassifierCV(model_totals_best, method='isotonic', cv=3)
-        calibrated_model_totals.fit(X_train_tot_best, y_train_tot)
-        y_totals_pred_best = calibrated_model_totals.predict(X_test_tot_best)
-        totals_accuracy_best = accuracy_score(y_test_tot, y_totals_pred_best)
-        # Probability sanity check
-        probs_totals = calibrated_model_totals.predict_proba(X_test_tot_best)[:, 1]
-        mean_pred_prob_totals = np.mean(probs_totals)
-        actual_rate_totals = np.mean(y_test_tot)
-        st.write(f"Accuracy with best features (Totals): {totals_accuracy_best:.4f}")
-        st.write(f"Mean predicted probability (test set): {mean_pred_prob_totals:.4f}")
-        st.write(f"Actual outcome rate (test set): {actual_rate_totals:.4f}")
-        scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
-        st.write("#### Top 10 Feature Subsets (by Accuracy)")
-        st.dataframe(scores_df, hide_index=True)
+    with mc_sub_tab2:
+        st.write("### Monte Carlo Feature Selection (Moneyline Model)")
+        import random
+        from sklearn.model_selection import cross_val_score
+        from sklearn.metrics import make_scorer, roc_auc_score, f1_score
+        num_iter = st.number_input("Number of Iterations (Moneyline)", min_value=10, max_value=500, value=100, step=10)
+        # Get available numeric features for validation
+        available_features = [f for f in features if f in historical_game_level_data.columns]
+        numeric_features_count = len(historical_game_level_data[available_features].select_dtypes(include=["number", "bool", "category"]).columns)
+        subset_size = st.number_input("Subset Size (Moneyline)", min_value=2, max_value=numeric_features_count, value=min(8, numeric_features_count), step=1)
+        random_seed = st.number_input("Random Seed (Moneyline)", min_value=0, value=42, step=1)
+        run_mc = st.button("Run Monte Carlo Search (Moneyline)")
+        if run_mc:
+            with st.spinner("Running Monte Carlo feature selection..."):
+                # Filter features to only those available in the dataset
+                available_features = [f for f in features if f in historical_game_level_data.columns]
+                numeric_features = historical_game_level_data[available_features].select_dtypes(include=["number", "bool", "category"]).columns.tolist()
+                
+                best_score = 0
+                best_features = []
+                random.seed(random_seed)
+                scores_list = []
+                for i in range(int(num_iter)):
+                    subset = random.sample(numeric_features, min(int(subset_size), len(numeric_features)))
+                    # Create a fresh dataset slice for this subset to avoid column mismatch
+                    X_subset_data = historical_game_level_data[subset]
+                    X_train_subset, _, y_train_subset, _ = train_test_split(
+                        X_subset_data, y_moneyline, test_size=0.2, random_state=42, stratify=y_moneyline)
+                    
+                    model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+                    acc = cross_val_score(model, X_train_subset, y_train_subset, cv=3, scoring='accuracy').mean()
+                    try:
+                        auc = cross_val_score(model, X_train_subset, y_train_subset, cv=3, scoring='roc_auc').mean()
+                    except Exception:
+                        auc = float('nan')
+                    try:
+                        f1 = cross_val_score(model, X_train_subset, y_train_subset, cv=3, scoring='f1').mean()
+                    except Exception:
+                        f1 = float('nan')
+                    scores_list.append({
+                        'iteration': i+1,
+                        'features': subset,
+                        'accuracy': acc,
+                        'AUC': auc,
+                        'F1-score': f1
+                    })
+                    if acc > best_score:
+                        best_score = acc
+                        best_features = subset
+            st.success(f"Best mean CV accuracy: {best_score:.3f}")
+            st.write(f"Best feature subset:")
+            st.code(best_features)
+            # Save best features to file (moneyline)
+            with open(path.join(DATA_DIR, 'best_features_moneyline.txt'), 'w') as f:
+                f.write("\n".join(best_features))
+            # Retrain model using best_features (Moneyline) - create new dataset with selected features
+            X_moneyline_best = historical_game_level_data[best_features]
+            X_train_ml_best, X_test_ml_best, _, _ = train_test_split(
+                X_moneyline_best, y_moneyline, test_size=0.2, random_state=42, stratify=y_moneyline)
+            model_moneyline_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+            model_moneyline_best.fit(X_train_ml_best, y_train_ml)
+            y_moneyline_pred_best = model_moneyline_best.predict(X_test_ml_best)
+            moneyline_accuracy_best = accuracy_score(y_test_ml, y_moneyline_pred_best)
+            st.write(f"Accuracy with best features (Moneyline): {moneyline_accuracy_best:.3f}")
+            scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
+            st.write("#### Top 10 Feature Subsets (by Accuracy)")
+            
+            st.dataframe(
+                scores_df,
+                hide_index=True,
+                column_config={
+                    'iteration': st.column_config.NumberColumn('Iteration', format='%d'),
+                    'accuracy': st.column_config.NumberColumn('Accuracy', format='%.3f'),
+                    'AUC': st.column_config.NumberColumn('AUC', format='%.3f'),
+                    'F1-score': st.column_config.NumberColumn('F1-Score', format='%.3f'),
+                    'features': st.column_config.TextColumn('Features', width='large')
+                }
+            )
+
+    with mc_sub_tab3:
+        st.write("### Monte Carlo Feature Selection (Totals Model)")
+        import random
+        from sklearn.model_selection import cross_val_score
+        from sklearn.metrics import make_scorer, roc_auc_score, f1_score
+        num_iter = st.number_input("Number of Iterations (Totals)", min_value=10, max_value=500, value=100, step=10)
+        subset_size = st.number_input("Subset Size (Totals)", min_value=2, max_value=len(features), value=8, step=1)
+        random_seed = st.number_input("Random Seed (Totals)", min_value=0, value=42, step=1)
+        run_mc = st.button("Run Monte Carlo Search (Totals)")
+        if run_mc:
+            with st.spinner("Running Monte Carlo feature selection..."):
+                best_score = 0
+                best_features = []
+                random.seed(random_seed)
+                scores_list = []
+                valid_totals_features = list(X_train_tot.columns)
+                for i in range(int(num_iter)):
+                    subset = random.sample(valid_totals_features, int(subset_size))
+                    X_subset = X_train_tot[subset]
+                    model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+                    acc = cross_val_score(model, X_subset, y_train_tot, cv=3, scoring='accuracy').mean()
+                    try:
+                        auc = cross_val_score(model, X_subset, y_train_tot, cv=3, scoring='roc_auc').mean()
+                    except Exception:
+                        auc = float('nan')
+                    try:
+                        f1 = cross_val_score(model, X_subset, y_train_tot, cv=3, scoring='f1').mean()
+                    except Exception:
+                        f1 = float('nan')
+                    scores_list.append({
+                        'iteration': i+1,
+                        'features': subset,
+                        'accuracy': acc,
+                        'AUC': auc,
+                        'F1-score': f1
+                    })
+                    if acc > best_score:
+                        best_score = acc
+                        best_features = subset
+            st.success(f"Best mean CV accuracy: {best_score:.3f}")
+            st.write(f"Best feature subset:")
+            st.code(best_features)
+            # Save best features to file (totals)
+            with open(path.join(DATA_DIR, 'best_features_totals.txt'), 'w') as f:
+                f.write("\n".join(best_features))
+            # Retrain model using best_features and calibrate probabilities (Totals)
+            X_totals_best = historical_game_level_data[best_features].select_dtypes(include=["number", "bool", "category"])
+            X_train_tot_best, X_test_tot_best, _, _ = train_test_split(
+                X_totals_best, y_totals, test_size=0.2, random_state=42, stratify=y_totals)
+            from sklearn.calibration import CalibratedClassifierCV
+            model_totals_best = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
+            calibrated_model_totals = CalibratedClassifierCV(model_totals_best, method='isotonic', cv=3)
+            calibrated_model_totals.fit(X_train_tot_best, y_train_tot)
+            y_totals_pred_best = calibrated_model_totals.predict(X_test_tot_best)
+            totals_accuracy_best = accuracy_score(y_test_tot, y_totals_pred_best)
+            # Probability sanity check
+            probs_totals = calibrated_model_totals.predict_proba(X_test_tot_best)[:, 1]
+            mean_pred_prob_totals = np.mean(probs_totals)
+            actual_rate_totals = np.mean(y_test_tot)
+            st.write(f"Accuracy with best features (Totals): {totals_accuracy_best:.3f}")
+            st.write(f"Mean predicted probability (test set): {mean_pred_prob_totals:.3f}")
+            st.write(f"Actual outcome rate (test set): {actual_rate_totals:.3f}")
+            scores_df = pd.DataFrame(scores_list).sort_values(by='accuracy', ascending=False).head(10)
+            st.write("#### Top 10 Feature Subsets (by Accuracy)")
+            
+            st.dataframe(
+                scores_df,
+                hide_index=True,
+                column_config={
+                    'iteration': st.column_config.NumberColumn('Iteration', format='%d'),
+                    'accuracy': st.column_config.NumberColumn('Accuracy', format='%.3f'),
+                    'AUC': st.column_config.NumberColumn('AUC', format='%.3f'),
+                    'F1-score': st.column_config.NumberColumn('F1-Score', format='%.3f'),
+                    'features': st.column_config.TextColumn('Features', width='large')
+                }
+            )
