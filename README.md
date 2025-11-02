@@ -33,7 +33,7 @@ A sophisticated NFL analytics platform that uses advanced machine learning to id
 
 ### 📊 **Interactive Dashboard**
 - **🔥 Next 10 Underdog Bets**: Actionable moneyline betting opportunities with complete payout calculations
-- **🎯 Next 15 Spread Bets**: NEW high-performance spread betting section with 91.9% historical win rate
+- **🎯 Next 10 Spread Bets**: NEW high-performance spread betting section with 91.9% historical win rate
 - **Confidence Tiers**: Visual indicators (🔥 Elite, ⭐ Strong, 📈 Good) for bet prioritization
 - **Live Game Predictions**: Real-time probability calculations for upcoming NFL games
 - **Enhanced Betting Signals**: Dual-strategy recommendations with proper spread/moneyline logic
@@ -285,6 +285,13 @@ nfl-predictions/
 - **Updated**: All dataframe displays now use modern Streamlit best practices
 - **Result**: Dashboard works with latest Streamlit versions without errors
 
+### **✅ Date Filtering Bug Fix (November 2025)**
+- **Issue**: "Next 10 Underdog Bets" and "Next 10 Spread Bets" sections showing 2020 games instead of upcoming games
+- **Root Cause**: `predictions_df` variable was being modified by earlier dashboard sections (converting gameday to strings, filtering for past dates)
+- **Solution**: Each betting section now reloads fresh data from CSV and properly filters for future games only (`gameday > today`)
+- **Impact**: Betting recommendations now correctly display only upcoming games in chronological order
+- **Technical**: Fixed variable mutation issues across Streamlit sections through data isolation
+
 ### **✅ Git LFS Integration**
 - **Added**: Large file support for `nfl_history_2020_2024.csv.gz` (73.95MB)
 - **Benefit**: Enables deployment to Streamlit Cloud with access to large datasets
@@ -392,6 +399,12 @@ nfl-predictions/
 - **Solution**: Use different port: `streamlit run predictions.py --server.port=XXXX`
 - **Default ports**: Try 8501, 8502, 8503, etc.
 - **Terminal**: Check for running Streamlit processes with `tasklist | findstr streamlit`
+
+#### **Betting Sections Show Old Games (2020) Instead of Upcoming**
+- **Cause**: Variable mutation across Streamlit sections - `predictions_df` modified by earlier filters
+- **Solution**: Fixed in latest version - sections now reload fresh data and filter properly
+- **Verification**: Betting recommendations should show games with future dates only
+- **Technical**: Each section uses isolated dataframe copy to prevent cross-section contamination
 
 ### **Performance Optimization Tips**
 - **Faster Loading**: Use `@st.cache_data` decorator for expensive operations (already implemented)

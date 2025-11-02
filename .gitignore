@@ -55,6 +55,10 @@ create_nflfastR_fields_md.py
 fetch_espn_weekly_scores.py
 espn_nfl_scores_2020_2024.csv
 nflfastR_games_2020_2024.csv
+fetch_nflfastR_games.py
+nflfastR_fields.md
+nflfastR_fields_streamlit.py
+
 
 # Documentation files (managed separately)
 GIT_WORKFLOW_GUIDE.md
