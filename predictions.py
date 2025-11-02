@@ -142,6 +142,281 @@ if os.path.exists(predictions_csv_path):
 else:
     predictions_df = None
 
+# Function to automatically log betting recommendations
+def log_betting_recommendations(predictions_df):
+    """Automatically log betting recommendations to CSV for tracking"""
+    if predictions_df is None:
+        return
+    
+    log_path = path.join(DATA_DIR, 'betting_recommendations_log.csv')
+    
+    # Filter for upcoming games only (future games)
+    upcoming_df = predictions_df.copy()
+    if 'gameday' in upcoming_df.columns:
+        upcoming_df['gameday'] = pd.to_datetime(upcoming_df['gameday'], errors='coerce')
+        upcoming_df = upcoming_df[upcoming_df['gameday'] > pd.to_datetime(datetime.now())]
+    
+    if len(upcoming_df) == 0:
+        return  # No upcoming games to log
+    
+    # Prepare records for both moneyline and spread bets
+    records = []
+    
+    # Moneyline bets (underdog)
+    if 'pred_underdogWon_optimal' in upcoming_df.columns:
+        moneyline_bets = upcoming_df[upcoming_df['pred_underdogWon_optimal'] == 1].copy()
+        
+        for _, row in moneyline_bets.iterrows():
+            # Determine underdog team
+            if pd.notna(row.get('spread_line')):
+                if row['spread_line'] < 0:
+                    recommended_team = row['home_team']  # Home is underdog
+                elif row['spread_line'] > 0:
+                    recommended_team = row['away_team']  # Away is underdog
+                else:
+                    recommended_team = 'Pick'
+            else:
+                recommended_team = 'Unknown'
+            
+            # Determine confidence tier
+            prob = row.get('prob_underdogWon', 0)
+            if prob >= 0.75:
+                confidence = 'Elite'
+            elif prob >= 0.65:
+                confidence = 'Strong'
+            elif prob >= 0.54:
+                confidence = 'Good'
+            else:
+                confidence = 'Standard'
+            
+            records.append({
+                'log_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'season': row.get('season', current_year),
+                'week': row.get('week', ''),
+                'game_id': row.get('game_id', ''),
+                'gameday': row.get('gameday', ''),
+                'home_team': row.get('home_team', ''),
+                'away_team': row.get('away_team', ''),
+                'bet_type': 'moneyline_underdog',
+                'recommended_team': recommended_team,
+                'spread_line': row.get('spread_line', ''),
+                'total_line': row.get('total_line', ''),
+                'moneyline_odds': row.get('away_moneyline' if recommended_team == row.get('away_team') else 'home_moneyline', ''),
+                'model_probability': row.get('prob_underdogWon', ''),
+                'edge': row.get('edge_underdog_ml', ''),
+                'confidence_tier': confidence,
+                'actual_home_score': '',
+                'actual_away_score': '',
+                'bet_result': 'pending',
+                'bet_profit': ''
+            })
+    
+    # Spread bets
+    if 'pred_spreadCovered_optimal' in upcoming_df.columns:
+        spread_bets = upcoming_df[upcoming_df['pred_spreadCovered_optimal'] == 1].copy()
+        
+        for _, row in spread_bets.iterrows():
+            # Determine underdog team for spread
+            if pd.notna(row.get('spread_line')):
+                if row['spread_line'] < 0:
+                    recommended_team = row['home_team']  # Home is underdog
+                elif row['spread_line'] > 0:
+                    recommended_team = row['away_team']  # Away is underdog
+                else:
+                    recommended_team = 'Pick'
+            else:
+                recommended_team = 'Unknown'
+            
+            # Determine confidence tier
+            prob = row.get('prob_underdogCovered', 0)
+            if prob >= 0.75:
+                confidence = 'Elite'
+            elif prob >= 0.65:
+                confidence = 'Strong'
+            elif prob >= 0.54:
+                confidence = 'Good'
+            else:
+                confidence = 'Standard'
+            
+            records.append({
+                'log_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'season': row.get('season', current_year),
+                'week': row.get('week', ''),
+                'game_id': row.get('game_id', ''),
+                'gameday': row.get('gameday', ''),
+                'home_team': row.get('home_team', ''),
+                'away_team': row.get('away_team', ''),
+                'bet_type': 'spread',
+                'recommended_team': recommended_team,
+                'spread_line': row.get('spread_line', ''),
+                'total_line': row.get('total_line', ''),
+                'moneyline_odds': '',
+                'model_probability': row.get('prob_underdogCovered', ''),
+                'edge': row.get('edge_underdog_spread', ''),
+                'confidence_tier': confidence,
+                'actual_home_score': '',
+                'actual_away_score': '',
+                'bet_result': 'pending',
+                'bet_profit': ''
+            })
+    
+    if len(records) == 0:
+        return  # No bets to log
+    
+    # Convert to DataFrame
+    new_records_df = pd.DataFrame(records)
+    
+    # Load existing log or create new one
+    if os.path.exists(log_path):
+        existing_log = pd.read_csv(log_path)
+        # Avoid duplicate entries: check if game_id + bet_type already exists with pending status
+        existing_pending = existing_log[existing_log['bet_result'] == 'pending']
+        
+        # Filter out records that already exist as pending
+        new_records_df = new_records_df[
+            ~new_records_df.apply(
+                lambda x: ((existing_pending['game_id'] == x['game_id']) & 
+                          (existing_pending['bet_type'] == x['bet_type'])).any(),
+                axis=1
+            )
+        ]
+        
+        if len(new_records_df) > 0:
+            combined_log = pd.concat([existing_log, new_records_df], ignore_index=True)
+            combined_log.to_csv(log_path, index=False)
+    else:
+        new_records_df.to_csv(log_path, index=False)
+
+# Function to automatically update completed game results
+def update_completed_games():
+    """Fetch scores from ESPN API and update betting log for completed games"""
+    log_path = path.join(DATA_DIR, 'betting_recommendations_log.csv')
+    
+    if not os.path.exists(log_path):
+        return  # No log to update
+    
+    log_df = pd.read_csv(log_path)
+    
+    # Filter for pending bets only
+    pending_bets = log_df[log_df['bet_result'] == 'pending'].copy()
+    
+    if len(pending_bets) == 0:
+        return  # No pending bets to update
+    
+    # Convert gameday to datetime
+    pending_bets['gameday'] = pd.to_datetime(pending_bets['gameday'], errors='coerce')
+    
+    # Only check games that should be completed (game day has passed)
+    today = pd.to_datetime(datetime.now().date())
+    completed_games = pending_bets[pending_bets['gameday'] < today].copy()
+    
+    if len(completed_games) == 0:
+        return  # No games to check
+    
+    # Fetch scores from ESPN API for each completed game
+    updates_made = False
+    
+    for idx, bet in completed_games.iterrows():
+        season = int(bet['season']) if pd.notna(bet['season']) else current_year
+        week = int(bet['week']) if pd.notna(bet['week']) else 1
+        
+        try:
+            # Fetch ESPN data for that week
+            espn_url = f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&year={season}&week={week}"
+            response = requests.get(espn_url, timeout=5)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Find matching game by team names
+                for event in data.get("events", []):
+                    comp = event.get("competitions", [{}])[0]
+                    competitors = comp.get("competitors", [])
+                    
+                    if len(competitors) >= 2:
+                        # ESPN format: competitors[0] is home, competitors[1] is away
+                        home_team = competitors[0].get("team", {}).get("displayName", "")
+                        away_team = competitors[1].get("team", {}).get("displayName", "")
+                        
+                        # Match by team names (case-insensitive)
+                        if (home_team.lower() == str(bet['home_team']).lower() and 
+                            away_team.lower() == str(bet['away_team']).lower()):
+                            
+                            # Check if game is completed
+                            status = event.get("status", {}).get("type", {}).get("completed", False)
+                            
+                            if status:
+                                # Get scores
+                                home_score = int(competitors[0].get("score", 0))
+                                away_score = int(competitors[1].get("score", 0))
+                                
+                                # Update the log dataframe
+                                log_df.at[idx, 'actual_home_score'] = home_score
+                                log_df.at[idx, 'actual_away_score'] = away_score
+                                
+                                # Determine bet result based on bet type
+                                bet_type = bet['bet_type']
+                                recommended_team = bet['recommended_team']
+                                
+                                if bet_type == 'moneyline_underdog':
+                                    # Moneyline: did underdog win?
+                                    if recommended_team == bet['home_team']:
+                                        bet_won = home_score > away_score
+                                    else:
+                                        bet_won = away_score > home_score
+                                    
+                                    # Calculate profit
+                                    if bet_won:
+                                        # Get underdog odds to calculate payout
+                                        odds = float(bet['moneyline_odds']) if pd.notna(bet['moneyline_odds']) else 0
+                                        if odds > 0:
+                                            profit = odds  # Win $odds on $100 bet
+                                        else:
+                                            profit = 100 / abs(odds) * 100 if odds != 0 else 0
+                                    else:
+                                        profit = -100  # Lost the $100 bet
+                                    
+                                elif bet_type == 'spread':
+                                    # Spread: did underdog cover?
+                                    spread_line = float(bet['spread_line']) if pd.notna(bet['spread_line']) else 0
+                                    
+                                    if spread_line < 0:
+                                        # Home is underdog, gets + points
+                                        adjusted_score = home_score - spread_line  # Subtracting negative = adding
+                                        bet_won = adjusted_score > away_score
+                                    else:
+                                        # Away is underdog, gets + points
+                                        adjusted_score = away_score + spread_line
+                                        bet_won = adjusted_score > home_score
+                                    
+                                    # Standard spread profit (assuming -110 odds)
+                                    profit = 90.91 if bet_won else -100
+                                
+                                else:
+                                    bet_won = False
+                                    profit = 0
+                                
+                                # Update result and profit
+                                log_df.at[idx, 'bet_result'] = 'win' if bet_won else 'loss'
+                                log_df.at[idx, 'bet_profit'] = profit
+                                
+                                updates_made = True
+                                break  # Found the game, move to next bet
+        
+        except Exception as e:
+            # Silently continue if ESPN API fails for a particular week
+            continue
+    
+    # Save updated log if any changes were made
+    if updates_made:
+        log_df.to_csv(log_path, index=False)
+
+# Automatically log recommendations when predictions are loaded
+if predictions_df is not None:
+    log_betting_recommendations(predictions_df)
+    # Update completed games with scores
+    update_completed_games()
+
 @st.cache_data
 def load_data():
     file_path = path.join(DATA_DIR, 'nfl_history_2020_2024.csv.gz')
@@ -485,7 +760,7 @@ if st.checkbox("Show Model Probabilities, Implied Probabilities, and Edges", val
         st.dataframe(
             predictions_df[display_cols].sort_values(by='gameday', ascending=False).head(50), 
             hide_index=True, 
-            height=470,
+            height=545,
             column_config={
                 'pred_underdogWon_optimal': st.column_config.CheckboxColumn('Betting Signal')
             }
@@ -664,8 +939,16 @@ if st.checkbox("🔥 Show Next 10 Underdog Betting Opportunities", value=True):
         st.write("### 🎯 Next 10 Recommended Underdog Bets")
         st.write("*Games where model recommends betting on underdog to win (≥28% confidence)*")
         
+        # Reload predictions_df fresh and filter for upcoming games only
+        predictions_df_upcoming = pd.read_csv(predictions_csv_path, sep='\t')
+        predictions_df_upcoming['gameday'] = pd.to_datetime(predictions_df_upcoming['gameday'], errors='coerce')
+        
+        # Filter for future games only
+        today = pd.to_datetime(datetime.now().date())
+        predictions_df_upcoming = predictions_df_upcoming[predictions_df_upcoming['gameday'] > today]
+        
         # Filter for upcoming games where we should bet on underdog, sort by date, take first 10
-        upcoming_bets = predictions_df[predictions_df['pred_underdogWon_optimal'] == 1].copy()
+        upcoming_bets = predictions_df_upcoming[predictions_df_upcoming['pred_underdogWon_optimal'] == 1].copy()
         
         if len(upcoming_bets) > 0:
             # Sort by date and take first 10
@@ -774,9 +1057,17 @@ if st.checkbox("🎯 Show Next 10 Spread Betting Opportunities", value=True):
         st.write("### 🏈 Next 10 Recommended Spread Bets")
         st.write("*Games where model thinks underdog will cover spread (>50% confidence)*")
         
+        # Reload predictions_df fresh and filter for upcoming games only
+        predictions_df_spread = pd.read_csv(predictions_csv_path, sep='\t')
+        predictions_df_spread['gameday'] = pd.to_datetime(predictions_df_spread['gameday'], errors='coerce')
+        
+        # Filter for future games only
+        today = pd.to_datetime(datetime.now().date())
+        predictions_df_spread = predictions_df_spread[predictions_df_spread['gameday'] > today]
+        
         # Filter for upcoming games where model thinks underdog has ANY chance to cover (>50%)
-        if 'prob_underdogCovered' in predictions_df.columns:
-            spread_bets = predictions_df[predictions_df['prob_underdogCovered'] > 0.50].copy()
+        if 'prob_underdogCovered' in predictions_df_spread.columns:
+            spread_bets = predictions_df_spread[predictions_df_spread['prob_underdogCovered'] > 0.50].copy()
             
             if len(spread_bets) > 0:
                 # Sort by date and take first 10
@@ -903,6 +1194,165 @@ if st.checkbox("🎯 Show Next 10 Spread Betting Opportunities", value=True):
     
     else:
         st.warning("Predictions CSV not found. Run the model script to generate spread betting opportunities.")
+
+# --- New: View Betting Recommendations Log ---
+if st.checkbox("📋 View Betting Recommendations Log", value=True):
+    st.write("### 📋 Betting Recommendations Tracking Log")
+    st.write("*All logged betting recommendations with performance tracking*")
+    
+    log_path = path.join(DATA_DIR, 'betting_recommendations_log.csv')
+    
+    if os.path.exists(log_path):
+        log_df = pd.read_csv(log_path)
+        
+        if len(log_df) > 0:
+            # Convert dates for filtering
+            log_df['gameday'] = pd.to_datetime(log_df['gameday'], errors='coerce')
+            log_df['log_date'] = pd.to_datetime(log_df['log_date'], errors='coerce')
+            
+            # Sidebar filters for log
+            st.write("#### Filter Options")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # Filter by bet type
+                bet_types = ['All'] + list(log_df['bet_type'].unique())
+                selected_bet_type = st.selectbox("Bet Type", bet_types, key="log_bet_type")
+            
+            with col2:
+                # Filter by status
+                statuses = ['All'] + list(log_df['bet_result'].unique())
+                selected_status = st.selectbox("Bet Status", statuses, key="log_status")
+            
+            with col3:
+                # Filter by confidence tier
+                tiers = ['All'] + list(log_df['confidence_tier'].unique())
+                selected_tier = st.selectbox("Confidence Tier", tiers, key="log_tier")
+            
+            # Apply filters
+            filtered_log = log_df.copy()
+            if selected_bet_type != 'All':
+                filtered_log = filtered_log[filtered_log['bet_type'] == selected_bet_type]
+            if selected_status != 'All':
+                filtered_log = filtered_log[filtered_log['bet_result'] == selected_status]
+            if selected_tier != 'All':
+                filtered_log = filtered_log[filtered_log['confidence_tier'] == selected_tier]
+            
+            # Summary statistics
+            st.write("#### 📊 Summary Statistics")
+            
+            total_bets = len(filtered_log)
+            pending_bets = len(filtered_log[filtered_log['bet_result'] == 'pending'])
+            completed_bets = len(filtered_log[filtered_log['bet_result'] != 'pending'])
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Bets", total_bets)
+            with col2:
+                st.metric("Pending", pending_bets)
+            with col3:
+                st.metric("Completed", completed_bets)
+            with col4:
+                if completed_bets > 0:
+                    wins = len(filtered_log[filtered_log['bet_result'] == 'win'])
+                    win_rate = wins / completed_bets
+                    st.metric("Win Rate", f"{win_rate:.1%}")
+                else:
+                    st.metric("Win Rate", "N/A")
+            
+            # Performance by confidence tier (if any completed bets)
+            if completed_bets > 0:
+                st.write("#### 🎯 Performance by Confidence Tier")
+                
+                tier_stats = []
+                for tier in ['Elite', 'Strong', 'Good', 'Standard']:
+                    tier_bets = filtered_log[
+                        (filtered_log['confidence_tier'] == tier) & 
+                        (filtered_log['bet_result'] != 'pending')
+                    ]
+                    if len(tier_bets) > 0:
+                        wins = len(tier_bets[tier_bets['bet_result'] == 'win'])
+                        win_rate = wins / len(tier_bets)
+                        
+                        # Calculate profit if bet_profit column exists and has values
+                        if 'bet_profit' in tier_bets.columns:
+                            tier_bets['bet_profit'] = pd.to_numeric(tier_bets['bet_profit'], errors='coerce')
+                            total_profit = tier_bets['bet_profit'].sum()
+                            roi = total_profit / (len(tier_bets) * 100) if len(tier_bets) > 0 else 0
+                        else:
+                            total_profit = 0
+                            roi = 0
+                        
+                        tier_stats.append({
+                            'Tier': tier,
+                            'Bets': len(tier_bets),
+                            'Wins': wins,
+                            'Win Rate': f"{win_rate:.1%}",
+                            'Total Profit': f"${total_profit:.2f}",
+                            'ROI': f"{roi:.1%}"
+                        })
+                
+                if tier_stats:
+                    tier_df = pd.DataFrame(tier_stats)
+                    st.dataframe(tier_df, hide_index=True, use_container_width=True)
+            
+            # Display the log
+            st.write("#### 📋 Detailed Betting Log")
+            st.write(f"*Showing {len(filtered_log)} bets*")
+            
+            # Format for display
+            display_log = filtered_log.copy()
+            display_log['gameday'] = display_log['gameday'].dt.strftime('%Y-%m-%d')
+            display_log['log_date'] = display_log['log_date'].dt.strftime('%Y-%m-%d %H:%M')
+            
+            # Select columns to display
+            display_cols = [
+                'log_date', 'gameday', 'week', 'home_team', 'away_team', 
+                'bet_type', 'recommended_team', 'spread_line', 'model_probability',
+                'edge', 'confidence_tier', 'bet_result', 'bet_profit'
+            ]
+            display_cols = [col for col in display_cols if col in display_log.columns]
+            
+            # Sort by game date (most recent first)
+            display_log = display_log.sort_values('gameday', ascending=False)
+            
+            st.dataframe(
+                display_log[display_cols],
+                column_config={
+                    'log_date': st.column_config.TextColumn('Logged At', width='medium'),
+                    'gameday': st.column_config.TextColumn('Game Date', width='medium'),
+                    'week': st.column_config.NumberColumn('Week', format='%d'),
+                    'home_team': st.column_config.TextColumn('Home', width='medium'),
+                    'away_team': st.column_config.TextColumn('Away', width='medium'),
+                    'bet_type': st.column_config.TextColumn('Bet Type', width='medium'),
+                    'recommended_team': st.column_config.TextColumn('Bet On', width='medium'),
+                    'spread_line': st.column_config.NumberColumn('Spread', format='%.1f'),
+                    'model_probability': st.column_config.NumberColumn('Model Prob', format='%.1%'),
+                    'edge': st.column_config.NumberColumn('Edge', format='%.2%'),
+                    'confidence_tier': st.column_config.TextColumn('Tier', width='small'),
+                    'bet_result': st.column_config.TextColumn('Result', width='small'),
+                    'bet_profit': st.column_config.NumberColumn('Profit', format='$%.2f')
+                },
+                height=600,
+                hide_index=True
+            )
+            
+            # Instructions for automatic updates
+            st.success("""
+            **✨ Automatic Updates Enabled:**
+            - Scores are automatically fetched from ESPN API for completed games
+            - Win/loss results and profit calculations are done automatically
+            - Just refresh the app after game day to see updated statistics
+            - No manual data entry required!
+            
+            **Note**: The system checks for completed games each time you load the app.
+            """)
+            
+        else:
+            st.info("No betting recommendations have been logged yet. Run the app when predictions are available.")
+    
+    else:
+        st.warning("No betting log file found. The log will be created automatically when predictions with betting signals are available.")
 
 if st.checkbox("Show Model Feature Importances & Metrics", value=False):
     st.write("### Model Feature Importances and Error Metrics")
