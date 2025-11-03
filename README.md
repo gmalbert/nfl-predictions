@@ -109,40 +109,56 @@ streamlit run predictions.py
 
 ### **2. Dashboard Sections**
 
-#### **🔥 Next 10 Underdog Betting Opportunities** 
-- **Moneyline Strategy**: Shows your next 10 recommended underdog bets to win outright
+The dashboard uses **modern tab-based navigation** for easy access to all features. Each section displays data with **professional formatting** including percentages, proper date formats, and descriptive column labels.
+
+#### **� Tab: Model Predictions**
+- **Model Predictions vs Actual Results**: Historical game outcomes with checkbox indicators
+  - Formatted columns: Game Date (MM/DD/YYYY), Team names, Scores, Spread/O/U lines
+  - Checkbox columns show predicted vs actual spread coverage and totals
+  - Displays 50 most recent completed games with proper date formatting
+
+#### **🎯 Tab: Probabilities & Edges**
+- **Upcoming Game Probabilities**: Shows betting opportunities with model confidence
+  - **Percentage Display**: All probabilities shown as percentages (e.g., "45.6%" instead of "0.456")
+  - **Spread Probabilities**: Model confidence underdog will cover spread
+  - **Moneyline Probabilities**: Model confidence underdog wins outright
+  - **Over/Under Probabilities**: Model confidence for totals betting
+  - **Edge Calculations**: Value identification (model % - implied %)
+  - **Compact Labels**: "Spread Prob", "ML Prob", "Over Edge" with helpful tooltips
+
+#### **💰 Tab: Betting Performance**
+- **Key Metrics Table**: Clean, organized display of model performance
+  - Spread, Moneyline, and Totals accuracy (formatted to 3 decimals)
+  - Mean Absolute Error for each model
+  - Optimal thresholds (28% for ML, 54% for spread)
+  - Compact 600px width for easy scanning
+- **Performance Tracking**: Historical betting performance with ROI calculations
+- **Survivorship Bias Awareness**: Transparent about selective betting strategy
+
+#### **🔥 Tab: Underdog Bets**
+- **Next 10 Underdog Betting Opportunities**: Moneyline strategy recommendations
 - **Chronological order**: Upcoming games where model has ≥28% confidence
 - **Complete betting info**: Favored team, underdog, spread, model confidence, expected payout
 - **Real payout calculations**: Exact profit amounts for $100 bets using live moneyline odds
 - **Example**: "Vikings (H) +180 ($180 profit on $100)" when Chargers are favored
 
-#### **🎯 Next 15 Spread Betting Opportunities** ⭐ *NEW ELITE PERFORMANCE*
-- **Spread Strategy**: Shows games where underdog will cover the spread (>50% confidence)  
-- **Confidence Tiers**: 🔥 Elite (54%+), ⭐ Strong (52-54%), 📈 Good (50-52%)
-- **Historical Performance**: 91.9% win rate on Elite tier, 75.5% ROI
+#### **� Tab: Spread Bets** ⭐ *ELITE PERFORMANCE*
+- **Next 15 Spread Betting Opportunities**: High-confidence spread recommendations
+- **Confidence Tiers**: 🔥 Elite (75%+), ⭐ Strong (65-74%), 📈 Good (54-64%)
+- **Historical Performance**: 91.9% win rate on high-confidence bets, 75.5% ROI
 - **Smart Sorting**: Ordered by confidence level for optimal bet selection
 - **Spread Explanation**: Team can lose game but still "cover" (e.g., lose by less than spread)
 
-#### ** Model Predictions**
-- View upcoming game predictions with probabilities
-- See historical performance vs actual results
-- Filter by date ranges and teams
+#### **📋 Tab: Betting Log**
+- **Automated Bet Tracking**: Logs all betting recommendations with timestamps
+- **Results Integration**: Automatically updates with game outcomes
+- **Performance Analysis**: Win/loss tracking for accountability
 
-#### **🎯 Betting Analysis & Performance**
-- **Key Section**: Shows the profitable betting strategy results
-- View recent winning bets and performance metrics with "Favored" column
-- Compare model performance vs naive baselines
-- **Enhanced Recent Bets**: Now shows who was favored and confirms underdog wins
-
-#### **📈 Probabilities & Edges**
-- **Most Important**: Look for games where `pred_underdogWon_optimal = 1`
-- This means the model recommends betting on the underdog
-- Compare model probabilities vs implied odds probabilities
-
-#### **⚙️ Monte Carlo Feature Selection**
-- Advanced section for optimizing model features
-- Run simulations to improve prediction accuracy
-- Technical users can experiment with different feature combinations
+#### **⚙️ Additional Features**
+- **Feature Importances**: Top model features with mean/std importance (3 decimals)
+- **Monte Carlo Results**: Feature selection testing with formatted metrics
+- **Filtered Historical Data**: Play-by-play data with percentage formatting for win probabilities
+- **Error Metrics**: Model accuracy and MAE displayed with consistent 3-decimal formatting
 
 ## 💡 **Betting Strategy Explained**
 
