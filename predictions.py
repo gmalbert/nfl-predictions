@@ -8,9 +8,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Display startup message
-st.write("🏈 Loading NFL Predictor...")
-
+# Import required libraries
 import pandas as pd
 import numpy as np
 from os import path
@@ -22,6 +20,8 @@ import os
 from datetime import datetime
 import requests
 
+# Display startup message AFTER imports complete
+st.write("🏈 Loading NFL Predictor...")
 
 DATA_DIR = 'data_files/'
 
