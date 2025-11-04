@@ -83,77 +83,6 @@ def calc_rolling_count(df, team_col):
         counts.append(len(prior_games))
     return counts
 
-def calc_current_season_stat(df, team_col, stat_col):
-    # Calculate stat for team using only current season games prior to this week
-    stats = []
-    for idx, row in df.iterrows():
-        team = row[team_col]
-        week = row['week']
-        season = row['season']
-        current_season_games = df[(df[team_col] == team) & (df['season'] == season) & (df['week'] < week)]
-        if len(current_season_games) > 0:
-            stats.append(current_season_games[stat_col].mean())
-        else:
-            stats.append(0)  # No games played yet this season
-    return stats
-
-def calc_prior_season_record(df, team_col):
-    # Calculate final win percentage from previous complete season
-    records = []
-    for idx, row in df.iterrows():
-        team = row[team_col]
-        current_season = row['season']
-        prior_season = current_season - 1
-        
-        # Get all games from prior season for this team
-        prior_season_games = df[(df['season'] == prior_season) & 
-                               ((df['home_team'] == team) | (df['away_team'] == team))]
-        
-        if len(prior_season_games) > 0:
-            # Calculate wins from prior season
-            home_wins = len(prior_season_games[(prior_season_games['home_team'] == team) & 
-                                             (prior_season_games['home_score'] > prior_season_games['away_score'])])
-            away_wins = len(prior_season_games[(prior_season_games['away_team'] == team) & 
-                                             (prior_season_games['away_score'] > prior_season_games['home_score'])])
-            total_wins = home_wins + away_wins
-            total_games = len(prior_season_games)
-            win_pct = total_wins / total_games if total_games > 0 else 0
-            records.append(win_pct)
-        else:
-            records.append(0.5)  # Default to .500 if no prior season data
-    return records
-
-def calc_head_to_head_record(df):
-    # Calculate historical head-to-head win percentage for home team vs away team
-    h2h_records = []
-    for idx, row in df.iterrows():
-        home_team = row['home_team']
-        away_team = row['away_team']
-        current_season = row['season']
-        current_week = row['week']
-        
-        # Get all historical games between these teams before this game
-        h2h_games = df[((df['home_team'] == home_team) & (df['away_team'] == away_team)) |
-                      ((df['home_team'] == away_team) & (df['away_team'] == home_team))]
-        h2h_games = h2h_games[(h2h_games['season'] < current_season) | 
-                             ((h2h_games['season'] == current_season) & (h2h_games['week'] < current_week))]
-        
-        if len(h2h_games) > 0:
-            # Count wins for home team in this matchup
-            home_team_wins = 0
-            for _, game in h2h_games.iterrows():
-                if game['home_team'] == home_team and game['home_score'] > game['away_score']:
-                    home_team_wins += 1
-                elif game['away_team'] == home_team and game['away_score'] > game['home_score']:
-                    home_team_wins += 1
-            
-            win_pct = home_team_wins / len(h2h_games)
-            h2h_records.append(win_pct)
-        else:
-            h2h_records.append(0.5)  # No historical data, assume 50/50
-    
-    return h2h_records
-
 historical_game_level_data['homeTeamWinPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'homeWin')
 historical_game_level_data['awayTeamWinPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'awayWin')
 historical_game_level_data['homeTeamCloseGamePct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'isCloseGame')
@@ -172,41 +101,21 @@ historical_game_level_data['homeTeamGamesPlayed'] = calc_rolling_count(historica
 historical_game_level_data['awayTeamGamesPlayed'] = calc_rolling_count(historical_game_level_data, 'away_team')
 historical_game_level_data['homeTeamAvgPointSpread'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'spread_line')
 historical_game_level_data['awayTeamAvgPointSpread'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'spread_line')
-# Fix data leakage: Use betting total_line instead of actual game total
-historical_game_level_data['homeTeamAvgTotal'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'total_line')
-historical_game_level_data['awayTeamAvgTotal'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'total_line')
-# Fix data leakage: Use rolling stats instead of all-time averages
-print("Calculating time-aware percentage statistics...")
-historical_game_level_data['homeTeamFavoredPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'homeFavored')
-historical_game_level_data['awayTeamFavoredPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'awayFavored')
-historical_game_level_data['homeTeamSpreadCoveredPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'spreadCovered')
-historical_game_level_data['awayTeamSpreadCoveredPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'spreadCovered')
-historical_game_level_data['homeTeamOverHitPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'overHit')
-historical_game_level_data['awayTeamOverHitPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'overHit')
-historical_game_level_data['homeTeamUnderHitPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'underHit')
-historical_game_level_data['awayTeamUnderHitPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'underHit')
-historical_game_level_data['homeTeamTotalHitPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'totalHit')
-historical_game_level_data['awayTeamTotalHitPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'totalHit')
-
-# Add new enhanced features
-print("Calculating current season records...")
-historical_game_level_data['homeTeamCurrentSeasonWinPct'] = calc_current_season_stat(historical_game_level_data, 'home_team', 'homeWin')
-historical_game_level_data['awayTeamCurrentSeasonWinPct'] = calc_current_season_stat(historical_game_level_data, 'away_team', 'awayWin')
-historical_game_level_data['homeTeamCurrentSeasonAvgScore'] = calc_current_season_stat(historical_game_level_data, 'home_team', 'home_score')
-historical_game_level_data['awayTeamCurrentSeasonAvgScore'] = calc_current_season_stat(historical_game_level_data, 'away_team', 'away_score')
-historical_game_level_data['homeTeamCurrentSeasonAvgScoreAllowed'] = calc_current_season_stat(historical_game_level_data, 'home_team', 'away_score')
-historical_game_level_data['awayTeamCurrentSeasonAvgScoreAllowed'] = calc_current_season_stat(historical_game_level_data, 'away_team', 'home_score')
-
-print("Calculating prior season records...")
-historical_game_level_data['homeTeamPriorSeasonRecord'] = calc_prior_season_record(historical_game_level_data, 'home_team')
-historical_game_level_data['awayTeamPriorSeasonRecord'] = calc_prior_season_record(historical_game_level_data, 'away_team')
-
-print("Calculating head-to-head records...")
-historical_game_level_data['headToHeadHomeTeamWinPct'] = calc_head_to_head_record(historical_game_level_data)
+historical_game_level_data['homeTeamAvgTotal'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'total')
+historical_game_level_data['awayTeamAvgTotal'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'total')
+historical_game_level_data['homeTeamFavoredPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['homeFavored'].mean())
+historical_game_level_data['awayTeamFavoredPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['awayFavored'].mean())
+historical_game_level_data['homeTeamSpreadCoveredPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['spreadCovered'].mean())
+historical_game_level_data['awayTeamSpreadCoveredPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['spreadCovered'].mean())
+historical_game_level_data['homeTeamOverHitPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['overHit'].mean())
+historical_game_level_data['awayTeamOverHitPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['overHit'].mean())
+historical_game_level_data['homeTeamUnderHitPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['underHit'].mean())
+historical_game_level_data['awayTeamUnderHitPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['underHit'].mean())
+historical_game_level_data['homeTeamTotalHitPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['totalHit'].mean())
+historical_game_level_data['awayTeamTotalHitPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['totalHit'].mean())
 
 historical_game_level_data.fillna(0, inplace=True)
 historical_game_level_data.replace([np.inf, -np.inf], 0, inplace=True)
-
 # Load best feature subsets from disk
 def load_best_features(filename, all_features):
     try:
@@ -230,17 +139,13 @@ features = [
     'homeTeamAvgTotalScore', 'awayTeamAvgTotalScore', 'homeTeamGamesPlayed', 'awayTeamGamesPlayed', 'homeTeamAvgPointSpread', 'awayTeamAvgPointSpread',
     'homeTeamAvgTotal', 'awayTeamAvgTotal', 'homeTeamFavoredPct', 'awayTeamFavoredPct', 'homeTeamSpreadCoveredPct', 'awayTeamSpreadCoveredPct',
     'homeTeamOverHitPct', 'awayTeamOverHitPct', 'homeTeamUnderHitPct', 'awayTeamUnderHitPct', 'homeTeamTotalHitPct', 'awayTeamTotalHitPct',
-    # Enhanced season and matchup features
-    'homeTeamCurrentSeasonWinPct', 'awayTeamCurrentSeasonWinPct', 'homeTeamCurrentSeasonAvgScore', 'awayTeamCurrentSeasonAvgScore',
-    'homeTeamCurrentSeasonAvgScoreAllowed', 'awayTeamCurrentSeasonAvgScoreAllowed', 'homeTeamPriorSeasonRecord', 'awayTeamPriorSeasonRecord',
-    'headToHeadHomeTeamWinPct',
     # Upset-specific features
     'spreadSize', 'isCloseSpread', 'isMediumSpread', 'isLargeSpread'
 ]
 best_features_spread = load_best_features('best_features_spread.txt', features)
 best_features_moneyline = load_best_features('best_features_moneyline.txt', features)
 best_features_totals = load_best_features('best_features_totals.txt', features)
-target_spread = 'underdogCovered'  # Fix: Predict underdog covering, not favorite
+target_spread = 'spreadCovered'
 target_overunder = 'overHit'  # Predicting over hits; under hits can be derived as 1 - overHit
 
 
@@ -280,33 +185,8 @@ print(y_train_tot.value_counts())
 
 # Train models
 
-# Optimal XGBoost parameters for NFL predictions
-optimal_xgb_params = {
-    # Core parameters
-    'n_estimators': 300,           # More trees for better learning, with early stopping
-    'learning_rate': 0.05,         # Lower rate for stable convergence
-    'max_depth': 6,                # Moderate depth to prevent overfitting
-    'min_child_weight': 3,         # Minimum samples per leaf (higher for sports data)
-    'subsample': 0.8,              # Row sampling to reduce overfitting
-    'colsample_bytree': 0.8,       # Feature sampling per tree
-    
-    # Regularization
-    'reg_alpha': 0.1,              # L1 regularization
-    'reg_lambda': 1.0,             # L2 regularization
-    
-    # Performance
-    'eval_metric': 'logloss',      # Log loss for probability calibration
-    'random_state': 42,            # Reproducibility
-    'n_jobs': -1,                  # Use all CPU cores
-    'verbosity': 0                 # Reduce output noise
-}
-
 # Train and calibrate models for each target
-print("Training Spread model with optimal parameters...")
-model_spread = CalibratedClassifierCV(
-    XGBClassifier(**optimal_xgb_params), 
-    method='sigmoid', cv=3
-)
+model_spread = CalibratedClassifierCV(XGBClassifier(eval_metric='logloss'), method='sigmoid', cv=3)
 model_spread.fit(X_train_spread, y_spread_train)
 
 # Calculate class weights for moneyline model to handle imbalance
@@ -314,21 +194,13 @@ from sklearn.utils.class_weight import compute_class_weight
 class_weights = compute_class_weight('balanced', classes=np.unique(y_train_ml), y=y_train_ml)
 scale_pos_weight = class_weights[1] / class_weights[0]
 
-print("Training Moneyline model with optimal parameters + class weighting...")
-moneyline_params = optimal_xgb_params.copy()
-moneyline_params['scale_pos_weight'] = scale_pos_weight  # Handle class imbalance
 model_moneyline = CalibratedClassifierCV(
-    XGBClassifier(**moneyline_params), 
+    XGBClassifier(eval_metric='logloss', scale_pos_weight=scale_pos_weight), 
     method='sigmoid', cv=3
 )
 model_moneyline.fit(X_train_ml, y_train_ml)
 
-print("Training Totals model with optimal parameters...")
-# Totals model benefits from isotonic calibration due to different probability distribution
-model_totals = CalibratedClassifierCV(
-    XGBClassifier(**optimal_xgb_params), 
-    method='isotonic', cv=3
-)
+model_totals = CalibratedClassifierCV(XGBClassifier(eval_metric='logloss'), method='isotonic', cv=3)
 model_totals.fit(X_train_tot, y_train_tot)
 
 # Predict
@@ -338,8 +210,10 @@ y_spread_pred = model_spread.predict(X_test_spread)
 y_moneyline_pred = model_moneyline.predict(X_test_ml)
 y_totals_pred = model_totals.predict(X_test_tot)
 
-# Optimize threshold using F1-score first
+# Optimize thresholds using F1-score for all three models
 from sklearn.metrics import f1_score
+
+# Moneyline threshold optimization
 y_moneyline_proba = model_moneyline.predict_proba(X_test_ml)[:, 1]
 thresholds = np.arange(0.1, 0.6, 0.02)
 f1_scores = []
@@ -347,20 +221,28 @@ for threshold in thresholds:
     y_pred_thresh = (y_moneyline_proba >= threshold).astype(int)
     f1 = f1_score(y_test_ml, y_pred_thresh, zero_division=0)
     f1_scores.append(f1)
-
 best_threshold = thresholds[np.argmax(f1_scores)]
 optimal_moneyline_threshold = best_threshold
 
-# Optimize spread threshold using F1-score
+# Spread threshold optimization
 y_spread_proba = model_spread.predict_proba(X_test_spread)[:, 1]
-spread_f1_scores = []
+f1_scores_spread = []
 for threshold in thresholds:
     y_pred_thresh = (y_spread_proba >= threshold).astype(int)
     f1 = f1_score(y_spread_test, y_pred_thresh, zero_division=0)
-    spread_f1_scores.append(f1)
-
-best_spread_threshold = thresholds[np.argmax(spread_f1_scores)]
+    f1_scores_spread.append(f1)
+best_spread_threshold = thresholds[np.argmax(f1_scores_spread)]
 optimal_spread_threshold = best_spread_threshold
+
+# Totals threshold optimization
+y_totals_proba = model_totals.predict_proba(X_test_tot)[:, 1]
+f1_scores_totals = []
+for threshold in thresholds:
+    y_pred_thresh = (y_totals_proba >= threshold).astype(int)
+    f1 = f1_score(y_test_tot, y_pred_thresh, zero_division=0)
+    f1_scores_totals.append(f1)
+best_totals_threshold = thresholds[np.argmax(f1_scores_totals)]
+optimal_totals_threshold = best_totals_threshold
 
 # Predict probabilities for all data
 historical_game_level_data['prob_underdogCovered'] = model_spread.predict_proba(X_spread)[:, 1]
@@ -369,6 +251,11 @@ historical_game_level_data['prob_overHit'] = model_totals.predict_proba(X_totals
 
 # Apply optimized thresholds for predictions
 historical_game_level_data['pred_underdogWon_optimal'] = (historical_game_level_data['prob_underdogWon'] >= optimal_moneyline_threshold).astype(int)
+historical_game_level_data['pred_spreadCovered_optimal'] = (historical_game_level_data['prob_underdogCovered'] >= optimal_spread_threshold).astype(int)
+historical_game_level_data['pred_overHit_optimal'] = (historical_game_level_data['prob_overHit'] >= optimal_totals_threshold).astype(int)
+
+# Create pred_over column: 1 = bet on over, 0 = bet on under
+historical_game_level_data['pred_over'] = (historical_game_level_data['prob_overHit'] >= 0.5).astype(int)
 
 # Betting Simulation Analysis
 def calculate_betting_return(row, bet_type='moneyline'):
@@ -388,11 +275,31 @@ def calculate_betting_return(row, bet_type='moneyline'):
         else:  # No bet placed
             return 0
     elif bet_type == 'spread':
-        # Spread betting - bet on underdog to cover (use profitable threshold)
-        if row['prob_underdogCovered'] >= 0.54:  # High-confidence profitable threshold (92.4% win rate)
+        # Spread betting - bet on underdog to cover
+        if row['prob_underdogCovered'] >= 0.55:  # High confidence spread bet
             if row['underdogCovered'] == 1:  # Underdog covered
                 return 90.91  # Standard -110 odds: win $90.91 on $100 bet
             else:
+                return -100
+        else:
+            return 0
+    elif bet_type == 'totals':
+        # Over/Under betting
+        if row['pred_overHit_optimal'] == 1:  # Model predicts this is a good bet
+            # Determine which bet to place (over or under)
+            if row['pred_over'] == 1:  # Bet on over
+                odds = row['over_odds']
+                outcome = row['overHit']
+            else:  # Bet on under
+                odds = row['under_odds']
+                outcome = 1 - row['overHit']  # Under hits when over doesn't
+            
+            if outcome == 1:  # Bet won
+                if odds > 0:  # Positive American odds
+                    return odds  # Win $odds on $100 bet
+                else:  # Negative American odds
+                    return 100 * 100 / abs(odds)  # Standard calculation
+            else:  # Bet lost
                 return -100
         else:
             return 0
@@ -405,15 +312,20 @@ historical_game_level_data['moneyline_bet_return'] = historical_game_level_data.
 historical_game_level_data['spread_bet_return'] = historical_game_level_data.apply(
     lambda row: calculate_betting_return(row, 'spread'), axis=1
 )
+historical_game_level_data['totals_bet_return'] = historical_game_level_data.apply(
+    lambda row: calculate_betting_return(row, 'totals'), axis=1
+)
 
 # Calculate betting performance metrics
 print(f"\nBetting Analysis Debug:")
 print(f"Total games: {len(historical_game_level_data)}")
 print(f"Games with optimal underdog predictions: {(historical_game_level_data['pred_underdogWon_optimal'] == 1).sum()}")
-print(f"Games with high spread confidence (>=0.54): {(historical_game_level_data['prob_underdogCovered'] >= 0.54).sum()}")
+print(f"Games with high spread confidence (>=0.55): {(historical_game_level_data['prob_underdogCovered'] >= 0.55).sum()}")
+print(f"Games with optimal totals predictions: {(historical_game_level_data['pred_overHit_optimal'] == 1).sum()}")
 
 moneyline_bets = historical_game_level_data[historical_game_level_data['pred_underdogWon_optimal'] == 1]
-spread_bets = historical_game_level_data[historical_game_level_data['prob_underdogCovered'] >= 0.54]
+spread_bets = historical_game_level_data[historical_game_level_data['prob_underdogCovered'] >= 0.55]
+totals_bets = historical_game_level_data[historical_game_level_data['pred_overHit_optimal'] == 1]
 
 if len(moneyline_bets) > 0:
     total_moneyline_return = moneyline_bets['moneyline_bet_return'].sum()
@@ -438,6 +350,18 @@ if len(spread_bets) > 0:
     print(f"Total return: ${total_spread_return:.2f}")
     print(f"Average return per bet: ${avg_spread_return:.2f}")
     print(f"ROI: {(total_spread_return / (num_spread_bets * 100)):.1%}")
+
+if len(totals_bets) > 0:
+    total_totals_return = totals_bets['totals_bet_return'].sum()
+    num_totals_bets = len(totals_bets)
+    totals_win_rate = (totals_bets['totals_bet_return'] > 0).mean()
+    avg_totals_return = total_totals_return / num_totals_bets
+    print(f"\nOver/Under Betting Simulation:")
+    print(f"Total bets placed: {num_totals_bets}")
+    print(f"Win rate: {totals_win_rate:.1%}")
+    print(f"Total return: ${total_totals_return:.2f}")
+    print(f"Average return per bet: ${avg_totals_return:.2f}")
+    print(f"ROI: {(total_totals_return / (num_totals_bets * 100)):.1%}")
 
 # Probability sanity check for prob_overHit
 mean_prob_overhit = historical_game_level_data['prob_overHit'].mean()
@@ -487,17 +411,29 @@ print(f"Underdog win precision: {moneyline_precision:.4f}")
 print(f"Underdog win recall: {moneyline_recall:.4f}")
 print(f"Underdog win F1-score: {moneyline_f1:.4f}")
 
-# Feature importance
-feature_importance_spread = permutation_importance(model_spread, X_test_spread, y_spread_test, n_repeats=10, random_state=42)
-feature_importance_totals = permutation_importance(model_totals, X_test_tot, y_test_tot, n_repeats=10, random_state=42)
-sorted_idx_spread = feature_importance_spread.importances_mean.argsort()[::-1]
-sorted_idx_totals = feature_importance_totals.importances_mean.argsort()[::-1]
+# Feature importance using XGBoost built-in (gain-based)
+# Access the underlying XGBoost model from CalibratedClassifierCV
+spread_xgb = model_spread.calibrated_classifiers_[0].estimator
+moneyline_xgb = model_moneyline.calibrated_classifiers_[0].estimator
+totals_xgb = model_totals.calibrated_classifiers_[0].estimator
+
+feature_importance_spread = spread_xgb.feature_importances_
+feature_importance_moneyline = moneyline_xgb.feature_importances_
+feature_importance_totals = totals_xgb.feature_importances_
+
+sorted_idx_spread = feature_importance_spread.argsort()[::-1]
+sorted_idx_moneyline = feature_importance_moneyline.argsort()[::-1]
+sorted_idx_totals = feature_importance_totals.argsort()[::-1]
+
 print("Top 5 Important Features for Spread Prediction:")
 for idx in sorted_idx_spread[:5]:
-    print(f"{best_features_spread[idx]}: {feature_importance_spread.importances_mean[idx]:.4f} ± {feature_importance_spread.importances_std[idx]:.4f}")
+    print(f"{best_features_spread[idx]}: {feature_importance_spread[idx]:.4f}")
+print("Top 5 Important Features for Moneyline Prediction:")
+for idx in sorted_idx_moneyline[:5]:
+    print(f"{best_features_moneyline[idx]}: {feature_importance_moneyline[idx]:.4f}")
 print("Top 5 Important Features for Totals Prediction:")
 for idx in sorted_idx_totals[:5]:
-    print(f"{best_features_totals[idx]}: {feature_importance_totals.importances_mean[idx]:.4f} ± {feature_importance_totals.importances_std[idx]:.4f}")
+    print(f"{best_features_totals[idx]}: {feature_importance_totals[idx]:.4f}")
     
 # Assign predictions to the correct rows in the DataFrame
 historical_game_level_data['predictedSpreadCovered'] = np.nan
@@ -553,201 +489,57 @@ metrics = {
     "Spread MAE": float(mean_absolute_error(y_spread_test, y_spread_pred)),
     "Moneyline MAE": float(mean_absolute_error(y_test_ml, y_moneyline_pred)),
     "Totals MAE": float(mean_absolute_error(y_test_tot, y_totals_pred)),
+    "Optimal Spread Threshold": float(optimal_spread_threshold),
     "Optimal Moneyline Threshold": float(optimal_moneyline_threshold),
-    "Optimal Spread Threshold": float(optimal_spread_threshold)
+    "Optimal Totals Threshold": float(optimal_totals_threshold)
 }
 with open(path.join(DATA_DIR, 'model_metrics.json'), 'w') as f:
     json.dump(metrics, f, indent=2)
 
-# Save feature importances to CSV
+# Save feature importances to CSV (using XGBoost built-in, no std dev)
 fi_spread = pd.DataFrame({
     'feature': [best_features_spread[i] for i in sorted_idx_spread],
-    'importance_mean': feature_importance_spread.importances_mean[sorted_idx_spread],
-    'importance_std': feature_importance_spread.importances_std[sorted_idx_spread],
+    'importance_mean': feature_importance_spread[sorted_idx_spread],
     'model': 'spread'
+})
+fi_moneyline = pd.DataFrame({
+    'feature': [best_features_moneyline[i] for i in sorted_idx_moneyline],
+    'importance_mean': feature_importance_moneyline[sorted_idx_moneyline],
+    'model': 'moneyline'
 })
 fi_totals = pd.DataFrame({
     'feature': [best_features_totals[i] for i in sorted_idx_totals],
-    'importance_mean': feature_importance_totals.importances_mean[sorted_idx_totals],
-    'importance_std': feature_importance_totals.importances_std[sorted_idx_totals],
+    'importance_mean': feature_importance_totals[sorted_idx_totals],
     'model': 'totals'
 })
-fi_all = pd.concat([fi_spread, fi_totals], ignore_index=True)
+fi_all = pd.concat([fi_spread, fi_moneyline, fi_totals], ignore_index=True)
 fi_all.to_csv(path.join(DATA_DIR, 'model_feature_importances.csv'), index=False)
 
-# Monte Carlo feature selection for all three models
-print("\n" + "="*60)
-print("MONTE CARLO FEATURE SELECTION FOR ALL MODELS")
-print("="*60)
-
-NUM_ITER = 200  # More iterations for better optimization
-SUBSET_SIZE = 15  # More features to capture NFL complexity (was too low at 8)
+# Monte Carlo feature selection to find best features
+NUM_ITER = 100
+SUBSET_SIZE = 8  # Number of features to try in each subset
+best_score = 0
+best_features = []
 random.seed(42)
 
-# Feature count analysis:
-print(f"Total available features: {len(features)}")
-print(f"Using subset size of {SUBSET_SIZE} features per iteration")
-print(f"This represents ~{SUBSET_SIZE/len(features)*100:.1f}% of available features")
+for i in range(NUM_ITER):
+    subset = random.sample(best_features_spread, SUBSET_SIZE)
+    # Filter subset to only valid columns
+    valid_subset = [col for col in subset if col in X_train_spread.columns]
+    if len(valid_subset) < SUBSET_SIZE:
+        print(f"Warning: Dropped invalid features from subset: {set(subset) - set(valid_subset)}")
+    X_subset = X_train_spread[valid_subset]
+    model = XGBClassifier(eval_metric='logloss')
+    scores = cross_val_score(model, X_subset, y_spread_train, cv=3, scoring='accuracy')
+    mean_score = scores.mean()
+    if mean_score > best_score:
+        best_score = mean_score
+        best_features = subset
 
-# Monte Carlo parameters (lighter for faster iteration)
-monte_carlo_params = {
-    'n_estimators': 100,           # Fewer trees for faster Monte Carlo
-    'learning_rate': 0.1,          # Slightly higher for faster convergence
-    'max_depth': 4,                # Shallower trees for speed
-    'min_child_weight': 3,
-    'subsample': 0.8,
-    'colsample_bytree': 0.8,
-    'reg_alpha': 0.05,             # Light regularization
-    'reg_lambda': 0.5,
-    'eval_metric': 'logloss',
-    'random_state': 42,
-    'n_jobs': -1,
-    'verbosity': 0
-}
+print(f"Best feature subset (spread, Monte Carlo {NUM_ITER} iters): {best_features}")
+print(f"Best mean CV accuracy: {best_score:.4f}")
 
-# Define models and their data
-models_config = [
-    {
-        'name': 'Spread',
-        'X_train': X_train_spread,
-        'y_train': y_spread_train,
-        'features': best_features_spread,
-        'filename': 'best_features_spread.txt',
-        'model_params': monte_carlo_params.copy()
-    },
-    {
-        'name': 'Moneyline',
-        'X_train': X_train_ml,
-        'y_train': y_train_ml,
-        'features': best_features_moneyline,
-        'filename': 'best_features_moneyline.txt',
-        'model_params': {**monte_carlo_params, 'scale_pos_weight': scale_pos_weight}
-    },
-    {
-        'name': 'Totals',
-        'X_train': X_train_tot,
-        'y_train': y_train_tot,
-        'features': best_features_totals,
-        'filename': 'best_features_totals.txt',
-        'model_params': monte_carlo_params.copy()
-    }
-]
-
-# Run Monte Carlo for each model
-all_results = []
-
-for config in models_config:
-    print(f"\n🎲 Monte Carlo Feature Selection - {config['name']} Model")
-    print(f"Testing {NUM_ITER} random combinations of {SUBSET_SIZE} features...")
-    
-    best_score = 0
-    best_features = []
-    scores_list = []
-    
-    for i in range(NUM_ITER):
-        # Sample features from available set
-        subset = random.sample(config['features'], min(SUBSET_SIZE, len(config['features'])))
-        
-        # Filter subset to only valid columns in training data
-        valid_subset = [col for col in subset if col in config['X_train'].columns]
-        
-        if len(valid_subset) < 2:  # Need at least 2 features
-            continue
-            
-        if len(valid_subset) < SUBSET_SIZE:
-            print(f"  Warning (iter {i+1}): Dropped invalid features: {set(subset) - set(valid_subset)}")
-        
-        X_subset = config['X_train'][valid_subset]
-        model = XGBClassifier(**config['model_params'])
-        
-        try:
-            # Calculate multiple metrics
-            acc_scores = cross_val_score(model, X_subset, config['y_train'], cv=3, scoring='accuracy')
-            acc_mean = acc_scores.mean()
-            
-            # Try to calculate AUC and F1, handle exceptions gracefully
-            try:
-                auc_scores = cross_val_score(model, X_subset, config['y_train'], cv=3, scoring='roc_auc')
-                auc_mean = auc_scores.mean()
-            except:
-                auc_mean = float('nan')
-                
-            try:
-                f1_scores = cross_val_score(model, X_subset, config['y_train'], cv=3, scoring='f1')
-                f1_mean = f1_scores.mean()
-            except:
-                f1_mean = float('nan')
-            
-            scores_list.append({
-                'iteration': i+1,
-                'features': valid_subset,
-                'accuracy': acc_mean,
-                'auc': auc_mean,
-                'f1': f1_mean,
-                'feature_count': len(valid_subset)
-            })
-            
-            # Track best based on accuracy
-            if acc_mean > best_score:
-                best_score = acc_mean
-                best_features = valid_subset
-                
-        except Exception as e:
-            print(f"  Error in iteration {i+1}: {e}")
-            continue
-    
-    # Results summary
-    print(f"✅ {config['name']} Model Results:")
-    print(f"   Best feature subset: {best_features}")
-    print(f"   Best CV accuracy: {best_score:.4f}")
-    print(f"   Total valid iterations: {len(scores_list)}")
-    
-    # Save best features to file
-    with open(path.join(DATA_DIR, config['filename']), 'w') as f:
-        f.write("\n".join(best_features))
-        f.write(f"\n# Best mean CV accuracy: {best_score:.4f}\n")
-        f.write(f"# Generated by Monte Carlo with {NUM_ITER} iterations\n")
-    
-    # Store results for comparison
-    all_results.append({
-        'model': config['name'],
-        'best_features': best_features,
-        'best_score': best_score,
-        'scores_list': scores_list
-    })
-
-# Summary comparison across all models
-print(f"\n🏆 MONTE CARLO RESULTS SUMMARY")
-print("="*50)
-for result in all_results:
-    print(f"{result['model']:>10}: {result['best_score']:.4f} accuracy, {len(result['best_features'])} features")
-
-# Save comprehensive results to JSON for analysis
-monte_carlo_results = {
-    'parameters': {
-        'num_iterations': NUM_ITER,
-        'subset_size': SUBSET_SIZE,
-        'random_seed': 42
-    },
-    'results': all_results
-}
-
-with open(path.join(DATA_DIR, 'monte_carlo_results.json'), 'w') as f:
-    # Convert numpy types to JSON serializable
-    def convert_numpy(obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return obj
-    
-    import json
-    json.dump(monte_carlo_results, f, indent=2, default=convert_numpy)
-
-print(f"\n💾 Saved optimized features to:")
-for config in models_config:
-    print(f"   - {config['filename']}")
-print(f"   - monte_carlo_results.json")
-print("\n🎯 Feature optimization complete for all models!")
+# Save best features to a file
+with open(path.join(DATA_DIR, 'best_features_spread.txt'), 'w') as f:
+    f.write("\n".join(best_features))
+    f.write(f"\nBest mean CV accuracy: {best_score:.4f}\n")

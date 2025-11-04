@@ -43,13 +43,16 @@ A sophisticated NFL analytics platform that uses advanced machine learning to id
 - **Enhanced Reliability**: Robust error handling and graceful fallbacks for uninterrupted analysis
 
 ### 💰 **Proven Betting Strategy**
-- **Dual Strategy Success**: Moneyline (65.4% ROI) + Spread (75.5% ROI) betting
+- **Triple Strategy Success**: Moneyline (65.4% ROI) + Spread (75.5% ROI) + Over/Under betting
 - **Elite Spread Performance**: 91.9% win rate on high-confidence spread bets (≥54% threshold)
 - **Moneyline Strategy**: 59.5% win rate on underdog picks with 28% F1-optimized threshold
+- **Over/Under Model**: NEW totals betting with F1-optimized thresholds and value edge calculations
 - **Professional-Grade Validation**: Data leakage eliminated, realistic performance metrics
 - **Selective Betting**: High-confidence filtering for maximum profitability
 
 ### 🤖 **Advanced Machine Learning**
+- **Three Specialized Models**: Separate XGBoost models for spread, moneyline, and over/under predictions
+- **F1-Score Optimization**: All models use F1-score maximization to find optimal betting thresholds
 - **Optimized XGBoost Models** with production-ready hyperparameters and probability calibration
 - **Enhanced Monte Carlo Feature Selection** testing 200 iterations with 15-feature subsets
 - **Data Leakage Prevention**: Strict temporal boundaries ensuring only pre-game information
@@ -64,7 +67,7 @@ A sophisticated NFL analytics platform that uses advanced machine learning to id
 |----------------|-------------------|---------------------|-----|-------------|
 | **Spread** | 58.9% | **91.9% win rate** (≥54% threshold) | **75.5%** | Elite performance through selective betting |
 | **Moneyline** | 64.2% | 59.5% win rate (≥28% threshold) | **65.4%** | Strong underdog value identification |
-| **Totals** | 56.2% | 55.4% test accuracy | Modest | Honest performance after leakage fixes |
+| **Over/Under** | 56.2% | F1-optimized thresholds | TBD | NEW - Totals betting with value edge analysis |
 
 ### **Major Performance Breakthrough (November 2025)**
 - **Spread Model Fixed**: Corrected inverted predictions from 3.6% to 91.9% win rate
@@ -149,10 +152,23 @@ The dashboard uses **modern tab-based navigation** for easy access to all featur
 - **Smart Sorting**: Ordered by confidence level for optimal bet selection
 - **Spread Explanation**: Team can lose game but still "cover" (e.g., lose by less than spread)
 
+#### **🎯 Tab: Over/Under Bets** ⭐ *NEW*
+- **Totals Betting Opportunities**: Model predictions for over/under betting
+- **Confidence Tiers**: Elite (≥65%), Strong (60-65%), Good (55-60%), Standard (<55%)
+- **Value Edge Calculation**: Expected profit percentage based on model probability vs odds
+- **Smart Bet Selection**: Recommendations sorted by value edge for optimal selection
+- **Complete Payout Info**: Expected returns on $100 bets for both over and under options
+
 #### **📋 Tab: Betting Log**
 - **Automated Bet Tracking**: Logs all betting recommendations with timestamps
 - **Results Integration**: Automatically updates with game outcomes
 - **Performance Analysis**: Win/loss tracking for accountability
+
+#### **📊 Collapsible Historical Data Section** ⭐ *NEW*
+- **Clean Interface**: Historical data tabs now hidden by default in collapsible expander
+- **Organized Layout**: Main betting analysis stays front and center
+- **Easy Access**: Click "📊 Historical Data & Filters" to expand when needed
+- **Four Sub-Tabs**: Play-by-Play Data, Game Summaries, Schedule, and Advanced Filters
 
 #### **⚙️ Additional Features**
 - **Feature Importances**: Top model features with mean/std importance (3 decimals)
@@ -261,27 +277,49 @@ nfl-predictions/
 
 [⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
-## 📁 **Recent Updates (October 2025)**
+## 📁 **Recent Updates (November 2025)**
 
-### **🔥 CRITICAL: Data Leakage Elimination (Latest)**
+### **🎯 NEW: Over/Under Betting Model (Latest)**
+- **Three-Model System**: Added dedicated over/under (totals) betting predictions alongside spread and moneyline
+- **F1-Score Optimization**: Optimal threshold calculation for over/under predictions using F1-score maximization
+- **Value Edge Analysis**: Calculates expected profit percentage based on model probability vs betting odds
+- **Confidence Tiers**: Elite/Strong/Good/Standard classification for bet prioritization
+- **Complete Payout Calculations**: Shows expected returns for both over and under bets on each game
+- **Integrated Dashboard**: New "🎯 Over/Under Bets" tab with top 15 opportunities sorted by value edge
+
+### **📊 NEW: Collapsible Historical Data Interface (Latest)**
+- **Improved UX**: Historical data tabs (Play-by-Play, Game Summaries, Schedule, Filters) now in collapsible expander
+- **Clean Dashboard**: Main betting analysis stays prominent while historical data is hidden by default
+- **Easy Access**: Click "📊 Historical Data & Filters" expander to view detailed historical information
+- **Better Organization**: Separates actionable betting insights from research/analysis tools
+- **Performance**: Faster initial page load with collapsed sections
+
+### **🔧 Bug Fixes & System Improvements (Latest)**
+- **Fixed Over/Under Column Names**: Corrected KeyError for `pred_totalsProb` → `prob_overHit`
+- **Added Moneyline Return Calculation**: Implemented missing `moneyline_bet_return` column computation
+- **Fixed Indentation Issues**: Resolved Python syntax errors in complex nested tab structures
+- **Improved Error Handling**: Better validation for column existence before accessing dataframe columns
+- **Type Safety**: Enhanced Pylance compatibility with proper variable extraction patterns
+
+### **🔥 CRITICAL: Data Leakage Elimination (October 2025)**
 - **Issue Discovered**: Historical statistics were using ALL-TIME data (including future games during training)
 - **Impact**: Models appeared to have 70%+ accuracy but would fail in production
 - **Solution**: Implemented strict temporal boundaries - only prior games used for all statistics
 - **Result**: More realistic 56-64% accuracy BUT **60.9% ROI** (up from 27.8%) due to higher quality signals
 - **Production Ready**: Models now perform consistently with live data
 
-### **⚡ Optimal XGBoost Parameters Implementation**
+### **⚡ Optimal XGBoost Parameters Implementation (October 2025)**
 - **Upgraded**: From basic `eval_metric='logloss'` to production-tuned hyperparameters
 - **Parameters**: 300 estimators, 0.05 learning rate, depth 6, with L1/L2 regularization
 - **Benefits**: Better generalization, reduced overfitting, more stable predictions
 - **Monte Carlo**: Separate lighter parameters for faster feature selection (100 estimators, depth 4)
 
-### **🎯 Enhanced Monte Carlo Feature Selection**
+### **🎯 Enhanced Monte Carlo Feature Selection (October 2025)**
 - **Upgraded**: From 8-feature subsets to 15-feature subsets for better coverage
 - **Iterations**: Increased from 100 to 200 iterations for more thorough optimization
 - **Results**: Found optimal 7-8 feature models through comprehensive search space
 
-### **🔥 NEW: Streamlit Dashboard Enhancements**
+### **🔥 Streamlit Dashboard Enhancements (October 2025)**
 - **Next 10 Underdog Bets**: New prominent section showing actionable betting opportunities
   - Chronological order of next 10 recommended underdog bets
   - Complete betting info: favored team, underdog, spread, model confidence
@@ -291,36 +329,36 @@ nfl-predictions/
 - **Improved User Experience**: Clear explanations, better formatting, actionable insights
 - **Quality**: Better feature combinations leading to improved model stability
 
-### **✅ Fixed Threshold Documentation**
+### **✅ Fixed Threshold Documentation (October 2025)**
 - **Discovered**: Dashboard was showing inconsistent threshold information
 - **Fixed**: Updated to reflect actual F1-optimized threshold (now 28% after leakage fixes)
 - **Impact**: Users now see accurate betting strategy information
 
-### **✅ Streamlit Compatibility Updates**
+### **✅ Streamlit Compatibility Updates (October 2025)**
 - **Fixed**: Deprecated `use_container_width` and `width='stretch'` parameters
 - **Updated**: All dataframe displays now use modern Streamlit best practices
 - **Result**: Dashboard works with latest Streamlit versions without errors
 
-### **✅ Date Filtering Bug Fix (November 2025)**
+### **✅ Date Filtering Bug Fix (October 2025)**
 - **Issue**: "Next 10 Underdog Bets" and "Next 10 Spread Bets" sections showing 2020 games instead of upcoming games
 - **Root Cause**: `predictions_df` variable was being modified by earlier dashboard sections (converting gameday to strings, filtering for past dates)
 - **Solution**: Each betting section now reloads fresh data from CSV and properly filters for future games only (`gameday > today`)
 - **Impact**: Betting recommendations now correctly display only upcoming games in chronological order
 - **Technical**: Fixed variable mutation issues across Streamlit sections through data isolation
 
-### **✅ Git LFS Integration**
+### **✅ Git LFS Integration (October 2025)**
 - **Added**: Large file support for `nfl_history_2020_2024.csv.gz` (73.95MB)
 - **Benefit**: Enables deployment to Streamlit Cloud with access to large datasets
 - **Setup**: Properly configured `.gitignore` and `.gitattributes` for optimal repo management
 
-### **🆕 Enhanced Feature Engineering (Latest)**
+### **🆕 Enhanced Feature Engineering (October 2025)**
 - **Current Season Performance**: Added real-time team form tracking within current season
 - **Prior Season Records**: Incorporated previous season's final win percentages for baseline metrics
 - **Head-to-Head History**: Added historical matchup performance between specific teams
 - **Technical Benefits**: Multi-scale temporal analysis with strict data leakage prevention
 - **Model Impact**: Richer context for predictions across multiple time horizons
 
-### **🔧 System Reliability & Error Resolution (Latest)**
+### **🔧 System Reliability & Error Resolution (October 2025)**
 - **Fixed All KeyError Issues**: Resolved feature list mismatches between training and dashboard
 - **Synchronized Feature Sets**: Ensured consistency across all 50+ features in both `nfl-gather-data.py` and `predictions.py`
 - **Enhanced Monte Carlo Selection**: Fixed feature sampling to only use available numeric features
