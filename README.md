@@ -17,10 +17,12 @@ A sophisticated NFL analytics platform that uses machine learning to identify pr
 - **678 profitable bets** identified from 4+ years of historical data
 
 ### 🤖 **Advanced Machine Learning**
-- **XGBoost Models** with probability calibration for accurate predictions
+- **Three XGBoost Models** with probability calibration for accurate predictions
+- **F1-Score Optimized Thresholds**: 24% (moneyline), 34% (spread), 30% (totals)
 - **Monte Carlo Feature Selection** to optimize model performance
 - **Class Balancing** to handle imbalanced datasets (favorites vs underdogs)
 - **Multi-Target Prediction**: Spread, moneyline, and totals (over/under) predictions
+- **Built-in Feature Importances**: Uses XGBoost's gain-based importance for all models
 
 ## 📈 **Model Performance**
 
@@ -102,10 +104,12 @@ Expected Value: Positive due to 10% edge
 ## 🔬 **Technical Features**
 
 ### **Model Architecture**
-- **XGBoost Classifiers** with hyperparameter optimization
-- **Calibrated Probability Outputs** using Platt scaling
+- **Three Separate XGBoost Models**: Spread, Moneyline, and Over/Under (Totals)
+- **Calibrated Probability Outputs** using isotonic/sigmoid calibration (CalibratedClassifierCV)
 - **Feature Engineering**: 40+ team and situational statistics
 - **Cross-Validation** with time-series aware splits
+- **Feature Importance Analysis**: XGBoost built-in gain-based importances for interpretability
+- **Optimal Betting Thresholds**: F1-score optimized (not 50% cutoffs)
 
 ### **Data Pipeline**
 - **Automated Feature Creation**: Rolling averages, win percentages, trends

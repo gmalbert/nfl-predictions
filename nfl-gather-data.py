@@ -19,6 +19,57 @@ from sklearn.calibration import CalibratedClassifierCV
 
 DATA_DIR = 'data_files/'
 
+# Fetch current year's NFL schedule from ESPN API
+def fetch_espn_schedule(year=2025):
+    """Fetch NFL schedule from ESPN API for the specified year"""
+    print(f"Fetching ESPN schedule for {year}...")
+    schedule_data = []
+    
+    for week in range(1, 19):  # Regular season weeks 1-18
+        url = f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates={year}&seasontype=2&week={week}"
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if 'events' in data:
+                for event in data['events']:
+                    game_info = {
+                        'week': week,
+                        'date': event.get('date', ''),
+                        'name': event.get('name', ''),
+                        'shortName': event.get('shortName', ''),
+                        'home_team': event['competitions'][0]['competitors'][0]['team']['displayName'] if 'competitors' in event['competitions'][0] else '',
+                        'away_team': event['competitions'][0]['competitors'][1]['team']['displayName'] if 'competitors' in event['competitions'][0] else '',
+                        'venue': event['competitions'][0].get('venue', {}).get('fullName', ''),
+                        'status': event.get('status', {}).get('type', {}).get('description', ''),
+                    }
+                    schedule_data.append(game_info)
+            
+            print(f"  Week {week}: {len(data.get('events', []))} games")
+        
+        except requests.exceptions.RequestException as e:
+            print(f"  Error fetching week {week}: {e}")
+            continue
+    
+    if schedule_data:
+        schedule_df = pd.DataFrame(schedule_data)
+        output_path = path.join(DATA_DIR, f'espn_schedule_{year}.csv')
+        schedule_df.to_csv(output_path, index=False)
+        print(f"Saved {len(schedule_data)} games to {output_path}")
+        return schedule_df
+    else:
+        print("No schedule data retrieved")
+        return pd.DataFrame()
+
+# Fetch ESPN schedule for current year
+current_year = datetime.now().year
+espn_schedule_path = path.join(DATA_DIR, f'espn_schedule_{current_year}.csv')
+if not path.exists(espn_schedule_path):
+    fetch_espn_schedule(current_year)
+else:
+    print(f"ESPN schedule for {current_year} already exists at {espn_schedule_path}")
+
 historical_game_level_data = pd.read_csv(path.join(DATA_DIR, 'nfl_games_historical.csv'), sep='\t')
 
 
@@ -210,18 +261,40 @@ y_spread_pred = model_spread.predict(X_test_spread)
 y_moneyline_pred = model_moneyline.predict(X_test_ml)
 y_totals_pred = model_totals.predict(X_test_tot)
 
-# Optimize threshold using F1-score first
+# Optimize thresholds using F1-score for all three models
 from sklearn.metrics import f1_score
+
+# Moneyline threshold optimization
 y_moneyline_proba = model_moneyline.predict_proba(X_test_ml)[:, 1]
 thresholds = np.arange(0.1, 0.6, 0.02)
-f1_scores = []
+f1_scores_ml = []
 for threshold in thresholds:
     y_pred_thresh = (y_moneyline_proba >= threshold).astype(int)
     f1 = f1_score(y_test_ml, y_pred_thresh, zero_division=0)
-    f1_scores.append(f1)
+    f1_scores_ml.append(f1)
+optimal_moneyline_threshold = thresholds[np.argmax(f1_scores_ml)]
 
-best_threshold = thresholds[np.argmax(f1_scores)]
-optimal_moneyline_threshold = best_threshold
+# Spread threshold optimization
+y_spread_proba = model_spread.predict_proba(X_test_spread)[:, 1]
+f1_scores_spread = []
+for threshold in thresholds:
+    y_pred_thresh = (y_spread_proba >= threshold).astype(int)
+    f1 = f1_score(y_spread_test, y_pred_thresh, zero_division=0)
+    f1_scores_spread.append(f1)
+optimal_spread_threshold = thresholds[np.argmax(f1_scores_spread)]
+
+# Totals (Over) threshold optimization
+y_totals_proba = model_totals.predict_proba(X_test_tot)[:, 1]
+f1_scores_totals = []
+for threshold in thresholds:
+    y_pred_thresh = (y_totals_proba >= threshold).astype(int)
+    f1 = f1_score(y_test_tot, y_pred_thresh, zero_division=0)
+    f1_scores_totals.append(f1)
+optimal_totals_threshold = thresholds[np.argmax(f1_scores_totals)]
+
+print(f"Optimal Moneyline Threshold: {optimal_moneyline_threshold:.2f}")
+print(f"Optimal Spread Threshold: {optimal_spread_threshold:.2f}")
+print(f"Optimal Totals (Over) Threshold: {optimal_totals_threshold:.2f}")
 
 # Predict probabilities for all data
 historical_game_level_data['prob_underdogCovered'] = model_spread.predict_proba(X_spread)[:, 1]
@@ -230,6 +303,8 @@ historical_game_level_data['prob_overHit'] = model_totals.predict_proba(X_totals
 
 # Apply optimized thresholds for predictions
 historical_game_level_data['pred_underdogWon_optimal'] = (historical_game_level_data['prob_underdogWon'] >= optimal_moneyline_threshold).astype(int)
+historical_game_level_data['pred_spreadCovered_optimal'] = (historical_game_level_data['prob_underdogCovered'] >= optimal_spread_threshold).astype(int)
+historical_game_level_data['pred_overHit_optimal'] = (historical_game_level_data['prob_overHit'] >= optimal_totals_threshold).astype(int)
 
 # Betting Simulation Analysis
 def calculate_betting_return(row, bet_type='moneyline'):
@@ -257,6 +332,20 @@ def calculate_betting_return(row, bet_type='moneyline'):
                 return -100
         else:
             return 0
+    elif bet_type == 'totals':
+        # Totals (Over/Under) betting - bet on over when model predicts it
+        if row['pred_overHit_optimal'] == 1:  # Model predicts over hits
+            if row['overHit'] == 1:  # Over actually hit
+                # Calculate payout from over odds
+                over_odds = row.get('over_odds', -110)  # Default to -110 if missing
+                if over_odds > 0:  # American odds positive
+                    return over_odds  # $100 bet returns $over_odds profit
+                else:  # American odds negative
+                    return 100 / abs(over_odds) * 100  # Standard juice calculation
+            else:  # Bet lost
+                return -100
+        else:  # No bet placed
+            return 0
     return 0
 
 # Apply betting simulation
@@ -265,6 +354,9 @@ historical_game_level_data['moneyline_bet_return'] = historical_game_level_data.
 )
 historical_game_level_data['spread_bet_return'] = historical_game_level_data.apply(
     lambda row: calculate_betting_return(row, 'spread'), axis=1
+)
+historical_game_level_data['totals_bet_return'] = historical_game_level_data.apply(
+    lambda row: calculate_betting_return(row, 'totals'), axis=1
 )
 
 # Calculate betting performance metrics
@@ -299,6 +391,19 @@ if len(spread_bets) > 0:
     print(f"Total return: ${total_spread_return:.2f}")
     print(f"Average return per bet: ${avg_spread_return:.2f}")
     print(f"ROI: {(total_spread_return / (num_spread_bets * 100)):.1%}")
+
+totals_bets = historical_game_level_data[historical_game_level_data['pred_overHit_optimal'] == 1]
+if len(totals_bets) > 0:
+    total_totals_return = totals_bets['totals_bet_return'].sum()
+    num_totals_bets = len(totals_bets)
+    totals_win_rate = (totals_bets['totals_bet_return'] > 0).mean()
+    avg_totals_return = total_totals_return / num_totals_bets
+    print(f"\nTotals (Over/Under) Betting Simulation:")
+    print(f"Total bets placed: {num_totals_bets}")
+    print(f"Win rate: {totals_win_rate:.1%}")
+    print(f"Total return: ${total_totals_return:.2f}")
+    print(f"Average return per bet: ${avg_totals_return:.2f}")
+    print(f"ROI: {(total_totals_return / (num_totals_bets * 100)):.1%}")
 
 # Probability sanity check for prob_overHit
 mean_prob_overhit = historical_game_level_data['prob_overHit'].mean()
@@ -348,17 +453,28 @@ print(f"Underdog win precision: {moneyline_precision:.4f}")
 print(f"Underdog win recall: {moneyline_recall:.4f}")
 print(f"Underdog win F1-score: {moneyline_f1:.4f}")
 
-# Feature importance
-feature_importance_spread = permutation_importance(model_spread, X_test_spread, y_spread_test, n_repeats=10, random_state=42)
-feature_importance_totals = permutation_importance(model_totals, X_test_tot, y_test_tot, n_repeats=10, random_state=42)
-sorted_idx_spread = feature_importance_spread.importances_mean.argsort()[::-1]
-sorted_idx_totals = feature_importance_totals.importances_mean.argsort()[::-1]
-print("Top 5 Important Features for Spread Prediction:")
+# Feature importance - use XGBoost built-in for all models (more reliable than permutation)
+# CalibratedClassifierCV wraps the estimator, access via .calibrated_classifiers_[0].estimator
+spread_base_estimator = model_spread.calibrated_classifiers_[0].estimator
+spread_importances = spread_base_estimator.feature_importances_
+moneyline_base_estimator = model_moneyline.calibrated_classifiers_[0].estimator
+moneyline_importances = moneyline_base_estimator.feature_importances_
+totals_base_estimator = model_totals.calibrated_classifiers_[0].estimator
+totals_importances = totals_base_estimator.feature_importances_
+
+sorted_idx_spread = spread_importances.argsort()[::-1]
+sorted_idx_moneyline = moneyline_importances.argsort()[::-1]
+sorted_idx_totals = totals_importances.argsort()[::-1]
+
+print("Top 5 Important Features for Spread Prediction (XGBoost built-in):")
 for idx in sorted_idx_spread[:5]:
-    print(f"{best_features_spread[idx]}: {feature_importance_spread.importances_mean[idx]:.4f} ± {feature_importance_spread.importances_std[idx]:.4f}")
-print("Top 5 Important Features for Totals Prediction:")
+    print(f"{best_features_spread[idx]}: {spread_importances[idx]:.4f}")
+print("Top 5 Important Features for Moneyline Prediction (XGBoost built-in):")
+for idx in sorted_idx_moneyline[:5]:
+    print(f"{best_features_moneyline[idx]}: {moneyline_importances[idx]:.4f}")
+print("Top 5 Important Features for Totals Prediction (XGBoost built-in):")
 for idx in sorted_idx_totals[:5]:
-    print(f"{best_features_totals[idx]}: {feature_importance_totals.importances_mean[idx]:.4f} ± {feature_importance_totals.importances_std[idx]:.4f}")
+    print(f"{best_features_totals[idx]}: {totals_importances[idx]:.4f}")
     
 # Assign predictions to the correct rows in the DataFrame
 historical_game_level_data['predictedSpreadCovered'] = np.nan
@@ -413,25 +529,34 @@ metrics = {
     "Totals Accuracy": float(totals_accuracy),
     "Spread MAE": float(mean_absolute_error(y_spread_test, y_spread_pred)),
     "Moneyline MAE": float(mean_absolute_error(y_test_ml, y_moneyline_pred)),
-    "Totals MAE": float(mean_absolute_error(y_test_tot, y_totals_pred))
+    "Totals MAE": float(mean_absolute_error(y_test_tot, y_totals_pred)),
+    "Optimal Spread Threshold": float(optimal_spread_threshold),
+    "Optimal Moneyline Threshold": float(optimal_moneyline_threshold),
+    "Optimal Totals Threshold": float(optimal_totals_threshold)
 }
 with open(path.join(DATA_DIR, 'model_metrics.json'), 'w') as f:
     json.dump(metrics, f, indent=2)
 
-# Save feature importances to CSV
+# Save feature importances to CSV (all using XGBoost built-in, no std dev)
 fi_spread = pd.DataFrame({
     'feature': [best_features_spread[i] for i in sorted_idx_spread],
-    'importance_mean': feature_importance_spread.importances_mean[sorted_idx_spread],
-    'importance_std': feature_importance_spread.importances_std[sorted_idx_spread],
+    'importance_mean': spread_importances[sorted_idx_spread],
+    'importance_std': np.zeros_like(spread_importances[sorted_idx_spread]),  # Built-in doesn't have std
     'model': 'spread'
+})
+fi_moneyline = pd.DataFrame({
+    'feature': [best_features_moneyline[i] for i in sorted_idx_moneyline],
+    'importance_mean': moneyline_importances[sorted_idx_moneyline],
+    'importance_std': np.zeros_like(moneyline_importances[sorted_idx_moneyline]),  # Built-in doesn't have std
+    'model': 'moneyline'
 })
 fi_totals = pd.DataFrame({
     'feature': [best_features_totals[i] for i in sorted_idx_totals],
-    'importance_mean': feature_importance_totals.importances_mean[sorted_idx_totals],
-    'importance_std': feature_importance_totals.importances_std[sorted_idx_totals],
+    'importance_mean': totals_importances[sorted_idx_totals],
+    'importance_std': np.zeros_like(totals_importances[sorted_idx_totals]),  # Built-in doesn't have std
     'model': 'totals'
 })
-fi_all = pd.concat([fi_spread, fi_totals], ignore_index=True)
+fi_all = pd.concat([fi_spread, fi_moneyline, fi_totals], ignore_index=True)
 fi_all.to_csv(path.join(DATA_DIR, 'model_feature_importances.csv'), index=False)
 
 # Monte Carlo feature selection to find best features

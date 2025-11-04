@@ -8,8 +8,8 @@ import requests
 
 DATA_DIR = 'data_files/'
 
-# Get game summaries for 2020-2024
-seasons = list(range(2020, 2025))
+# Get game summaries for 2020-2025 (includes current season)
+seasons = list(range(2020, 2026))  # Updated to include 2025 season
 games = nfl.import_schedules(seasons)
 
 # Show a sample
