@@ -1,37 +1,73 @@
-# Created by venv; see https://docs.python.org/3/library/venv.html
+# Python virtual environment files
 /Lib/*
 /Scripts/*
 /Include/*
 /pyvenv.cfg
 /share/*
-/data_files/stats_player*
-/data_files/stats_team*
-/data_files/Gemini*
-/data_files/espn_schedule*
-/data_files/logo for *
-logo for NFL predict.png
+.github/*
+.venv/*
+venv/
+
+# IDE and system files
 .DS_Store
 .vscode/
+*.log
+/data_files/nfl.code-workspace
+
+# Python compiled files
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.sqlite3   
+__pypackages__/
+
+# Database files
+*.sqlite3
 *.db
-# Large data files
+
+# Large data files (excluded from Git)
 /data_files/nfl_history_2020_2024.csv
 /data_files/nfl_play_by_play_thru_2025.csv.gz
 # Note: nfl_history_2020_2024.csv.gz is tracked by Git LFS
-*.log
-__pypackages__/  
+
+# Data file patterns
+/data_files/stats_player*
+/data_files/stats_team*
+/data_files/Gemini*
+# /data_files/espn_schedule*
+/data_files/logo for *
+/data_files/qbr*
+/data_files/players.csv
+/data_files/otc*
+/data_files/schedule*
+/data_files/nfl.code-workspace
+
+# Images and logos
+logo for NFL predict.png
+/data_files/qbr_season_level.csv
+/data_files/nfl-logo.jpg
+/data_files/NFL-Logo.png
+/data_files/nfl_favicon.ico
+/data_files/gridiron-oracle_nonwhitebkgd.png
+
+# Temporary/backup files
 create_nflfastR_fields_md.py
-/etc/*
 fetch_espn_weekly_scores.py
 espn_nfl_scores_2020_2024.csv
 nflfastR_games_2020_2024.csv
-/data_files/qbr*
+fetch_nflfastR_games.py
+nflfastR_fields.md
+nflfastR_fields_streamlit.py
+
+
+# Documentation files (managed separately)
+GIT_WORKFLOW_GUIDE.md
 create-play-by-play - Copy.py
 create-nfl-historical - Copy.py
-create-play-by-play - Copy.py
 nfl-gather-data - Copy.py
-/data_files/players.csv
+nflfastR_fields.md
+nflfastR_fields_streamlit.py
+fetch_nflfastR_games.py
+
+# Other directories
+/etc/*

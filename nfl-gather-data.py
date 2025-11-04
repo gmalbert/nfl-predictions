@@ -210,8 +210,10 @@ y_spread_pred = model_spread.predict(X_test_spread)
 y_moneyline_pred = model_moneyline.predict(X_test_ml)
 y_totals_pred = model_totals.predict(X_test_tot)
 
-# Optimize threshold using F1-score first
+# Optimize thresholds using F1-score for all three models
 from sklearn.metrics import f1_score
+
+# Moneyline threshold optimization
 y_moneyline_proba = model_moneyline.predict_proba(X_test_ml)[:, 1]
 thresholds = np.arange(0.1, 0.6, 0.02)
 f1_scores = []
@@ -219,9 +221,28 @@ for threshold in thresholds:
     y_pred_thresh = (y_moneyline_proba >= threshold).astype(int)
     f1 = f1_score(y_test_ml, y_pred_thresh, zero_division=0)
     f1_scores.append(f1)
-
 best_threshold = thresholds[np.argmax(f1_scores)]
 optimal_moneyline_threshold = best_threshold
+
+# Spread threshold optimization
+y_spread_proba = model_spread.predict_proba(X_test_spread)[:, 1]
+f1_scores_spread = []
+for threshold in thresholds:
+    y_pred_thresh = (y_spread_proba >= threshold).astype(int)
+    f1 = f1_score(y_spread_test, y_pred_thresh, zero_division=0)
+    f1_scores_spread.append(f1)
+best_spread_threshold = thresholds[np.argmax(f1_scores_spread)]
+optimal_spread_threshold = best_spread_threshold
+
+# Totals threshold optimization
+y_totals_proba = model_totals.predict_proba(X_test_tot)[:, 1]
+f1_scores_totals = []
+for threshold in thresholds:
+    y_pred_thresh = (y_totals_proba >= threshold).astype(int)
+    f1 = f1_score(y_test_tot, y_pred_thresh, zero_division=0)
+    f1_scores_totals.append(f1)
+best_totals_threshold = thresholds[np.argmax(f1_scores_totals)]
+optimal_totals_threshold = best_totals_threshold
 
 # Predict probabilities for all data
 historical_game_level_data['prob_underdogCovered'] = model_spread.predict_proba(X_spread)[:, 1]
@@ -230,6 +251,11 @@ historical_game_level_data['prob_overHit'] = model_totals.predict_proba(X_totals
 
 # Apply optimized thresholds for predictions
 historical_game_level_data['pred_underdogWon_optimal'] = (historical_game_level_data['prob_underdogWon'] >= optimal_moneyline_threshold).astype(int)
+historical_game_level_data['pred_spreadCovered_optimal'] = (historical_game_level_data['prob_underdogCovered'] >= optimal_spread_threshold).astype(int)
+historical_game_level_data['pred_overHit_optimal'] = (historical_game_level_data['prob_overHit'] >= optimal_totals_threshold).astype(int)
+
+# Create pred_over column: 1 = bet on over, 0 = bet on under
+historical_game_level_data['pred_over'] = (historical_game_level_data['prob_overHit'] >= 0.5).astype(int)
 
 # Betting Simulation Analysis
 def calculate_betting_return(row, bet_type='moneyline'):
@@ -257,6 +283,26 @@ def calculate_betting_return(row, bet_type='moneyline'):
                 return -100
         else:
             return 0
+    elif bet_type == 'totals':
+        # Over/Under betting
+        if row['pred_overHit_optimal'] == 1:  # Model predicts this is a good bet
+            # Determine which bet to place (over or under)
+            if row['pred_over'] == 1:  # Bet on over
+                odds = row['over_odds']
+                outcome = row['overHit']
+            else:  # Bet on under
+                odds = row['under_odds']
+                outcome = 1 - row['overHit']  # Under hits when over doesn't
+            
+            if outcome == 1:  # Bet won
+                if odds > 0:  # Positive American odds
+                    return odds  # Win $odds on $100 bet
+                else:  # Negative American odds
+                    return 100 * 100 / abs(odds)  # Standard calculation
+            else:  # Bet lost
+                return -100
+        else:
+            return 0
     return 0
 
 # Apply betting simulation
@@ -266,15 +312,20 @@ historical_game_level_data['moneyline_bet_return'] = historical_game_level_data.
 historical_game_level_data['spread_bet_return'] = historical_game_level_data.apply(
     lambda row: calculate_betting_return(row, 'spread'), axis=1
 )
+historical_game_level_data['totals_bet_return'] = historical_game_level_data.apply(
+    lambda row: calculate_betting_return(row, 'totals'), axis=1
+)
 
 # Calculate betting performance metrics
 print(f"\nBetting Analysis Debug:")
 print(f"Total games: {len(historical_game_level_data)}")
 print(f"Games with optimal underdog predictions: {(historical_game_level_data['pred_underdogWon_optimal'] == 1).sum()}")
 print(f"Games with high spread confidence (>=0.55): {(historical_game_level_data['prob_underdogCovered'] >= 0.55).sum()}")
+print(f"Games with optimal totals predictions: {(historical_game_level_data['pred_overHit_optimal'] == 1).sum()}")
 
 moneyline_bets = historical_game_level_data[historical_game_level_data['pred_underdogWon_optimal'] == 1]
 spread_bets = historical_game_level_data[historical_game_level_data['prob_underdogCovered'] >= 0.55]
+totals_bets = historical_game_level_data[historical_game_level_data['pred_overHit_optimal'] == 1]
 
 if len(moneyline_bets) > 0:
     total_moneyline_return = moneyline_bets['moneyline_bet_return'].sum()
@@ -299,6 +350,18 @@ if len(spread_bets) > 0:
     print(f"Total return: ${total_spread_return:.2f}")
     print(f"Average return per bet: ${avg_spread_return:.2f}")
     print(f"ROI: {(total_spread_return / (num_spread_bets * 100)):.1%}")
+
+if len(totals_bets) > 0:
+    total_totals_return = totals_bets['totals_bet_return'].sum()
+    num_totals_bets = len(totals_bets)
+    totals_win_rate = (totals_bets['totals_bet_return'] > 0).mean()
+    avg_totals_return = total_totals_return / num_totals_bets
+    print(f"\nOver/Under Betting Simulation:")
+    print(f"Total bets placed: {num_totals_bets}")
+    print(f"Win rate: {totals_win_rate:.1%}")
+    print(f"Total return: ${total_totals_return:.2f}")
+    print(f"Average return per bet: ${avg_totals_return:.2f}")
+    print(f"ROI: {(total_totals_return / (num_totals_bets * 100)):.1%}")
 
 # Probability sanity check for prob_overHit
 mean_prob_overhit = historical_game_level_data['prob_overHit'].mean()
@@ -348,17 +411,29 @@ print(f"Underdog win precision: {moneyline_precision:.4f}")
 print(f"Underdog win recall: {moneyline_recall:.4f}")
 print(f"Underdog win F1-score: {moneyline_f1:.4f}")
 
-# Feature importance
-feature_importance_spread = permutation_importance(model_spread, X_test_spread, y_spread_test, n_repeats=10, random_state=42)
-feature_importance_totals = permutation_importance(model_totals, X_test_tot, y_test_tot, n_repeats=10, random_state=42)
-sorted_idx_spread = feature_importance_spread.importances_mean.argsort()[::-1]
-sorted_idx_totals = feature_importance_totals.importances_mean.argsort()[::-1]
+# Feature importance using XGBoost built-in (gain-based)
+# Access the underlying XGBoost model from CalibratedClassifierCV
+spread_xgb = model_spread.calibrated_classifiers_[0].estimator
+moneyline_xgb = model_moneyline.calibrated_classifiers_[0].estimator
+totals_xgb = model_totals.calibrated_classifiers_[0].estimator
+
+feature_importance_spread = spread_xgb.feature_importances_
+feature_importance_moneyline = moneyline_xgb.feature_importances_
+feature_importance_totals = totals_xgb.feature_importances_
+
+sorted_idx_spread = feature_importance_spread.argsort()[::-1]
+sorted_idx_moneyline = feature_importance_moneyline.argsort()[::-1]
+sorted_idx_totals = feature_importance_totals.argsort()[::-1]
+
 print("Top 5 Important Features for Spread Prediction:")
 for idx in sorted_idx_spread[:5]:
-    print(f"{best_features_spread[idx]}: {feature_importance_spread.importances_mean[idx]:.4f} ± {feature_importance_spread.importances_std[idx]:.4f}")
+    print(f"{best_features_spread[idx]}: {feature_importance_spread[idx]:.4f}")
+print("Top 5 Important Features for Moneyline Prediction:")
+for idx in sorted_idx_moneyline[:5]:
+    print(f"{best_features_moneyline[idx]}: {feature_importance_moneyline[idx]:.4f}")
 print("Top 5 Important Features for Totals Prediction:")
 for idx in sorted_idx_totals[:5]:
-    print(f"{best_features_totals[idx]}: {feature_importance_totals.importances_mean[idx]:.4f} ± {feature_importance_totals.importances_std[idx]:.4f}")
+    print(f"{best_features_totals[idx]}: {feature_importance_totals[idx]:.4f}")
     
 # Assign predictions to the correct rows in the DataFrame
 historical_game_level_data['predictedSpreadCovered'] = np.nan
@@ -413,25 +488,31 @@ metrics = {
     "Totals Accuracy": float(totals_accuracy),
     "Spread MAE": float(mean_absolute_error(y_spread_test, y_spread_pred)),
     "Moneyline MAE": float(mean_absolute_error(y_test_ml, y_moneyline_pred)),
-    "Totals MAE": float(mean_absolute_error(y_test_tot, y_totals_pred))
+    "Totals MAE": float(mean_absolute_error(y_test_tot, y_totals_pred)),
+    "Optimal Spread Threshold": float(optimal_spread_threshold),
+    "Optimal Moneyline Threshold": float(optimal_moneyline_threshold),
+    "Optimal Totals Threshold": float(optimal_totals_threshold)
 }
 with open(path.join(DATA_DIR, 'model_metrics.json'), 'w') as f:
     json.dump(metrics, f, indent=2)
 
-# Save feature importances to CSV
+# Save feature importances to CSV (using XGBoost built-in, no std dev)
 fi_spread = pd.DataFrame({
     'feature': [best_features_spread[i] for i in sorted_idx_spread],
-    'importance_mean': feature_importance_spread.importances_mean[sorted_idx_spread],
-    'importance_std': feature_importance_spread.importances_std[sorted_idx_spread],
+    'importance_mean': feature_importance_spread[sorted_idx_spread],
     'model': 'spread'
+})
+fi_moneyline = pd.DataFrame({
+    'feature': [best_features_moneyline[i] for i in sorted_idx_moneyline],
+    'importance_mean': feature_importance_moneyline[sorted_idx_moneyline],
+    'model': 'moneyline'
 })
 fi_totals = pd.DataFrame({
     'feature': [best_features_totals[i] for i in sorted_idx_totals],
-    'importance_mean': feature_importance_totals.importances_mean[sorted_idx_totals],
-    'importance_std': feature_importance_totals.importances_std[sorted_idx_totals],
+    'importance_mean': feature_importance_totals[sorted_idx_totals],
     'model': 'totals'
 })
-fi_all = pd.concat([fi_spread, fi_totals], ignore_index=True)
+fi_all = pd.concat([fi_spread, fi_moneyline, fi_totals], ignore_index=True)
 fi_all.to_csv(path.join(DATA_DIR, 'model_feature_importances.csv'), index=False)
 
 # Monte Carlo feature selection to find best features

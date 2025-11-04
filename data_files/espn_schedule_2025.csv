@@ -1,0 +1,273 @@
+week,date,home_team,away_team,venue,status
+1,2025-09-05T00:20Z,Philadelphia Eagles,Dallas Cowboys,Lincoln Financial Field,STATUS_FINAL
+1,2025-09-06T00:00Z,Los Angeles Chargers,Kansas City Chiefs,Corinthians Arena,STATUS_FINAL
+1,2025-09-07T17:00Z,Atlanta Falcons,Tampa Bay Buccaneers,Mercedes-Benz Stadium,STATUS_FINAL
+1,2025-09-07T17:00Z,Cleveland Browns,Cincinnati Bengals,Huntington Bank Field,STATUS_FINAL
+1,2025-09-07T17:00Z,Indianapolis Colts,Miami Dolphins,Lucas Oil Stadium,STATUS_FINAL
+1,2025-09-07T17:00Z,New England Patriots,Las Vegas Raiders,Gillette Stadium,STATUS_FINAL
+1,2025-09-07T17:00Z,New Orleans Saints,Arizona Cardinals,Caesars Superdome,STATUS_FINAL
+1,2025-09-07T17:00Z,New York Jets,Pittsburgh Steelers,MetLife Stadium,STATUS_FINAL
+1,2025-09-07T17:00Z,Washington Commanders,New York Giants,Northwest Stadium,STATUS_FINAL
+1,2025-09-07T17:00Z,Jacksonville Jaguars,Carolina Panthers,EverBank Stadium,STATUS_FINAL
+1,2025-09-07T20:05Z,Denver Broncos,Tennessee Titans,Empower Field at Mile High,STATUS_FINAL
+1,2025-09-07T20:05Z,Seattle Seahawks,San Francisco 49ers,Lumen Field,STATUS_FINAL
+1,2025-09-07T20:25Z,Green Bay Packers,Detroit Lions,Lambeau Field,STATUS_FINAL
+1,2025-09-07T20:25Z,Los Angeles Rams,Houston Texans,SoFi Stadium,STATUS_FINAL
+1,2025-09-08T00:20Z,Buffalo Bills,Baltimore Ravens,Highmark Stadium,STATUS_FINAL
+1,2025-09-09T00:15Z,Chicago Bears,Minnesota Vikings,Soldier Field,STATUS_FINAL
+2,2025-09-12T00:15Z,Green Bay Packers,Washington Commanders,Lambeau Field,STATUS_FINAL
+2,2025-09-14T17:00Z,Cincinnati Bengals,Jacksonville Jaguars,Paycor Stadium,STATUS_FINAL
+2,2025-09-14T17:00Z,Dallas Cowboys,New York Giants,AT&T Stadium,STATUS_FINAL
+2,2025-09-14T17:00Z,Detroit Lions,Chicago Bears,Ford Field,STATUS_FINAL
+2,2025-09-14T17:00Z,Tennessee Titans,Los Angeles Rams,Nissan Stadium,STATUS_FINAL
+2,2025-09-14T17:00Z,Miami Dolphins,New England Patriots,Hard Rock Stadium,STATUS_FINAL
+2,2025-09-14T17:00Z,New Orleans Saints,San Francisco 49ers,Caesars Superdome,STATUS_FINAL
+2,2025-09-14T17:00Z,New York Jets,Buffalo Bills,MetLife Stadium,STATUS_FINAL
+2,2025-09-14T17:00Z,Pittsburgh Steelers,Seattle Seahawks,Acrisure Stadium,STATUS_FINAL
+2,2025-09-14T17:00Z,Baltimore Ravens,Cleveland Browns,M&T Bank Stadium,STATUS_FINAL
+2,2025-09-14T20:05Z,Indianapolis Colts,Denver Broncos,Lucas Oil Stadium,STATUS_FINAL
+2,2025-09-14T20:05Z,Arizona Cardinals,Carolina Panthers,State Farm Stadium,STATUS_FINAL
+2,2025-09-14T20:25Z,Kansas City Chiefs,Philadelphia Eagles,GEHA Field at Arrowhead Stadium,STATUS_FINAL
+2,2025-09-15T00:20Z,Minnesota Vikings,Atlanta Falcons,U.S. Bank Stadium,STATUS_FINAL
+2,2025-09-15T23:00Z,Houston Texans,Tampa Bay Buccaneers,NRG Stadium,STATUS_FINAL
+2,2025-09-16T02:00Z,Las Vegas Raiders,Los Angeles Chargers,Allegiant Stadium,STATUS_FINAL
+3,2025-09-19T00:15Z,Buffalo Bills,Miami Dolphins,Highmark Stadium,STATUS_FINAL
+3,2025-09-21T17:00Z,Cleveland Browns,Green Bay Packers,Huntington Bank Field,STATUS_FINAL
+3,2025-09-21T17:00Z,Tennessee Titans,Indianapolis Colts,Nissan Stadium,STATUS_FINAL
+3,2025-09-21T17:00Z,Minnesota Vikings,Cincinnati Bengals,U.S. Bank Stadium,STATUS_FINAL
+3,2025-09-21T17:00Z,New England Patriots,Pittsburgh Steelers,Gillette Stadium,STATUS_FINAL
+3,2025-09-21T17:00Z,Philadelphia Eagles,Los Angeles Rams,Lincoln Financial Field,STATUS_FINAL
+3,2025-09-21T17:00Z,Tampa Bay Buccaneers,New York Jets,Raymond James Stadium,STATUS_FINAL
+3,2025-09-21T17:00Z,Washington Commanders,Las Vegas Raiders,Northwest Stadium,STATUS_FINAL
+3,2025-09-21T17:00Z,Carolina Panthers,Atlanta Falcons,Bank of America Stadium,STATUS_FINAL
+3,2025-09-21T17:00Z,Jacksonville Jaguars,Houston Texans,EverBank Stadium,STATUS_FINAL
+3,2025-09-21T20:05Z,Los Angeles Chargers,Denver Broncos,SoFi Stadium,STATUS_FINAL
+3,2025-09-21T20:05Z,Seattle Seahawks,New Orleans Saints,Lumen Field,STATUS_FINAL
+3,2025-09-21T20:25Z,Chicago Bears,Dallas Cowboys,Soldier Field,STATUS_FINAL
+3,2025-09-21T20:25Z,San Francisco 49ers,Arizona Cardinals,Levi's Stadium,STATUS_FINAL
+3,2025-09-22T00:20Z,New York Giants,Kansas City Chiefs,MetLife Stadium,STATUS_FINAL
+3,2025-09-23T00:15Z,Baltimore Ravens,Detroit Lions,M&T Bank Stadium,STATUS_FINAL
+4,2025-09-26T00:15Z,Arizona Cardinals,Seattle Seahawks,State Farm Stadium,STATUS_FINAL
+4,2025-09-28T13:30Z,Pittsburgh Steelers,Minnesota Vikings,Croke Park,STATUS_FINAL
+4,2025-09-28T17:00Z,Atlanta Falcons,Washington Commanders,Mercedes-Benz Stadium,STATUS_FINAL
+4,2025-09-28T17:00Z,Buffalo Bills,New Orleans Saints,Highmark Stadium,STATUS_FINAL
+4,2025-09-28T17:00Z,Detroit Lions,Cleveland Browns,Ford Field,STATUS_FINAL
+4,2025-09-28T17:00Z,New England Patriots,Carolina Panthers,Gillette Stadium,STATUS_FINAL
+4,2025-09-28T17:00Z,New York Giants,Los Angeles Chargers,MetLife Stadium,STATUS_FINAL
+4,2025-09-28T17:00Z,Tampa Bay Buccaneers,Philadelphia Eagles,Raymond James Stadium,STATUS_FINAL
+4,2025-09-28T17:00Z,Houston Texans,Tennessee Titans,NRG Stadium,STATUS_FINAL
+4,2025-09-28T20:05Z,Los Angeles Rams,Indianapolis Colts,SoFi Stadium,STATUS_FINAL
+4,2025-09-28T20:05Z,San Francisco 49ers,Jacksonville Jaguars,Levi's Stadium,STATUS_FINAL
+4,2025-09-28T20:25Z,Kansas City Chiefs,Baltimore Ravens,GEHA Field at Arrowhead Stadium,STATUS_FINAL
+4,2025-09-28T20:25Z,Las Vegas Raiders,Chicago Bears,Allegiant Stadium,STATUS_FINAL
+4,2025-09-29T00:20Z,Dallas Cowboys,Green Bay Packers,AT&T Stadium,STATUS_FINAL
+4,2025-09-29T23:15Z,Miami Dolphins,New York Jets,Hard Rock Stadium,STATUS_FINAL
+4,2025-09-30T00:15Z,Denver Broncos,Cincinnati Bengals,Empower Field at Mile High,STATUS_FINAL
+5,2025-10-03T00:15Z,Los Angeles Rams,San Francisco 49ers,SoFi Stadium,STATUS_FINAL
+5,2025-10-05T13:30Z,Cleveland Browns,Minnesota Vikings,Tottenham Hotspur Stadium,STATUS_FINAL
+5,2025-10-05T17:00Z,Indianapolis Colts,Las Vegas Raiders,Lucas Oil Stadium,STATUS_FINAL
+5,2025-10-05T17:00Z,New Orleans Saints,New York Giants,Caesars Superdome,STATUS_FINAL
+5,2025-10-05T17:00Z,New York Jets,Dallas Cowboys,MetLife Stadium,STATUS_FINAL
+5,2025-10-05T17:00Z,Philadelphia Eagles,Denver Broncos,Lincoln Financial Field,STATUS_FINAL
+5,2025-10-05T17:00Z,Carolina Panthers,Miami Dolphins,Bank of America Stadium,STATUS_FINAL
+5,2025-10-05T17:00Z,Baltimore Ravens,Houston Texans,M&T Bank Stadium,STATUS_FINAL
+5,2025-10-05T20:05Z,Arizona Cardinals,Tennessee Titans,State Farm Stadium,STATUS_FINAL
+5,2025-10-05T20:05Z,Seattle Seahawks,Tampa Bay Buccaneers,Lumen Field,STATUS_FINAL
+5,2025-10-05T20:25Z,Cincinnati Bengals,Detroit Lions,Paycor Stadium,STATUS_FINAL
+5,2025-10-05T20:25Z,Los Angeles Chargers,Washington Commanders,SoFi Stadium,STATUS_FINAL
+5,2025-10-06T00:20Z,Buffalo Bills,New England Patriots,Highmark Stadium,STATUS_FINAL
+5,2025-10-07T00:15Z,Jacksonville Jaguars,Kansas City Chiefs,EverBank Stadium,STATUS_FINAL
+6,2025-10-10T00:15Z,New York Giants,Philadelphia Eagles,MetLife Stadium,STATUS_FINAL
+6,2025-10-12T13:30Z,New York Jets,Denver Broncos,Tottenham Hotspur Stadium,STATUS_FINAL
+6,2025-10-12T17:00Z,Indianapolis Colts,Arizona Cardinals,Lucas Oil Stadium,STATUS_FINAL
+6,2025-10-12T17:00Z,Miami Dolphins,Los Angeles Chargers,Hard Rock Stadium,STATUS_FINAL
+6,2025-10-12T17:00Z,New Orleans Saints,New England Patriots,Caesars Superdome,STATUS_FINAL
+6,2025-10-12T17:00Z,Pittsburgh Steelers,Cleveland Browns,Acrisure Stadium,STATUS_FINAL
+6,2025-10-12T17:00Z,Carolina Panthers,Dallas Cowboys,Bank of America Stadium,STATUS_FINAL
+6,2025-10-12T17:00Z,Jacksonville Jaguars,Seattle Seahawks,EverBank Stadium,STATUS_FINAL
+6,2025-10-12T17:00Z,Baltimore Ravens,Los Angeles Rams,M&T Bank Stadium,STATUS_FINAL
+6,2025-10-12T20:05Z,Las Vegas Raiders,Tennessee Titans,Allegiant Stadium,STATUS_FINAL
+6,2025-10-12T20:25Z,Green Bay Packers,Cincinnati Bengals,Lambeau Field,STATUS_FINAL
+6,2025-10-12T20:25Z,Tampa Bay Buccaneers,San Francisco 49ers,Raymond James Stadium,STATUS_FINAL
+6,2025-10-13T00:20Z,Kansas City Chiefs,Detroit Lions,GEHA Field at Arrowhead Stadium,STATUS_FINAL
+6,2025-10-13T23:15Z,Atlanta Falcons,Buffalo Bills,Mercedes-Benz Stadium,STATUS_FINAL
+6,2025-10-14T00:15Z,Washington Commanders,Chicago Bears,Northwest Stadium,STATUS_FINAL
+7,2025-10-17T00:15Z,Cincinnati Bengals,Pittsburgh Steelers,Paycor Stadium,STATUS_FINAL
+7,2025-10-19T13:30Z,Jacksonville Jaguars,Los Angeles Rams,Wembley Stadium,STATUS_FINAL
+7,2025-10-19T17:00Z,Chicago Bears,New Orleans Saints,Soldier Field,STATUS_FINAL
+7,2025-10-19T17:00Z,Cleveland Browns,Miami Dolphins,Huntington Bank Field,STATUS_FINAL
+7,2025-10-19T17:00Z,Tennessee Titans,New England Patriots,Nissan Stadium,STATUS_FINAL
+7,2025-10-19T17:00Z,Kansas City Chiefs,Las Vegas Raiders,GEHA Field at Arrowhead Stadium,STATUS_FINAL
+7,2025-10-19T17:00Z,Minnesota Vikings,Philadelphia Eagles,U.S. Bank Stadium,STATUS_FINAL
+7,2025-10-19T17:00Z,New York Jets,Carolina Panthers,MetLife Stadium,STATUS_FINAL
+7,2025-10-19T20:05Z,Denver Broncos,New York Giants,Empower Field at Mile High,STATUS_FINAL
+7,2025-10-19T20:05Z,Los Angeles Chargers,Indianapolis Colts,SoFi Stadium,STATUS_FINAL
+7,2025-10-19T20:25Z,Dallas Cowboys,Washington Commanders,AT&T Stadium,STATUS_FINAL
+7,2025-10-19T20:25Z,Arizona Cardinals,Green Bay Packers,State Farm Stadium,STATUS_FINAL
+7,2025-10-20T00:20Z,San Francisco 49ers,Atlanta Falcons,Levi's Stadium,STATUS_FINAL
+7,2025-10-20T23:00Z,Detroit Lions,Tampa Bay Buccaneers,Ford Field,STATUS_FINAL
+7,2025-10-21T02:00Z,Seattle Seahawks,Houston Texans,Lumen Field,STATUS_FINAL
+8,2025-10-24T00:15Z,Los Angeles Chargers,Minnesota Vikings,SoFi Stadium,STATUS_FINAL
+8,2025-10-26T17:00Z,Atlanta Falcons,Miami Dolphins,Mercedes-Benz Stadium,STATUS_FINAL
+8,2025-10-26T17:00Z,Cincinnati Bengals,New York Jets,Paycor Stadium,STATUS_FINAL
+8,2025-10-26T17:00Z,New England Patriots,Cleveland Browns,Gillette Stadium,STATUS_FINAL
+8,2025-10-26T17:00Z,Philadelphia Eagles,New York Giants,Lincoln Financial Field,STATUS_FINAL
+8,2025-10-26T17:00Z,Carolina Panthers,Buffalo Bills,Bank of America Stadium,STATUS_FINAL
+8,2025-10-26T17:00Z,Baltimore Ravens,Chicago Bears,M&T Bank Stadium,STATUS_FINAL
+8,2025-10-26T17:00Z,Houston Texans,San Francisco 49ers,NRG Stadium,STATUS_FINAL
+8,2025-10-26T20:05Z,New Orleans Saints,Tampa Bay Buccaneers,Caesars Superdome,STATUS_FINAL
+8,2025-10-26T20:25Z,Denver Broncos,Dallas Cowboys,Empower Field at Mile High,STATUS_FINAL
+8,2025-10-26T20:25Z,Indianapolis Colts,Tennessee Titans,Lucas Oil Stadium,STATUS_FINAL
+8,2025-10-27T00:20Z,Pittsburgh Steelers,Green Bay Packers,Acrisure Stadium,STATUS_FINAL
+8,2025-10-28T00:15Z,Kansas City Chiefs,Washington Commanders,GEHA Field at Arrowhead Stadium,STATUS_FINAL
+9,2025-11-04T01:15Z,Dallas Cowboys,Arizona Cardinals,AT&T Stadium,STATUS_SCHEDULED
+9,2025-10-31T00:15Z,Miami Dolphins,Baltimore Ravens,Hard Rock Stadium,STATUS_FINAL
+9,2025-11-02T18:00Z,Cincinnati Bengals,Chicago Bears,Paycor Stadium,STATUS_FINAL
+9,2025-11-02T18:00Z,Detroit Lions,Minnesota Vikings,Ford Field,STATUS_FINAL
+9,2025-11-02T18:00Z,Green Bay Packers,Carolina Panthers,Lambeau Field,STATUS_FINAL
+9,2025-11-02T18:00Z,Tennessee Titans,Los Angeles Chargers,Nissan Stadium,STATUS_FINAL
+9,2025-11-02T18:00Z,New England Patriots,Atlanta Falcons,Gillette Stadium,STATUS_FINAL
+9,2025-11-02T18:00Z,New York Giants,San Francisco 49ers,MetLife Stadium,STATUS_FINAL
+9,2025-11-02T18:00Z,Pittsburgh Steelers,Indianapolis Colts,Acrisure Stadium,STATUS_FINAL
+9,2025-11-02T18:00Z,Houston Texans,Denver Broncos,NRG Stadium,STATUS_FINAL
+9,2025-11-02T21:05Z,Las Vegas Raiders,Jacksonville Jaguars,Allegiant Stadium,STATUS_FINAL
+9,2025-11-02T21:05Z,Los Angeles Rams,New Orleans Saints,SoFi Stadium,STATUS_FINAL
+9,2025-11-02T21:25Z,Buffalo Bills,Kansas City Chiefs,Highmark Stadium,STATUS_FINAL
+9,2025-11-03T01:20Z,Washington Commanders,Seattle Seahawks,Northwest Stadium,STATUS_FINAL
+10,2025-11-07T01:15Z,Denver Broncos,Las Vegas Raiders,Empower Field at Mile High,STATUS_SCHEDULED
+10,2025-11-09T14:30Z,Indianapolis Colts,Atlanta Falcons,Olympic Stadium Berlin,STATUS_SCHEDULED
+10,2025-11-09T18:00Z,Chicago Bears,New York Giants,Soldier Field,STATUS_SCHEDULED
+10,2025-11-09T18:00Z,Miami Dolphins,Buffalo Bills,Hard Rock Stadium,STATUS_SCHEDULED
+10,2025-11-09T18:00Z,Minnesota Vikings,Baltimore Ravens,U.S. Bank Stadium,STATUS_SCHEDULED
+10,2025-11-09T18:00Z,New York Jets,Cleveland Browns,MetLife Stadium,STATUS_SCHEDULED
+10,2025-11-09T18:00Z,Tampa Bay Buccaneers,New England Patriots,Raymond James Stadium,STATUS_SCHEDULED
+10,2025-11-09T18:00Z,Carolina Panthers,New Orleans Saints,Bank of America Stadium,STATUS_SCHEDULED
+10,2025-11-09T18:00Z,Houston Texans,Jacksonville Jaguars,NRG Stadium,STATUS_SCHEDULED
+10,2025-11-09T21:05Z,Seattle Seahawks,Arizona Cardinals,Lumen Field,STATUS_SCHEDULED
+10,2025-11-09T21:25Z,San Francisco 49ers,Los Angeles Rams,Levi's Stadium,STATUS_SCHEDULED
+10,2025-11-09T21:25Z,Washington Commanders,Detroit Lions,Northwest Stadium,STATUS_SCHEDULED
+10,2025-11-10T01:20Z,Los Angeles Chargers,Pittsburgh Steelers,SoFi Stadium,STATUS_SCHEDULED
+10,2025-11-11T01:15Z,Green Bay Packers,Philadelphia Eagles,Lambeau Field,STATUS_SCHEDULED
+11,2025-11-14T01:15Z,New England Patriots,New York Jets,Gillette Stadium,STATUS_SCHEDULED
+11,2025-11-16T14:30Z,Miami Dolphins,Washington Commanders,Santiago Bernabéu,STATUS_SCHEDULED
+11,2025-11-16T18:00Z,Atlanta Falcons,Carolina Panthers,Mercedes-Benz Stadium,STATUS_SCHEDULED
+11,2025-11-16T18:00Z,Buffalo Bills,Tampa Bay Buccaneers,Highmark Stadium,STATUS_SCHEDULED
+11,2025-11-16T18:00Z,Tennessee Titans,Houston Texans,Nissan Stadium,STATUS_SCHEDULED
+11,2025-11-16T18:00Z,Minnesota Vikings,Chicago Bears,U.S. Bank Stadium,STATUS_SCHEDULED
+11,2025-11-16T18:00Z,New York Giants,Green Bay Packers,MetLife Stadium,STATUS_SCHEDULED
+11,2025-11-16T18:00Z,Pittsburgh Steelers,Cincinnati Bengals,Acrisure Stadium,STATUS_SCHEDULED
+11,2025-11-16T18:00Z,Jacksonville Jaguars,Los Angeles Chargers,EverBank Stadium,STATUS_SCHEDULED
+11,2025-11-16T21:05Z,Los Angeles Rams,Seattle Seahawks,SoFi Stadium,STATUS_SCHEDULED
+11,2025-11-16T21:05Z,Arizona Cardinals,San Francisco 49ers,State Farm Stadium,STATUS_SCHEDULED
+11,2025-11-16T21:25Z,Cleveland Browns,Baltimore Ravens,Huntington Bank Field,STATUS_SCHEDULED
+11,2025-11-16T21:25Z,Denver Broncos,Kansas City Chiefs,Empower Field at Mile High,STATUS_SCHEDULED
+11,2025-11-17T01:20Z,Philadelphia Eagles,Detroit Lions,Lincoln Financial Field,STATUS_SCHEDULED
+11,2025-11-18T01:15Z,Las Vegas Raiders,Dallas Cowboys,Allegiant Stadium,STATUS_SCHEDULED
+12,2025-11-21T01:15Z,Houston Texans,Buffalo Bills,NRG Stadium,STATUS_SCHEDULED
+12,2025-11-23T18:00Z,Chicago Bears,Pittsburgh Steelers,Soldier Field,STATUS_SCHEDULED
+12,2025-11-23T18:00Z,Cincinnati Bengals,New England Patriots,Paycor Stadium,STATUS_SCHEDULED
+12,2025-11-23T18:00Z,Detroit Lions,New York Giants,Ford Field,STATUS_SCHEDULED
+12,2025-11-23T18:00Z,Green Bay Packers,Minnesota Vikings,Lambeau Field,STATUS_SCHEDULED
+12,2025-11-23T18:00Z,Tennessee Titans,Seattle Seahawks,Nissan Stadium,STATUS_SCHEDULED
+12,2025-11-23T18:00Z,Kansas City Chiefs,Indianapolis Colts,GEHA Field at Arrowhead Stadium,STATUS_SCHEDULED
+12,2025-11-23T18:00Z,Baltimore Ravens,New York Jets,M&T Bank Stadium,STATUS_SCHEDULED
+12,2025-11-23T21:05Z,Las Vegas Raiders,Cleveland Browns,Allegiant Stadium,STATUS_SCHEDULED
+12,2025-11-23T21:05Z,Arizona Cardinals,Jacksonville Jaguars,State Farm Stadium,STATUS_SCHEDULED
+12,2025-11-23T21:25Z,Dallas Cowboys,Philadelphia Eagles,AT&T Stadium,STATUS_SCHEDULED
+12,2025-11-23T21:25Z,New Orleans Saints,Atlanta Falcons,Caesars Superdome,STATUS_SCHEDULED
+12,2025-11-24T01:20Z,Los Angeles Rams,Tampa Bay Buccaneers,SoFi Stadium,STATUS_SCHEDULED
+12,2025-11-25T01:15Z,San Francisco 49ers,Carolina Panthers,Levi's Stadium,STATUS_SCHEDULED
+13,2025-11-27T18:00Z,Detroit Lions,Green Bay Packers,Ford Field,STATUS_SCHEDULED
+13,2025-11-27T21:30Z,Dallas Cowboys,Kansas City Chiefs,AT&T Stadium,STATUS_SCHEDULED
+13,2025-11-28T01:20Z,Baltimore Ravens,Cincinnati Bengals,M&T Bank Stadium,STATUS_SCHEDULED
+13,2025-11-28T20:00Z,Philadelphia Eagles,Chicago Bears,Lincoln Financial Field,STATUS_SCHEDULED
+13,2025-11-30T18:00Z,Cleveland Browns,San Francisco 49ers,Huntington Bank Field,STATUS_SCHEDULED
+13,2025-11-30T18:00Z,Tennessee Titans,Jacksonville Jaguars,Nissan Stadium,STATUS_SCHEDULED
+13,2025-11-30T18:00Z,Indianapolis Colts,Houston Texans,Lucas Oil Stadium,STATUS_SCHEDULED
+13,2025-11-30T18:00Z,Miami Dolphins,New Orleans Saints,Hard Rock Stadium,STATUS_SCHEDULED
+13,2025-11-30T18:00Z,New York Jets,Atlanta Falcons,MetLife Stadium,STATUS_SCHEDULED
+13,2025-11-30T18:00Z,Tampa Bay Buccaneers,Arizona Cardinals,Raymond James Stadium,STATUS_SCHEDULED
+13,2025-11-30T18:00Z,Carolina Panthers,Los Angeles Rams,Bank of America Stadium,STATUS_SCHEDULED
+13,2025-11-30T21:05Z,Seattle Seahawks,Minnesota Vikings,Lumen Field,STATUS_SCHEDULED
+13,2025-11-30T21:25Z,Pittsburgh Steelers,Buffalo Bills,Acrisure Stadium,STATUS_SCHEDULED
+13,2025-11-30T21:25Z,Los Angeles Chargers,Las Vegas Raiders,SoFi Stadium,STATUS_SCHEDULED
+13,2025-12-01T01:20Z,Washington Commanders,Denver Broncos,Northwest Stadium,STATUS_SCHEDULED
+13,2025-12-02T01:15Z,New England Patriots,New York Giants,Gillette Stadium,STATUS_SCHEDULED
+14,2025-12-05T01:15Z,Detroit Lions,Dallas Cowboys,Ford Field,STATUS_SCHEDULED
+14,2025-12-07T18:00Z,Atlanta Falcons,Seattle Seahawks,Mercedes-Benz Stadium,STATUS_SCHEDULED
+14,2025-12-07T18:00Z,Cleveland Browns,Tennessee Titans,Huntington Bank Field,STATUS_SCHEDULED
+14,2025-12-07T18:00Z,Green Bay Packers,Chicago Bears,Lambeau Field,STATUS_SCHEDULED
+14,2025-12-07T18:00Z,Minnesota Vikings,Washington Commanders,U.S. Bank Stadium,STATUS_SCHEDULED
+14,2025-12-07T18:00Z,New York Jets,Miami Dolphins,MetLife Stadium,STATUS_SCHEDULED
+14,2025-12-07T18:00Z,Tampa Bay Buccaneers,New Orleans Saints,Raymond James Stadium,STATUS_SCHEDULED
+14,2025-12-07T18:00Z,Jacksonville Jaguars,Indianapolis Colts,EverBank Stadium,STATUS_SCHEDULED
+14,2025-12-07T18:00Z,Baltimore Ravens,Pittsburgh Steelers,M&T Bank Stadium,STATUS_SCHEDULED
+14,2025-12-07T21:05Z,Las Vegas Raiders,Denver Broncos,Allegiant Stadium,STATUS_SCHEDULED
+14,2025-12-07T21:25Z,Buffalo Bills,Cincinnati Bengals,Highmark Stadium,STATUS_SCHEDULED
+14,2025-12-07T21:25Z,Arizona Cardinals,Los Angeles Rams,State Farm Stadium,STATUS_SCHEDULED
+14,2025-12-08T01:20Z,Kansas City Chiefs,Houston Texans,GEHA Field at Arrowhead Stadium,STATUS_SCHEDULED
+14,2025-12-09T01:15Z,Los Angeles Chargers,Philadelphia Eagles,SoFi Stadium,STATUS_SCHEDULED
+15,2025-12-12T01:15Z,Tampa Bay Buccaneers,Atlanta Falcons,Raymond James Stadium,STATUS_SCHEDULED
+15,2025-12-14T18:00Z,Chicago Bears,Cleveland Browns,Soldier Field,STATUS_SCHEDULED
+15,2025-12-14T18:00Z,Cincinnati Bengals,Baltimore Ravens,Paycor Stadium,STATUS_SCHEDULED
+15,2025-12-14T18:00Z,Kansas City Chiefs,Los Angeles Chargers,GEHA Field at Arrowhead Stadium,STATUS_SCHEDULED
+15,2025-12-14T18:00Z,New England Patriots,Buffalo Bills,Gillette Stadium,STATUS_SCHEDULED
+15,2025-12-14T18:00Z,New York Giants,Washington Commanders,MetLife Stadium,STATUS_SCHEDULED
+15,2025-12-14T18:00Z,Philadelphia Eagles,Las Vegas Raiders,Lincoln Financial Field,STATUS_SCHEDULED
+15,2025-12-14T18:00Z,Jacksonville Jaguars,New York Jets,EverBank Stadium,STATUS_SCHEDULED
+15,2025-12-14T18:00Z,Houston Texans,Arizona Cardinals,NRG Stadium,STATUS_SCHEDULED
+15,2025-12-14T21:25Z,Denver Broncos,Green Bay Packers,Empower Field at Mile High,STATUS_SCHEDULED
+15,2025-12-14T21:25Z,Los Angeles Rams,Detroit Lions,SoFi Stadium,STATUS_SCHEDULED
+15,2025-12-14T21:25Z,New Orleans Saints,Carolina Panthers,Caesars Superdome,STATUS_SCHEDULED
+15,2025-12-14T21:25Z,San Francisco 49ers,Tennessee Titans,Levi's Stadium,STATUS_SCHEDULED
+15,2025-12-14T21:25Z,Seattle Seahawks,Indianapolis Colts,Lumen Field,STATUS_SCHEDULED
+15,2025-12-15T01:20Z,Dallas Cowboys,Minnesota Vikings,AT&T Stadium,STATUS_SCHEDULED
+15,2025-12-16T01:15Z,Pittsburgh Steelers,Miami Dolphins,Acrisure Stadium,STATUS_SCHEDULED
+16,2025-12-19T01:15Z,Seattle Seahawks,Los Angeles Rams,Lumen Field,STATUS_SCHEDULED
+16,2025-12-20T05:00Z,Chicago Bears,Green Bay Packers,Soldier Field,STATUS_SCHEDULED
+16,2025-12-20T05:00Z,Washington Commanders,Philadelphia Eagles,Northwest Stadium,STATUS_SCHEDULED
+16,2025-12-21T18:00Z,Cleveland Browns,Buffalo Bills,Huntington Bank Field,STATUS_SCHEDULED
+16,2025-12-21T18:00Z,Dallas Cowboys,Los Angeles Chargers,AT&T Stadium,STATUS_SCHEDULED
+16,2025-12-21T18:00Z,Tennessee Titans,Kansas City Chiefs,Nissan Stadium,STATUS_SCHEDULED
+16,2025-12-21T18:00Z,New Orleans Saints,New York Jets,Caesars Superdome,STATUS_SCHEDULED
+16,2025-12-21T18:00Z,New York Giants,Minnesota Vikings,MetLife Stadium,STATUS_SCHEDULED
+16,2025-12-21T18:00Z,Carolina Panthers,Tampa Bay Buccaneers,Bank of America Stadium,STATUS_SCHEDULED
+16,2025-12-21T18:00Z,Baltimore Ravens,New England Patriots,M&T Bank Stadium,STATUS_SCHEDULED
+16,2025-12-21T21:05Z,Denver Broncos,Jacksonville Jaguars,Empower Field at Mile High,STATUS_SCHEDULED
+16,2025-12-21T21:05Z,Arizona Cardinals,Atlanta Falcons,State Farm Stadium,STATUS_SCHEDULED
+16,2025-12-21T21:25Z,Detroit Lions,Pittsburgh Steelers,Ford Field,STATUS_SCHEDULED
+16,2025-12-21T21:25Z,Houston Texans,Las Vegas Raiders,NRG Stadium,STATUS_SCHEDULED
+16,2025-12-22T01:20Z,Miami Dolphins,Cincinnati Bengals,Hard Rock Stadium,STATUS_SCHEDULED
+16,2025-12-23T01:15Z,Indianapolis Colts,San Francisco 49ers,Lucas Oil Stadium,STATUS_SCHEDULED
+17,2025-12-25T18:00Z,Washington Commanders,Dallas Cowboys,Northwest Stadium,STATUS_SCHEDULED
+17,2025-12-25T21:30Z,Minnesota Vikings,Detroit Lions,U.S. Bank Stadium,STATUS_SCHEDULED
+17,2025-12-26T01:15Z,Kansas City Chiefs,Denver Broncos,GEHA Field at Arrowhead Stadium,STATUS_SCHEDULED
+17,2025-12-27T05:00Z,Cincinnati Bengals,Arizona Cardinals,Paycor Stadium,STATUS_SCHEDULED
+17,2025-12-27T05:00Z,Green Bay Packers,Baltimore Ravens,Lambeau Field,STATUS_SCHEDULED
+17,2025-12-27T05:00Z,Las Vegas Raiders,New York Giants,Allegiant Stadium,STATUS_SCHEDULED
+17,2025-12-27T05:00Z,Los Angeles Chargers,Houston Texans,SoFi Stadium,STATUS_SCHEDULED
+17,2025-12-27T05:00Z,Carolina Panthers,Seattle Seahawks,Bank of America Stadium,STATUS_SCHEDULED
+17,2025-12-28T18:00Z,Cleveland Browns,Pittsburgh Steelers,Huntington Bank Field,STATUS_SCHEDULED
+17,2025-12-28T18:00Z,Tennessee Titans,New Orleans Saints,Nissan Stadium,STATUS_SCHEDULED
+17,2025-12-28T18:00Z,Indianapolis Colts,Jacksonville Jaguars,Lucas Oil Stadium,STATUS_SCHEDULED
+17,2025-12-28T18:00Z,Miami Dolphins,Tampa Bay Buccaneers,Hard Rock Stadium,STATUS_SCHEDULED
+17,2025-12-28T18:00Z,New York Jets,New England Patriots,MetLife Stadium,STATUS_SCHEDULED
+17,2025-12-28T21:25Z,Buffalo Bills,Philadelphia Eagles,Highmark Stadium,STATUS_SCHEDULED
+17,2025-12-29T01:20Z,San Francisco 49ers,Chicago Bears,Levi's Stadium,STATUS_SCHEDULED
+17,2025-12-30T01:15Z,Atlanta Falcons,Los Angeles Rams,Mercedes-Benz Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Atlanta Falcons,New Orleans Saints,Mercedes-Benz Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Buffalo Bills,New York Jets,Highmark Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Chicago Bears,Detroit Lions,Soldier Field,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Cincinnati Bengals,Cleveland Browns,Paycor Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Denver Broncos,Los Angeles Chargers,Empower Field at Mile High,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Las Vegas Raiders,Kansas City Chiefs,Allegiant Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Los Angeles Rams,Arizona Cardinals,SoFi Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Minnesota Vikings,Green Bay Packers,U.S. Bank Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,New England Patriots,Miami Dolphins,Gillette Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,New York Giants,Dallas Cowboys,MetLife Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Philadelphia Eagles,Washington Commanders,Lincoln Financial Field,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Pittsburgh Steelers,Baltimore Ravens,Acrisure Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,San Francisco 49ers,Seattle Seahawks,Levi's Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Tampa Bay Buccaneers,Carolina Panthers,Raymond James Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Jacksonville Jaguars,Tennessee Titans,EverBank Stadium,STATUS_SCHEDULED
+18,2026-01-04T05:00Z,Houston Texans,Indianapolis Colts,NRG Stadium,STATUS_SCHEDULED
