@@ -91,8 +91,8 @@ def load_historical_data():
         st.error(f"Error loading historical game data: {str(e)}")
         st.stop()
 
-# Load data using cached function
-historical_game_level_data = load_historical_data()
+# DON'T load data at module level - will be loaded lazily when needed
+historical_game_level_data = None
 
 # Load model predictions CSV for display (cached)
 @st.cache_data
@@ -103,8 +103,9 @@ def load_predictions_csv():
         return pd.read_csv(predictions_csv_path, sep='\t')
     return None
 
+# DON'T load predictions at module level - will be loaded lazily when needed
 predictions_csv_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
-predictions_df = load_predictions_csv()
+predictions_df = None
 
 # Function to automatically log betting recommendations
 def log_betting_recommendations(predictions_df):
@@ -425,6 +426,13 @@ filter_keys = [
 # --- For Monte Carlo Feature Selection ---
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
+
+# Load data NOW (lazily, only when user accesses the app)
+if historical_game_level_data is None:
+    historical_game_level_data = load_historical_data()
+
+if predictions_df is None:
+    predictions_df = load_predictions_csv()
 
 # Feature list for modeling and Monte Carlo selection
 features = [
