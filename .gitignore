@@ -36,3 +36,5 @@ create-nfl-historical - Copy.py
 create-play-by-play - Copy.py
 nfl-gather-data - Copy.py
 /data_files/players.csv
+GIT_WORKFLOW_GUIDE.md
+.github/*
