@@ -8,6 +8,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Display startup message
+st.write("🏈 Loading NFL Predictor...")
+
 import pandas as pd
 import numpy as np
 from os import path
@@ -73,75 +76,35 @@ except FileNotFoundError:
 # Load full NFL schedule from ESPN API (all regular season weeks) and save to CSV
 current_year = datetime.now().year
 
-# Load historical game data with error handling
-try:
-    historical_game_level_data = pd.read_csv(path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv'), sep='\t')
-except FileNotFoundError:
-    st.error("Critical file missing: nfl_games_historical_with_predictions.csv")
-    st.info("Please run 'python nfl-gather-data.py' first to generate the required data files.")
-    st.stop()  # Stop execution if critical data is missing
-except Exception as e:
-    st.error(f"Error loading historical game data: {str(e)}")
-    st.stop()
+# Load historical game data with caching and error handling
+@st.cache_data
+def load_historical_data():
+    """Load historical game data with caching"""
+    try:
+        data = pd.read_csv(path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv'), sep='\t')
+        return data
+    except FileNotFoundError:
+        st.error("Critical file missing: nfl_games_historical_with_predictions.csv")
+        st.info("Please run 'python nfl-gather-data.py' first to generate the required data files.")
+        st.stop()  # Stop execution if critical data is missing
+    except Exception as e:
+        st.error(f"Error loading historical game data: {str(e)}")
+        st.stop()
 
-# Uncomment below to pull down current year schedule from ESPN
-# Uncomment and run once to get data, then comment back
-# local_path = f"{DATA_DIR}/espn_schedule_{current_year}.csv"
+# Load data using cached function
+historical_game_level_data = load_historical_data()
 
-# all_games = []
-# weeks = range(1, 19)  # Regular season weeks 1-18
-# for week in weeks:
-#     espn_url = f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&year={current_year}&week={week}"
-#     try:
-#         response = requests.get(espn_url)
-#         if response.status_code == 200:
-#             data = response.json()
-#             for event in data.get("events", []):
-#                 comp = event.get("competitions", [{}])[0]
-#                 competitors = comp.get("competitors", [{}]*2)
-#                 home = competitors[0].get("team", {}).get("displayName", "")
-#                 away = competitors[1].get("team", {}).get("displayName", "")
-#                 venue = comp.get("venue", {}).get("fullName", "")
-#                 status = event.get("status", {}).get("type", {}).get("name", "")
-#                 all_games.append({
-#                     "week": week,
-#                     "date": event.get("date", ""),
-#                     "home_team": home,
-#                     "away_team": away,
-#                     "venue": venue,
-#                     "status": status
-#                 })
-#         else:
-#             st.warning(f"Week {week}: NFL schedule not found on ESPN (HTTP {response.status_code}).")
-#     except Exception as e:
-#         st.error(f"Week {week}: Error downloading NFL schedule from ESPN: {e}")
+# Load model predictions CSV for display (cached)
+@st.cache_data
+def load_predictions_csv():
+    """Load predictions CSV with caching"""
+    predictions_csv_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
+    if os.path.exists(predictions_csv_path):
+        return pd.read_csv(predictions_csv_path, sep='\t')
+    return None
 
-# schedule_df = pd.DataFrame(all_games)
-# if not schedule_df.empty:
-#     schedule_df.to_csv(local_path, index=False)
-
-# Below purely for pulling down historical data from nflverse
-# Uncomment and run once to get data, then comment back
-# YEARS = range(2020, 2024)
-
-# data = pd.DataFrame()
-
-# for i in YEARS:  
-#     i_data = pd.read_csv('https://github.com/nflverse/nflverse-data/releases/download/pbp/' \
-#                    'play_by_play_' + str(i) + '.csv.gz',
-#                    compression= 'gzip', low_memory= False)
-
-#     data = pd.concat([data, i_data], ignore_index=True, sort=True)
-#     data.reset_index(drop=True, inplace=True)
-
-# data.to_csv(path.join(DATA_DIR, 'nfl_history_2020_2024.csv.gz'), compression='gzip', index=False, sep='\t')
-
-# Load model predictions CSV for display
 predictions_csv_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
-if os.path.exists(predictions_csv_path):
-    predictions_df = pd.read_csv(predictions_csv_path, sep='\t')
-else:
-    predictions_df = None
+predictions_df = load_predictions_csv()
 
 # Function to automatically log betting recommendations
 def log_betting_recommendations(predictions_df):
