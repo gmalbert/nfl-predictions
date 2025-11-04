@@ -37,3 +37,4 @@ nfl-gather-data - Copy.py
 /data_files/players.csv
 GIT_WORKFLOW_GUIDE.md
 .github/*
+venv/*
