@@ -20,9 +20,6 @@ import os
 from datetime import datetime
 import requests
 
-# Display startup message AFTER imports complete
-st.write("🏈 Loading NFL Predictor...")
-
 DATA_DIR = 'data_files/'
 
 # Define features list before loading best features - matches nfl-gather-data.py
@@ -428,11 +425,12 @@ from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
 # Load data NOW (lazily, only when user accesses the app)
-if historical_game_level_data is None:
-    historical_game_level_data = load_historical_data()
-
-if predictions_df is None:
-    predictions_df = load_predictions_csv()
+with st.spinner("🏈 Loading NFL data and predictions..."):
+    if historical_game_level_data is None:
+        historical_game_level_data = load_historical_data()
+    
+    if predictions_df is None:
+        predictions_df = load_predictions_csv()
 
 # Feature list for modeling and Monte Carlo selection
 features = [
