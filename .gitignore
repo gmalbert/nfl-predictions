@@ -5,6 +5,7 @@
 /pyvenv.cfg
 /share/*
 .github/*
+!.github/copilot-instructions.md
 .venv/*
 venv/
 
