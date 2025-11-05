@@ -2,6 +2,8 @@
 
 A sophisticated NFL analytics platform that uses advanced machine learning to identify profitable betting opportunities. This system analyzes historical NFL data with **50+ enhanced features** across multiple time scales to predict game outcomes and provides actionable betting insights with proven **60.9% ROI** performance on data-leakage-free models.
 
+**Now featuring a multi-page Streamlit app** with dedicated Historical Data page for advanced filtering and analysis of 196k+ play-by-play records.
+
 ## 📋 Table of Contents
 
 - [🎯 Key Features](#-key-features)
@@ -112,7 +114,10 @@ streamlit run predictions.py
 
 ### **2. Dashboard Sections**
 
-The dashboard uses **modern tab-based navigation** for easy access to all features. Each section displays data with **professional formatting** including percentages, proper date formats, and descriptive column labels.
+The dashboard uses **modern multi-page navigation** with a main predictions page and dedicated historical data page. Each section displays data with **professional formatting** including percentages, proper date formats, and descriptive column labels.
+
+#### **🏈 Main Page: Predictions**
+The primary predictions interface with tab-based navigation for betting analysis.
 
 #### **� Tab: Model Predictions**
 - **Model Predictions vs Actual Results**: Historical game outcomes with checkbox indicators
@@ -164,11 +169,19 @@ The dashboard uses **modern tab-based navigation** for easy access to all featur
 - **Results Integration**: Automatically updates with game outcomes
 - **Performance Analysis**: Win/loss tracking for accountability
 
-#### **📊 Collapsible Historical Data Section** ⭐ *NEW*
-- **Clean Interface**: Historical data tabs now hidden by default in collapsible expander
-- **Organized Layout**: Main betting analysis stays front and center
-- **Easy Access**: Click "📊 Historical Data & Filters" to expand when needed
-- **Four Sub-Tabs**: Play-by-Play Data, Game Summaries, Schedule, and Advanced Filters
+#### **📊 Historical Data Page** ⭐ *NEW MULTI-PAGE APP*
+- **Dedicated Page**: Separate navigation page for historical data analysis
+- **196k+ Play Records**: Complete play-by-play data from 2020-2024 seasons
+- **Advanced Filtering**: 12+ filter controls including:
+  - Team filters (offense/defense)
+  - Game context (down, quarter, play type)
+  - Field position sliders (yards to go, yardline)
+  - Score filters (differential, team scores)
+  - Advanced metrics (EPA, win probability)
+- **Reset Functionality**: One-click filter reset with session state management
+- **Paginated Display**: 50-500 rows per page with navigation controls
+- **Rich Column Configuration**: Formatted dates, percentages, checkboxes for play outcomes
+- **Back to Predictions**: Easy navigation button to return to main page
 
 #### **⚙️ Additional Features**
 - **Feature Importances**: Top model features with mean/std importance (3 decimals)
