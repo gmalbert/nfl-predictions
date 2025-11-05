@@ -1124,8 +1124,13 @@ with pred_tab6:
         if 'pred_overHit_optimal' not in predictions_df_full.columns:
             st.error("Over/under predictions not found. Ensure pred_overHit_optimal column exists in the predictions CSV.")
         else:
+            # Convert gameday to datetime and filter for FUTURE games only (including today)
+            predictions_df_full['gameday'] = pd.to_datetime(predictions_df_full['gameday'], errors='coerce')
+            today = pd.to_datetime(datetime.now().date())
+            upcoming_games = predictions_df_full[predictions_df_full['gameday'] >= today].copy()
+            
             # Filter for games with over/under betting signals
-            totals_bets = predictions_df_full[predictions_df_full['pred_overHit_optimal'] == 1].copy()
+            totals_bets = upcoming_games[upcoming_games['pred_overHit_optimal'] == 1].copy()
             
             if len(totals_bets) > 0:
                 # Add confidence tiers based on probability
@@ -1194,8 +1199,13 @@ with pred_tab6:
                 display_totals['value_pct'] = (display_totals['value_edge'] * 100).round(1)
                 display_totals['payout_fmt'] = '$' + display_totals['expected_payout'].round(0).astype(int).astype(str)
                 
+                # Format gameday if it exists
+                if 'gameday' in display_totals.columns:
+                    display_totals['gameday'] = pd.to_datetime(display_totals['gameday'], errors='coerce')
+                
                 # Create display dataframe
                 display_cols = {
+                    'gameday': 'Game Date',
                     'matchup': 'Matchup',
                     'bet_on': 'Bet',
                     'total_line': 'Line',
@@ -1205,17 +1215,26 @@ with pred_tab6:
                     'confidence_tier': 'Confidence'
                 }
                 
+                # Only include columns that exist
+                display_cols = {k: v for k, v in display_cols.items() if k in display_totals.columns}
+                
+                # Build column config dynamically based on available columns
+                col_config = {}
+                if 'Game Date' in display_totals[list(display_cols.keys())].rename(columns=display_cols).columns:
+                    col_config['Game Date'] = st.column_config.DateColumn('Game Date', format='MM/DD/YYYY')
+                col_config.update({
+                    'Matchup': st.column_config.TextColumn('Matchup', width='large'),
+                    'Bet': st.column_config.TextColumn('Bet', width='small'),
+                    'Line': st.column_config.NumberColumn('Line', format='%.1f'),
+                    'Model Prob %': st.column_config.NumberColumn('Model Prob %', format='%.1f'),
+                    'Expected Payout': st.column_config.TextColumn('Expected Payout', width='medium'),
+                    'Value Edge %': st.column_config.NumberColumn('Value Edge %', format='%.1f'),
+                    'Confidence': st.column_config.TextColumn('Confidence', width='medium')
+                })
+                
                 st.dataframe(
                     display_totals[list(display_cols.keys())].rename(columns=display_cols),
-                    column_config={
-                        'Matchup': st.column_config.TextColumn('Matchup', width='large'),
-                        'Bet': st.column_config.TextColumn('Bet', width='small'),
-                        'Line': st.column_config.NumberColumn('Line', format='%.1f'),
-                        'Model Prob %': st.column_config.NumberColumn('Model Prob %', format='%.1f'),
-                        'Expected Payout': st.column_config.TextColumn('Expected Payout', width='medium'),
-                        'Value Edge %': st.column_config.NumberColumn('Value Edge %', format='%.1f'),
-                        'Confidence': st.column_config.TextColumn('Confidence', width='medium')
-                    },
+                    column_config=col_config,
                     hide_index=True
                 )
                 
