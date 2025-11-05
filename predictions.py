@@ -489,13 +489,27 @@ X_train_ml, X_test_ml, y_train_ml, y_test_ml = train_test_split(
 print("✅ Moneyline train/test split complete", file=sys.stderr, flush=True)
 
 # --- Totals (overHit) target and split ---
-target_totals = 'overHit'
-y_totals = historical_game_level_data[target_totals]
-# Filter to only numeric features for XGBoost compatibility
-available_totals_features = [f for f in best_features_totals if f in historical_game_level_data.columns]
-X_totals_full = historical_game_level_data[available_totals_features].select_dtypes(include=["number", "bool", "category"])
-X_train_tot, X_test_tot, y_train_tot, y_test_tot = train_test_split(
-    X_totals_full, y_totals, test_size=0.2, random_state=42, stratify=y_totals)
+print("🎯 Preparing totals/over-under model data...", file=sys.stderr, flush=True)
+try:
+    target_totals = 'overHit'
+    y_totals = historical_game_level_data[target_totals]
+    print(f"✅ Target 'overHit' loaded: {len(y_totals)} rows", file=sys.stderr, flush=True)
+    
+    # Filter to only numeric features for XGBoost compatibility
+    available_totals_features = [f for f in best_features_totals if f in historical_game_level_data.columns]
+    print(f"✅ Totals features: {len(available_totals_features)} columns", file=sys.stderr, flush=True)
+    
+    X_totals_full = historical_game_level_data[available_totals_features].select_dtypes(include=["number", "bool", "category"])
+    print(f"✅ X_totals_full shape: {X_totals_full.shape}", file=sys.stderr, flush=True)
+    
+    X_train_tot, X_test_tot, y_train_tot, y_test_tot = train_test_split(
+        X_totals_full, y_totals, test_size=0.2, random_state=42, stratify=y_totals)
+    print("✅ Totals train/test split complete", file=sys.stderr, flush=True)
+except Exception as e:
+    print(f"❌ ERROR in totals model setup: {type(e).__name__}: {str(e)}", file=sys.stderr, flush=True)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
+    raise
 
 # Create expander for data views (collapsed by default)
 with st.expander("📊 Historical Data & Filters", expanded=False):
