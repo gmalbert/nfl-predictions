@@ -512,13 +512,15 @@ except Exception as e:
     traceback.print_exc(file=sys.stderr)
     raise
 
-# Create expander for data views (collapsed by default)
-with st.expander("📊 Historical Data & Filters", expanded=False):
-    # Lazy load historical data only when expander is accessed
-    if historical_data is None:
-        print("📂 Loading historical play-by-play data...", file=sys.stderr, flush=True)
-        historical_data = load_data()
-        print(f"✅ Loaded historical data: {len(historical_data)} rows", file=sys.stderr, flush=True)
+# TEMPORARILY SKIP: Create expander for data views (collapsed by default)
+# This section causes timeout issues with 196k rows - will fix later
+if False:  # Disable this entire expander section for now
+    with st.expander("📊 Historical Data & Filters", expanded=False):
+        # Lazy load historical data only when expander is accessed
+        if historical_data is None:
+            print("📂 Loading historical play-by-play data...", file=sys.stderr, flush=True)
+            historical_data = load_data()
+            print(f"✅ Loaded historical data: {len(historical_data)} rows", file=sys.stderr, flush=True)
     
     # Create tabs for different data views
     tab1, tab2, tab3, tab4 = st.tabs(["🏈 Play-by-Play Data", "📊 Game Summaries", "📅 Schedule", "🔍 Filters"])
@@ -820,9 +822,12 @@ with st.expander("📊 Historical Data & Filters", expanded=False):
 
             st.dataframe(display_data, hide_index=True, column_config=column_config if column_config else None)
 
+print("🎨 Starting main UI rendering...", file=sys.stderr, flush=True)
+
 # Create tabs for prediction and betting sections
 st.write("---")
 st.write("## 📈 Model Performance & Betting Analysis")
+print("✅ Main tabs section loaded", file=sys.stderr, flush=True)
 pred_tab1, pred_tab2, pred_tab3, pred_tab4, pred_tab5, pred_tab6, pred_tab7 = st.tabs([
     "📊 Model Predictions", 
     "🎯 Probabilities & Edges",
