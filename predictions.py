@@ -444,6 +444,7 @@ with st.spinner("🏈 Loading NFL data and predictions..."):
 print("🎉 Data loading complete, proceeding with app...", file=sys.stderr, flush=True)
 
 # Feature list for modeling and Monte Carlo selection
+print("📋 Setting up features...", file=sys.stderr, flush=True)
 features = [
     'spread_line', 'total', 'homeTeamWinPct', 'awayTeamWinPct', 'homeTeamCloseGamePct', 'awayTeamCloseGamePct',
     'homeTeamBlowoutPct', 'awayTeamBlowoutPct', 'homeTeamAvgScore', 'awayTeamAvgScore', 'homeTeamAvgScoreAllowed',
@@ -454,6 +455,7 @@ features = [
     'homeTeamUnderHitPct', 'awayTeamUnderHitPct', 'homeTeamTotalHitPct', 'awayTeamTotalHitPct', 'total_line_diff'
 ]
 # Target
+print("🎯 Setting up target variables...", file=sys.stderr, flush=True)
 if 'spreadCovered' in historical_game_level_data.columns:
     target_spread = 'spreadCovered'
 else:
@@ -462,23 +464,29 @@ else:
 # Prepare data for MC feature selection
 
 # Define X and y for spread
+print("📊 Preparing spread model data...", file=sys.stderr, flush=True)
 X = historical_game_level_data[features]
 y_spread = historical_game_level_data[target_spread]
 
 # Spread model (using best features) - filter to numeric only
 available_spread_features = [f for f in best_features_spread if f in historical_game_level_data.columns]
 X_spread_full = historical_game_level_data[available_spread_features].select_dtypes(include=["number", "bool", "category"])
+print(f"✅ Spread features: {len(available_spread_features)} columns", file=sys.stderr, flush=True)
 X_train_spread, X_test_spread, y_spread_train, y_spread_test = train_test_split(
     X_spread_full, y_spread, test_size=0.2, random_state=42, stratify=y_spread)
+print("✅ Spread train/test split complete", file=sys.stderr, flush=True)
 
 # --- Moneyline (underdogWon) target and split ---
+print("💰 Preparing moneyline model data...", file=sys.stderr, flush=True)
 target_moneyline = 'underdogWon'
 y_moneyline = historical_game_level_data[target_moneyline]
 # Filter to only numeric features for XGBoost compatibility
 available_moneyline_features = [f for f in best_features_moneyline if f in historical_game_level_data.columns]
 X_moneyline_full = historical_game_level_data[available_moneyline_features].select_dtypes(include=["number", "bool", "category"])
+print(f"✅ Moneyline features: {len(available_moneyline_features)} columns", file=sys.stderr, flush=True)
 X_train_ml, X_test_ml, y_train_ml, y_test_ml = train_test_split(
     X_moneyline_full, y_moneyline, test_size=0.2, random_state=42, stratify=y_moneyline)
+print("✅ Moneyline train/test split complete", file=sys.stderr, flush=True)
 
 # --- Totals (overHit) target and split ---
 target_totals = 'overHit'
