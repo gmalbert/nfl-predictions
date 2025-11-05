@@ -393,7 +393,8 @@ def load_data():
         st.warning("Historical play-by-play data file not found. Some features may be limited.")
         return pd.DataFrame()  # Return empty DataFrame as fallback
 
-historical_data = load_data()
+# DON'T load at module level - will be loaded lazily when needed
+historical_data = None
 
 @st.cache_data
 def load_schedule():
@@ -513,6 +514,12 @@ except Exception as e:
 
 # Create expander for data views (collapsed by default)
 with st.expander("📊 Historical Data & Filters", expanded=False):
+    # Lazy load historical data only when expander is accessed
+    if historical_data is None:
+        print("📂 Loading historical play-by-play data...", file=sys.stderr, flush=True)
+        historical_data = load_data()
+        print(f"✅ Loaded historical data: {len(historical_data)} rows", file=sys.stderr, flush=True)
+    
     # Create tabs for different data views
     tab1, tab2, tab3, tab4 = st.tabs(["🏈 Play-by-Play Data", "📊 Game Summaries", "📅 Schedule", "🔍 Filters"])
 
