@@ -292,7 +292,15 @@ nfl-predictions/
 
 ## 📁 **Recent Updates (November 2025)**
 
-### **🎯 NEW: Over/Under Betting Model (Latest)**
+### **⚡ Performance Optimizations for Historical Data (Latest)**
+- **Memory-Efficient Data Types**: Reduced memory usage by ~50% using float32 and Int8 instead of float64/int64
+- **Eliminated Data Copying**: Removed unnecessary `.copy()` operations on 196k row dataset
+- **DataFrame Views**: Filter operations now use views instead of copies for instant performance
+- **Streamlit Cloud Config**: Added `.streamlit/config.toml` with increased message size limits (500MB) and optimizations
+- **Smart Warnings**: Alert users when displaying large result sets to encourage filtering
+- **Result**: Historical Data page now loads significantly faster on Streamlit Cloud, avoiding timeout issues
+
+### **🎯 NEW: Over/Under Betting Model**
 - **Three-Model System**: Added dedicated over/under (totals) betting predictions alongside spread and moneyline
 - **F1-Score Optimization**: Optimal threshold calculation for over/under predictions using F1-score maximization
 - **Value Edge Analysis**: Calculates expected profit percentage based on model probability vs betting odds
@@ -300,12 +308,13 @@ nfl-predictions/
 - **Complete Payout Calculations**: Shows expected returns for both over and under bets on each game
 - **Integrated Dashboard**: New "🎯 Over/Under Bets" tab with top 15 opportunities sorted by value edge
 
-### **📊 NEW: Collapsible Historical Data Interface (Latest)**
-- **Improved UX**: Historical data tabs (Play-by-Play, Game Summaries, Schedule, Filters) now in collapsible expander
-- **Clean Dashboard**: Main betting analysis stays prominent while historical data is hidden by default
-- **Easy Access**: Click "📊 Historical Data & Filters" expander to view detailed historical information
-- **Better Organization**: Separates actionable betting insights from research/analysis tools
-- **Performance**: Faster initial page load with collapsed sections
+### **📊 NEW: Multi-Page Streamlit App**
+- **Dedicated Historical Data Page**: Separate navigation page for 196k+ play-by-play records with advanced filtering
+- **Clean Interface**: Main predictions page focuses on betting analysis, historical data on separate page
+- **Easy Navigation**: "🏈 Back to Predictions" button for quick return to main page
+- **12+ Filter Controls**: Team filters, game context, field position, scores, and advanced metrics
+- **Session State Reset**: Reliable filter reset functionality using flag pattern
+- **Pagination**: Display 50-500 rows per page with navigation controls
 
 ### **🔧 Bug Fixes & System Improvements (Latest)**
 - **Fixed Over/Under Column Names**: Corrected KeyError for `pred_totalsProb` → `prob_overHit`

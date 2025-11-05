@@ -72,6 +72,7 @@ The app consists of:
 - Use column layouts for metrics and comparisons
 - **Navigation**: Use `st.switch_page()` for programmatic navigation between pages
 - **Reset Filters**: Use session state reset flag pattern (not `.clear()`) for reliable filter resets
+- **Dataframe Width**: Use `width='stretch'` instead of deprecated `use_container_width=True`
 
 ## Code Style
 - Use descriptive variable names (e.g., `predictions_df`, `historical_game_level_data`)
@@ -120,6 +121,7 @@ with tab_name:
 - Requires Python 3.12 (specified in `.python-version`)
 - All data files are committed to git (no external data sources needed at runtime)
 - Environment variables: None required
+- **Performance Configuration**: `.streamlit/config.toml` includes increased timeouts and message size limits for handling large datasets (196k+ rows)
 
 ## Known Issues & Solutions
 - **Python 3.13 incompatibility**: Always use Python 3.12
