@@ -19,6 +19,10 @@ from sklearn.inspection import permutation_importance
 import os
 from datetime import datetime
 import requests
+import sys
+
+# Debug: Print to logs to verify app is running
+print("🚀 Starting NFL Predictor app...", file=sys.stderr, flush=True)
 
 DATA_DIR = 'data_files/'
 
@@ -425,12 +429,19 @@ from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
 # Load data NOW (lazily, only when user accesses the app)
+print("📊 About to load historical data...", file=sys.stderr, flush=True)
 with st.spinner("🏈 Loading NFL data and predictions..."):
     if historical_game_level_data is None:
+        print("📂 Loading historical game data from CSV...", file=sys.stderr, flush=True)
         historical_game_level_data = load_historical_data()
+        print(f"✅ Loaded {len(historical_game_level_data)} rows", file=sys.stderr, flush=True)
     
     if predictions_df is None:
+        print("📂 Loading predictions CSV...", file=sys.stderr, flush=True)
         predictions_df = load_predictions_csv()
+        print(f"✅ Loaded predictions: {len(predictions_df) if predictions_df is not None else 0} rows", file=sys.stderr, flush=True)
+
+print("🎉 Data loading complete, proceeding with app...", file=sys.stderr, flush=True)
 
 # Feature list for modeling and Monte Carlo selection
 features = [
@@ -1771,7 +1782,7 @@ with adv_tab1:
                     spread_features[['feature', 'importance_mean']],
                     hide_index=True,
                     height=600,
-                    use_container_width=True,
+                    width=400,
                     column_config={
                         'feature': st.column_config.TextColumn('Feature Name'),
                         'importance_mean': st.column_config.NumberColumn('Importance', format='%.4f', help='XGBoost feature importance (gain-based)')
@@ -1788,7 +1799,7 @@ with adv_tab1:
                     moneyline_features[['feature', 'importance_mean']],
                     hide_index=True,
                     height=600,
-                    use_container_width=True,
+                    width=400,
                     column_config={
                         'feature': st.column_config.TextColumn('Feature Name'),
                         'importance_mean': st.column_config.NumberColumn('Importance', format='%.4f', help='XGBoost feature importance (gain-based)')
@@ -1805,7 +1816,7 @@ with adv_tab1:
                     totals_features[['feature', 'importance_mean']],
                     hide_index=True,
                     height=600,
-                    use_container_width=True,
+                    width=400,
                     column_config={
                         'feature': st.column_config.TextColumn('Feature Name'),
                         'importance_mean': st.column_config.NumberColumn('Importance', format='%.4f', help='XGBoost feature importance (gain-based)')
