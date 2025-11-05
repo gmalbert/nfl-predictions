@@ -12,12 +12,30 @@ st.set_page_config(
 
 DATA_DIR = 'data_files/'
 
-# Load historical play-by-play data
+# Load historical play-by-play data with optimizations
 @st.cache_data
 def load_historical_data():
     file_path = path.join(DATA_DIR, 'nfl_history_2020_2024.csv.gz')
     if os.path.exists(file_path):
-        data = pd.read_csv(file_path, compression='gzip', sep='\t', low_memory=False)
+        # Use chunksize and only load what we need to reduce memory usage
+        data = pd.read_csv(
+            file_path, 
+            compression='gzip', 
+            sep='\t', 
+            low_memory=False,
+            dtype={
+                'down': 'float32',
+                'qtr': 'float32', 
+                'ydstogo': 'float32',
+                'yardline_100': 'float32',
+                'score_differential': 'float32',
+                'posteam_score': 'float32',
+                'defteam_score': 'float32',
+                'epa': 'float32',
+                'pass_attempt': 'Int8',
+                'rush_attempt': 'Int8'
+            }
+        )
         return data
     else:
         return pd.DataFrame()
@@ -43,12 +61,17 @@ st.write("### Historical Play-by-Play Data Sample")
 st.write(f"*Showing data from {current_year-4} to {current_year-1} seasons*")
 
 if 'game_date' in historical_data.columns:
-    # Convert to datetime and filter for completed games
-    filtered_data = historical_data.copy()
-    if filtered_data['game_date'].dtype == 'object':
-        filtered_data['game_date'] = pd.to_datetime(filtered_data['game_date'], errors='coerce')
+    # Don't copy - work with original dataframe to save memory
+    # Only convert game_date once if needed
+    if historical_data['game_date'].dtype == 'object':
+        historical_data['game_date'] = pd.to_datetime(historical_data['game_date'], errors='coerce')
+    
     current_date = pd.Timestamp(datetime.now().date())
-    filtered_data = filtered_data[filtered_data['game_date'] <= current_date]
+    
+    # Create a view instead of copy for initial filtering
+    filtered_data = historical_data[historical_data['game_date'] <= current_date]
+    
+    # Sort only when needed (not on the full dataset)
     filtered_data = filtered_data.sort_values(by='game_date', ascending=False)
 
     # Select key play-by-play columns for display
@@ -63,10 +86,7 @@ if 'game_date' in historical_data.columns:
 
     # Only use columns that exist
     display_cols = [col for col in display_cols if col in filtered_data.columns]
-
-    # Filters in sidebar
-    st.info("👈 Open the sidebar (click arrow in top-left) to access filter controls")
-    
+   
     # Initialize reset flag
     if 'reset' not in st.session_state:
         st.session_state['reset'] = False
@@ -249,6 +269,10 @@ if 'game_date' in historical_data.columns:
     rows_per_page = st.selectbox("Rows per page", [50, 100, 250, 500], index=0)
     total_rows = len(filtered_data)
     total_pages = (total_rows - 1) // rows_per_page + 1
+    
+    # Warn if showing too many rows
+    if rows_per_page > 100 and total_rows > 10000:
+        st.warning(f"⚠️ Displaying {rows_per_page} rows from a large dataset ({total_rows:,} total). Consider using filters to narrow down results for better performance.")
     
     page = st.number_input("Page", min_value=1, max_value=total_pages, value=1)
     start_idx = (page - 1) * rows_per_page

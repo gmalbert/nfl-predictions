@@ -1216,8 +1216,7 @@ with pred_tab6:
                         'Value Edge %': st.column_config.NumberColumn('Value Edge %', format='%.1f'),
                         'Confidence': st.column_config.TextColumn('Confidence', width='medium')
                     },
-                    hide_index=True,
-                    use_container_width=True
+                    hide_index=True
                 )
                 
                 # Confidence tier breakdown
@@ -1344,7 +1343,7 @@ with pred_tab7:
                 
                 if tier_stats:
                     tier_df = pd.DataFrame(tier_stats)
-                    st.dataframe(tier_df, hide_index=True, use_container_width=True)
+                    st.dataframe(tier_df, hide_index=True)
             
             # Display the log
             st.write("#### 📋 Detailed Betting Log")

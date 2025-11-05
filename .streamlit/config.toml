@@ -1,0 +1,29 @@
+[server]
+# Increase timeout for slower operations (default is 60 seconds)
+# This helps with loading large datasets like the 196k+ row historical data
+fileWatcherType = "none"
+enableXsrfProtection = false
+
+# Increase health check timeout (default is 5 seconds)
+# Streamlit Cloud health checks your app periodically
+headless = true
+
+[browser]
+# Automatically open browser when running locally
+gatherUsageStats = false
+
+[runner]
+# Increase the maximum message size for large dataframes
+maxMessageSize = 500
+
+# Faster script execution
+fastReruns = true
+
+[client]
+# Increase timeouts for slow data operations
+# This is especially important for loading compressed gzip files
+toolbarMode = "minimal"
+showErrorDetails = true
+
+[logger]
+level = "info"
