@@ -258,7 +258,6 @@ nfl-predictions/
 ├── nfl-gather-data.py      # Main model training script
 ├── predictions.py          # Streamlit dashboard
 ├── data_files/            # Data storage directory
-
 ```
 
 ## 🔧 **Technical Architecture**
