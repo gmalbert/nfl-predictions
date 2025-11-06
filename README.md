@@ -258,8 +258,7 @@ nfl-predictions/
 ├── nfl-gather-data.py      # Main model training script
 ├── predictions.py          # Streamlit dashboard
 ├── data_files/            # Data storage directory
-├── nflfastR_games_2020_2024.csv  # Historical game data
-└── espn_nfl_scores_2020_2024.csv # Betting lines data
+
 ```
 
 ## 🔧 **Technical Architecture**
@@ -369,7 +368,7 @@ nfl-predictions/
 - **Technical**: Fixed variable mutation issues across Streamlit sections through data isolation
 
 ### **✅ Git LFS Integration (October 2025)**
-- **Added**: Large file support for `nfl_history_2020_2024.csv.gz` (73.95MB)
+- **Added**: Large file support for `nfl_play_by_play_historical.csv.gz` (73.95MB)
 - **Benefit**: Enables deployment to Streamlit Cloud with access to large datasets
 - **Setup**: Properly configured `.gitignore` and `.gitattributes` for optimal repo management
 
@@ -427,7 +426,7 @@ nfl-predictions/
 - **Cause**: Old Streamlit version compatibility issue
 - **Fix**: Updated in recent version - use `git pull` to get latest fixes
 
-**"Missing file: nfl_history_2020_2024.csv.gz"**
+**"Missing file: nfl_play_by_play_historical.csv.gz"**
 - **Cause**: Large file not available locally
 - **Fix**: Dashboard includes error handling and fallback data display
 
@@ -456,7 +455,7 @@ nfl-predictions/
 - **Cause**: Old Streamlit version compatibility issue
 - **Solution**: System now includes modern Streamlit compatibility - use `git pull` for latest fixes
 
-#### **"Missing file: nfl_history_2020_2024.csv.gz"**
+#### **"Missing file: nfl_play_by_play_historical.csv.gz"**
 - **Cause**: Large file not available locally (Git LFS)
 - **Solution**: Dashboard includes graceful error handling and fallback data display
 - **Alternative**: Download manually or use Git LFS: `git lfs pull`

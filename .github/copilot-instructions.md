@@ -24,7 +24,7 @@ The app consists of:
 - `create-nfl-historical.py` - Historical data processing
 - `data_files/` - All data, models, and feature files
   - `nfl_games_historical_with_predictions.csv` - Main predictions dataset
-  - `nfl_history_2020_2024.csv.gz` - Complete play-by-play data (196k+ rows)
+  - `nfl_play_by_play_historical.csv.gz` - Complete play-by-play data (196k+ rows)
   - `best_features_*.txt` - Feature lists for each model
   - `model_metrics.json` - Model performance metrics
   - `betting_recommendations_log.csv` - Betting history tracking

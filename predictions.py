@@ -388,7 +388,7 @@ if predictions_df is not None:
 
 @st.cache_data
 def load_data():
-    file_path = path.join(DATA_DIR, 'nfl_history_2020_2024.csv.gz')
+    file_path = path.join(DATA_DIR, 'nfl_play_by_play_historical.csv.gz')
     if os.path.exists(file_path):
         historical_data = pd.read_csv(file_path, compression='gzip', sep='\t', low_memory=False)
         return historical_data
@@ -402,7 +402,7 @@ historical_data = None
 @st.cache_data
 def load_schedule():
     try:
-        schedule_data = pd.read_csv(path.join(DATA_DIR, f'espn_schedule_{current_year}.csv'), low_memory=False)
+        schedule_data = pd.read_csv(path.join(DATA_DIR, f'nfl_schedule_{current_year}.csv'), low_memory=False)
         return schedule_data
     except FileNotFoundError:
         st.warning(f"Schedule file for {current_year} not found. Schedule data will be unavailable.")
@@ -411,7 +411,8 @@ def load_schedule():
         st.error(f"Error loading schedule data: {str(e)}")
         return pd.DataFrame()
 
-schedule = load_schedule()
+# DON'T load at module level - will be loaded lazily when needed
+schedule = None
 
 # Display NFL logo at the top
 logo_path = os.path.join(DATA_DIR, "gridiron-oracle.png")

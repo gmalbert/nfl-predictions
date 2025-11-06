@@ -15,7 +15,7 @@ DATA_DIR = 'data_files/'
 # Load historical play-by-play data with optimizations
 @st.cache_data
 def load_historical_data():
-    file_path = path.join(DATA_DIR, 'nfl_history_2020_2024.csv.gz')
+    file_path = path.join(DATA_DIR, 'nfl_play_by_play_historical.csv.gz')
     if os.path.exists(file_path):
         # Use chunksize and only load what we need to reduce memory usage
         data = pd.read_csv(
@@ -52,7 +52,7 @@ with st.spinner("Loading historical data..."):
     historical_data = load_historical_data()
 
 if historical_data.empty:
-    st.error("Historical play-by-play data file not found. The nfl_history_2020_2024.csv.gz file may be missing or empty.")
+    st.error("Historical play-by-play data file not found. The nfl_play_by_play_historical.csv.gz file may be missing or empty.")
     st.stop()
 
 current_year = datetime.now().year
