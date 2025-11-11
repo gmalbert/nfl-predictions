@@ -253,6 +253,31 @@ def log_betting_recommendations(predictions_df):
     else:
         new_records_df.to_csv(log_path, index=False)
 
+def get_dataframe_height(df, row_height=35, header_height=38, padding=2, max_height=600):
+    """
+    Calculate the optimal height for a Streamlit dataframe based on number of rows.
+    
+    Args:
+        df (pd.DataFrame): The dataframe to display
+        row_height (int): Height per row in pixels. Default: 35
+        header_height (int): Height of header row in pixels. Default: 38
+        padding (int): Extra padding in pixels. Default: 2
+        max_height (int): Maximum height cap in pixels. Default: 600 (None for no limit)
+    
+    Returns:
+        int: Calculated height in pixels
+    
+    Example:
+        height = get_dataframe_height(my_df)
+        st.dataframe(my_df, height=height)
+    """
+    num_rows = len(df)
+    calculated_height = (num_rows * row_height) + header_height + padding
+    
+    if max_height is not None:
+        return min(calculated_height, max_height)
+    return calculated_height
+
 # Function to automatically update completed game results
 def update_completed_games():
     """Fetch scores from ESPN API and update betting log for completed games"""
@@ -827,6 +852,125 @@ print("🎨 Starting main UI rendering...", file=sys.stderr, flush=True)
 # Create tabs for prediction and betting sections
 st.write("---")
 st.write("## 📈 Model Performance & Betting Analysis")
+
+# Upcoming Games Schedule with Predictions
+if not schedule.empty and predictions_df is not None:
+    with st.expander("📅 Upcoming Games Schedule (Click to expand)", expanded=False):
+        st.write("### This Week's Games with Model Predictions")
+        
+        # Team name mapping from full names to abbreviations
+        team_abbrev_map = {
+            'Arizona Cardinals': 'ARI', 'Atlanta Falcons': 'ATL', 'Baltimore Ravens': 'BAL',
+            'Buffalo Bills': 'BUF', 'Carolina Panthers': 'CAR', 'Chicago Bears': 'CHI',
+            'Cincinnati Bengals': 'CIN', 'Cleveland Browns': 'CLE', 'Dallas Cowboys': 'DAL',
+            'Denver Broncos': 'DEN', 'Detroit Lions': 'DET', 'Green Bay Packers': 'GB',
+            'Houston Texans': 'HOU', 'Indianapolis Colts': 'IND', 'Jacksonville Jaguars': 'JAX',
+            'Kansas City Chiefs': 'KC', 'Las Vegas Raiders': 'LV', 'Los Angeles Chargers': 'LAC',
+            'Los Angeles Rams': 'LAR', 'Miami Dolphins': 'MIA', 'Minnesota Vikings': 'MIN',
+            'New England Patriots': 'NE', 'New Orleans Saints': 'NO', 'New York Giants': 'NYG',
+            'New York Jets': 'NYJ', 'Philadelphia Eagles': 'PHI', 'Pittsburgh Steelers': 'PIT',
+            'San Francisco 49ers': 'SF', 'Seattle Seahawks': 'SEA', 'Tampa Bay Buccaneers': 'TB',
+            'Tennessee Titans': 'TEN', 'Washington Commanders': 'WAS'
+        }
+        
+        # Filter for upcoming games (not STATUS_FINAL and future dates)
+        current_time = pd.Timestamp.now(tz='UTC')
+        upcoming_schedule = schedule.copy()
+        upcoming_schedule['date'] = pd.to_datetime(upcoming_schedule['date'], utc=True)
+        upcoming_mask = (upcoming_schedule['status'] != 'STATUS_FINAL') & (upcoming_schedule['date'] > current_time)
+        upcoming_games = upcoming_schedule[upcoming_mask].copy()
+        
+        if not upcoming_games.empty:
+            # Convert to local time for display
+            upcoming_games['date'] = upcoming_games['date'].dt.tz_convert('America/New_York')
+            upcoming_games['date_display'] = upcoming_games['date'].dt.strftime('%m/%d/%Y %I:%M %p ET')
+            
+            # Sort by date
+            upcoming_games = upcoming_games.sort_values('date').head(15)  # Show next 15 games
+            
+            # Create display dataframe
+            schedule_display = []
+            
+            for _, game in upcoming_games.iterrows():
+                # Convert team names to abbreviations for matching
+                home_abbrev = team_abbrev_map.get(game['home_team'], game['home_team'])
+                away_abbrev = team_abbrev_map.get(game['away_team'], game['away_team'])
+                
+                # Find matching prediction (if available)
+                pred_match = predictions_df[
+                    ((predictions_df['home_team'] == home_abbrev) & (predictions_df['away_team'] == away_abbrev)) |
+                    ((predictions_df['home_team'] == away_abbrev) & (predictions_df['away_team'] == home_abbrev))
+                ]
+                
+                if not pred_match.empty:
+                    pred = pred_match.iloc[0]
+                    
+                    # Determine underdog and favorite
+                    if pred.get('spread_line', 0) < 0:
+                        favorite = pred['away_team']
+                        underdog = pred['home_team']
+                        spread = abs(pred['spread_line'])
+                    else:
+                        favorite = pred['home_team']
+                        underdog = pred['away_team']
+                        spread = pred['spread_line']
+                    
+                    schedule_display.append({
+                        'Date': game['date_display'],
+                        'Matchup': f"{game['away_team']} @ {game['home_team']}",
+                        'Spread': f"{favorite} -{spread}" if spread > 0 else "Pick'em",
+                        'Total': f"{pred.get('total_line', 'N/A')}",
+                        'Underdog Win %': f"{pred.get('prob_underdogWon', 0):.1%}",
+                        'Spread Cover %': f"{pred.get('prob_underdogCovered', 0):.1%}",
+                        'Over Hit %': f"{pred.get('prob_overHit', 0):.1%}",
+                        'ML Edge': f"{pred.get('edge_underdog_ml', 0):.1f}",
+                        'Spread Edge': f"{pred.get('edge_underdog_spread', 0):.1f}",
+                        'Total Edge': f"{pred.get('edge_over', 0):.1f}"
+                    })
+                else:
+                    # No prediction available
+                    schedule_display.append({
+                        'Date': game['date_display'],
+                        'Matchup': f"{game['away_team']} @ {game['home_team']}",
+                        'Spread': "TBD",
+                        'Total': "TBD",
+                        'Underdog Win %': "N/A",
+                        'Spread Cover %': "N/A",
+                        'Over Hit %': "N/A",
+                        'ML Edge': "N/A",
+                        'Spread Edge': "N/A",
+                        'Total Edge': "N/A"
+                    })
+            
+            if schedule_display:
+                schedule_df = pd.DataFrame(schedule_display)
+                height = get_dataframe_height(schedule_df)
+                st.dataframe(
+                    schedule_df,
+                    hide_index=True,
+                    height=height,
+                    column_config={
+                        'Date': st.column_config.TextColumn('Date/Time', width='medium'),
+                        'Matchup': st.column_config.TextColumn('Matchup', width='large'),
+                        'Spread': st.column_config.TextColumn('Spread', width='medium'),
+                        'Total': st.column_config.TextColumn('O/U', width='small'),
+                        'Underdog Win %': st.column_config.TextColumn('Underdog Win %', width='small'),
+                        'Spread Cover %': st.column_config.TextColumn('Cover %', width='small'),
+                        'Over Hit %': st.column_config.TextColumn('Over %', width='small'),
+                        'ML Edge': st.column_config.NumberColumn('ML Edge', format='%.1f', width='small'),
+                        'Spread Edge': st.column_config.NumberColumn('Spread Edge', format='%.1f', width='small'),
+                        'Total Edge': st.column_config.NumberColumn('Total Edge', format='%.1f', width='small')
+                    }
+                )
+                st.caption(f"Showing next {len(schedule_display)} upcoming games • Green edges indicate positive expected value bets")
+            else:
+                st.info("No upcoming games found in schedule data.")
+        else:
+            st.info("No upcoming games scheduled.")
+else:
+    with st.expander("📅 Upcoming Games Schedule", expanded=False):
+        st.info("Schedule or prediction data not available.")
+
 print("✅ Main tabs section loaded", file=sys.stderr, flush=True)
 pred_tab1, pred_tab2, pred_tab3, pred_tab4, pred_tab5, pred_tab6, pred_tab7 = st.tabs([
     "📊 Model Predictions", 
@@ -1369,6 +1513,7 @@ with pred_tab5:
                 elif 'Date' in final_spread_display.columns:
                     final_spread_display = final_spread_display.sort_values('Date')
                 
+                height = get_dataframe_height(final_spread_display)
                 st.dataframe(
                     final_spread_display,
                     column_config={
@@ -1382,7 +1527,7 @@ with pred_tab5:
                         'Value Edge': st.column_config.NumberColumn(format='%.1f%%') if 'Value Edge' in final_spread_display.columns and final_spread_display['Value Edge'].dtype != 'object' else st.column_config.TextColumn(),
                         'Expected Payout': st.column_config.TextColumn(width='large')
                     },
-                    height=500,
+                    height=height,
                     hide_index=True
                 )
                 
@@ -1428,8 +1573,11 @@ with pred_tab6:
         if 'pred_overHit_optimal' not in predictions_df_full.columns:
             st.error("Over/under predictions not found. Ensure pred_overHit_optimal column exists in the predictions CSV.")
         else:
-            # Filter for games with over/under betting signals
-            totals_bets = predictions_df_full[predictions_df_full['pred_overHit_optimal'] == 1].copy()
+            # Filter for games with over/under betting signals AND that haven't been played yet
+            totals_bets = predictions_df_full[
+                (predictions_df_full['pred_overHit_optimal'] == 1) & 
+                (pd.to_datetime(predictions_df_full['gameday']) > pd.Timestamp.now().normalize())
+            ].copy()
             
             if len(totals_bets) > 0:
                 # Add confidence tiers based on probability
@@ -1493,6 +1641,7 @@ with pred_tab6:
                 
                 # Format for display
                 display_totals['matchup'] = display_totals['away_team'] + ' @ ' + display_totals['home_team']
+                display_totals['game_date'] = pd.to_datetime(display_totals['gameday']).dt.strftime('%m/%d/%Y')
                 display_totals['total_line'] = display_totals['total_line'].round(1)
                 display_totals['prob_pct'] = (display_totals['prob_overHit'] * 100).round(1)
                 display_totals['value_pct'] = (display_totals['value_edge'] * 100).round(1)
@@ -1500,6 +1649,7 @@ with pred_tab6:
                 
                 # Create display dataframe
                 display_cols = {
+                    'game_date': 'Date',
                     'matchup': 'Matchup',
                     'bet_on': 'Bet',
                     'total_line': 'Line',
@@ -1509,9 +1659,11 @@ with pred_tab6:
                     'confidence_tier': 'Confidence'
                 }
                 
+                height = get_dataframe_height(display_totals)
                 st.dataframe(
                     display_totals[list(display_cols.keys())].rename(columns=display_cols),
                     column_config={
+                        'Date': st.column_config.TextColumn('Date', width='small'),
                         'Matchup': st.column_config.TextColumn('Matchup', width='large'),
                         'Bet': st.column_config.TextColumn('Bet', width='small'),
                         'Line': st.column_config.NumberColumn('Line', format='%.1f'),
@@ -1521,6 +1673,7 @@ with pred_tab6:
                         'Confidence': st.column_config.TextColumn('Confidence', width='medium')
                     },
                     hide_index=True,
+                    height=height,
                     use_container_width=True
                 )
                 
@@ -1812,10 +1965,11 @@ with adv_tab1:
             st.write("### Spread Model Feature Importances (Top 25)")
             spread_features = importances_df[importances_df['model'] == 'spread'].head(25)
             if len(spread_features) > 0:
+                height = get_dataframe_height(spread_features)
                 st.dataframe(
                     spread_features[['feature', 'importance_mean']],
                     hide_index=True,
-                    height=600,
+                    height=height,
                     width=400,
                     column_config={
                         'feature': st.column_config.TextColumn('Feature Name'),
@@ -1829,10 +1983,11 @@ with adv_tab1:
             st.write("### Moneyline Model Feature Importances (Top 25)")
             moneyline_features = importances_df[importances_df['model'] == 'moneyline'].head(25)
             if len(moneyline_features) > 0:
+                height = get_dataframe_height(moneyline_features)
                 st.dataframe(
                     moneyline_features[['feature', 'importance_mean']],
                     hide_index=True,
-                    height=600,
+                    height=height,
                     width=400,
                     column_config={
                         'feature': st.column_config.TextColumn('Feature Name'),
@@ -1846,10 +2001,11 @@ with adv_tab1:
             st.write("### Over/Under Model Feature Importances (Top 25)")
             totals_features = importances_df[importances_df['model'] == 'totals'].head(25)
             if len(totals_features) > 0:
+                height = get_dataframe_height(totals_features)
                 st.dataframe(
                     totals_features[['feature', 'importance_mean']],
                     hide_index=True,
-                    height=600,
+                    height=height,
                     width=400,
                     column_config={
                         'feature': st.column_config.TextColumn('Feature Name'),
