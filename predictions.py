@@ -424,7 +424,7 @@ historical_data = None
 @st.cache_data
 def load_schedule():
     try:
-        schedule_data = pd.read_csv(path.join(DATA_DIR, f'espn_schedule_{current_year}.csv'), low_memory=False)
+        schedule_data = pd.read_csv(path.join(DATA_DIR, f'nfl_schedule_{current_year}.csv'), low_memory=False)
         return schedule_data
     except FileNotFoundError:
         st.warning(f"Schedule file for {current_year} not found. Schedule data will be unavailable.")
@@ -433,7 +433,7 @@ def load_schedule():
         st.error(f"Error loading schedule data: {str(e)}")
         return pd.DataFrame()
 
-schedule = load_schedule()
+schedule = None
 
 # Display NFL logo at the top
 logo_path = os.path.join(DATA_DIR, "gridiron-oracle.png")
@@ -671,6 +671,9 @@ if False:  # Disable this entire expander section for now
 
     with tab3:
         st.write(f"### {current_year} NFL Schedule")
+        if schedule is None:
+            schedule = load_schedule()
+        
         if not schedule.empty:
             display_cols = ['week', 'date', 'home_team', 'away_team', 'venue']
             # Convert UTC date string to local datetime
@@ -854,6 +857,9 @@ st.write("---")
 st.write("## 📈 Model Performance & Betting Analysis")
 
 # Upcoming Games Schedule with Predictions
+if schedule is None:
+    schedule = load_schedule()
+
 if not schedule.empty and predictions_df is not None:
     with st.expander("📅 Upcoming Games Schedule (Click to expand)", expanded=False):
         st.write("### This Week's Games with Model Predictions")
@@ -985,6 +991,21 @@ pred_tab1, pred_tab2, pred_tab3, pred_tab4, pred_tab5, pred_tab6, pred_tab7 = st
 with pred_tab1:
     
     if predictions_df is not None:
+        # Team name mapping from abbreviations to full names
+        team_full_name_map = {
+            'ARI': 'Arizona Cardinals', 'ATL': 'Atlanta Falcons', 'BAL': 'Baltimore Ravens',
+            'BUF': 'Buffalo Bills', 'CAR': 'Carolina Panthers', 'CHI': 'Chicago Bears',
+            'CIN': 'Cincinnati Bengals', 'CLE': 'Cleveland Browns', 'DAL': 'Dallas Cowboys',
+            'DEN': 'Denver Broncos', 'DET': 'Detroit Lions', 'GB': 'Green Bay Packers',
+            'HOU': 'Houston Texans', 'IND': 'Indianapolis Colts', 'JAX': 'Jacksonville Jaguars',
+            'KC': 'Kansas City Chiefs', 'LV': 'Las Vegas Raiders', 'LAC': 'Los Angeles Chargers',
+            'LA': 'Los Angeles Rams', 'MIA': 'Miami Dolphins', 'MIN': 'Minnesota Vikings',
+            'NE': 'New England Patriots', 'NO': 'New Orleans Saints', 'NYG': 'New York Giants',
+            'NYJ': 'New York Jets', 'PHI': 'Philadelphia Eagles', 'PIT': 'Pittsburgh Steelers',
+            'SF': 'San Francisco 49ers', 'SEA': 'Seattle Seahawks', 'TB': 'Tampa Bay Buccaneers',
+            'TEN': 'Tennessee Titans', 'WAS': 'Washington Commanders'
+        }
+        
         display_cols = [
             'game_id', 'gameday', 'home_team', 'away_team', 'home_score', 'away_score',
             'total_line', 'spread_line',
@@ -994,14 +1015,18 @@ with pred_tab1:
         # Only show columns that exist
         display_cols = [col for col in display_cols if col in predictions_df.columns]
         st.write("### Model Predictions vs Actual Results")
-        predictions_df = predictions_df.copy()
-        predictions_df['gameday'] = pd.to_datetime(predictions_df['gameday'], errors='coerce')
-        mask = predictions_df['gameday'] <= pd.to_datetime(datetime.now())
-        predictions_df = predictions_df[mask]
-        predictions_df.sort_values(by='gameday', ascending=False, inplace=True)
+        predictions_df_display = predictions_df.copy()
+        predictions_df_display['gameday'] = pd.to_datetime(predictions_df_display['gameday'], errors='coerce')
+        mask = predictions_df_display['gameday'] <= pd.to_datetime(datetime.now())
+        predictions_df_display = predictions_df_display[mask]
+        predictions_df_display.sort_values(by='gameday', ascending=False, inplace=True)
+        
+        # Convert team abbreviations to full names for display
+        predictions_df_display['home_team'] = predictions_df_display['home_team'].map(team_full_name_map).fillna(predictions_df_display['home_team'])
+        predictions_df_display['away_team'] = predictions_df_display['away_team'].map(team_full_name_map).fillna(predictions_df_display['away_team'])
         
         st.dataframe(
-            predictions_df[display_cols].head(50), 
+            predictions_df_display[display_cols].head(50), 
             hide_index=True,
             height=600,
             column_config={
