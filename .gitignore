@@ -60,6 +60,8 @@ fetch_nflfastR_games.py
 nflfastR_fields.md
 nflfastR_fields_streamlit.py
 
+# Internal VS Code files
+nfl-predictions.code-workspace
 
 # Documentation files (managed separately)
 GIT_WORKFLOW_GUIDE.md

@@ -2,6 +2,8 @@
 
 A sophisticated NFL analytics platform that uses advanced machine learning to identify profitable betting opportunities. This system analyzes historical NFL data with **50+ enhanced features** across multiple time scales to predict game outcomes and provides actionable betting insights with proven **60.9% ROI** performance on data-leakage-free models.
 
+**Now featuring a multi-page Streamlit app** with dedicated Historical Data page for advanced filtering and analysis of 196k+ play-by-play records.
+
 ## 📋 Table of Contents
 
 - [🎯 Key Features](#-key-features)
@@ -112,7 +114,10 @@ streamlit run predictions.py
 
 ### **2. Dashboard Sections**
 
-The dashboard uses **modern tab-based navigation** for easy access to all features. Each section displays data with **professional formatting** including percentages, proper date formats, and descriptive column labels.
+The dashboard uses **modern multi-page navigation** with a main predictions page and dedicated historical data page. Each section displays data with **professional formatting** including percentages, proper date formats, and descriptive column labels.
+
+#### **🏈 Main Page: Predictions**
+The primary predictions interface with tab-based navigation for betting analysis.
 
 #### **� Tab: Model Predictions**
 - **Model Predictions vs Actual Results**: Historical game outcomes with checkbox indicators
@@ -164,11 +169,19 @@ The dashboard uses **modern tab-based navigation** for easy access to all featur
 - **Results Integration**: Automatically updates with game outcomes
 - **Performance Analysis**: Win/loss tracking for accountability
 
-#### **📊 Collapsible Historical Data Section** ⭐ *NEW*
-- **Clean Interface**: Historical data tabs now hidden by default in collapsible expander
-- **Organized Layout**: Main betting analysis stays front and center
-- **Easy Access**: Click "📊 Historical Data & Filters" to expand when needed
-- **Four Sub-Tabs**: Play-by-Play Data, Game Summaries, Schedule, and Advanced Filters
+#### **📊 Historical Data Page** ⭐ *NEW MULTI-PAGE APP*
+- **Dedicated Page**: Separate navigation page for historical data analysis
+- **196k+ Play Records**: Complete play-by-play data from 2020-2024 seasons
+- **Advanced Filtering**: 12+ filter controls including:
+  - Team filters (offense/defense)
+  - Game context (down, quarter, play type)
+  - Field position sliders (yards to go, yardline)
+  - Score filters (differential, team scores)
+  - Advanced metrics (EPA, win probability)
+- **Reset Functionality**: One-click filter reset with session state management
+- **Paginated Display**: 50-500 rows per page with navigation controls
+- **Rich Column Configuration**: Formatted dates, percentages, checkboxes for play outcomes
+- **Back to Predictions**: Easy navigation button to return to main page
 
 #### **⚙️ Additional Features**
 - **Feature Importances**: Top model features with mean/std importance (3 decimals)
@@ -245,8 +258,6 @@ nfl-predictions/
 ├── nfl-gather-data.py      # Main model training script
 ├── predictions.py          # Streamlit dashboard
 ├── data_files/            # Data storage directory
-├── nflfastR_games_2020_2024.csv  # Historical game data
-└── espn_nfl_scores_2020_2024.csv # Betting lines data
 ```
 
 ## 🔧 **Technical Architecture**
@@ -279,7 +290,15 @@ nfl-predictions/
 
 ## 📁 **Recent Updates (November 2025)**
 
-### **🎯 NEW: Over/Under Betting Model (Latest)**
+### **⚡ Performance Optimizations for Historical Data (Latest)**
+- **Memory-Efficient Data Types**: Reduced memory usage by ~50% using float32 and Int8 instead of float64/int64
+- **Eliminated Data Copying**: Removed unnecessary `.copy()` operations on 196k row dataset
+- **DataFrame Views**: Filter operations now use views instead of copies for instant performance
+- **Streamlit Cloud Config**: Added `.streamlit/config.toml` with increased message size limits (500MB) and optimizations
+- **Smart Warnings**: Alert users when displaying large result sets to encourage filtering
+- **Result**: Historical Data page now loads significantly faster on Streamlit Cloud, avoiding timeout issues
+
+### **🎯 NEW: Over/Under Betting Model**
 - **Three-Model System**: Added dedicated over/under (totals) betting predictions alongside spread and moneyline
 - **F1-Score Optimization**: Optimal threshold calculation for over/under predictions using F1-score maximization
 - **Value Edge Analysis**: Calculates expected profit percentage based on model probability vs betting odds
@@ -287,12 +306,13 @@ nfl-predictions/
 - **Complete Payout Calculations**: Shows expected returns for both over and under bets on each game
 - **Integrated Dashboard**: New "🎯 Over/Under Bets" tab with top 15 opportunities sorted by value edge
 
-### **📊 NEW: Collapsible Historical Data Interface (Latest)**
-- **Improved UX**: Historical data tabs (Play-by-Play, Game Summaries, Schedule, Filters) now in collapsible expander
-- **Clean Dashboard**: Main betting analysis stays prominent while historical data is hidden by default
-- **Easy Access**: Click "📊 Historical Data & Filters" expander to view detailed historical information
-- **Better Organization**: Separates actionable betting insights from research/analysis tools
-- **Performance**: Faster initial page load with collapsed sections
+### **📊 NEW: Multi-Page Streamlit App**
+- **Dedicated Historical Data Page**: Separate navigation page for 196k+ play-by-play records with advanced filtering
+- **Clean Interface**: Main predictions page focuses on betting analysis, historical data on separate page
+- **Easy Navigation**: "🏈 Back to Predictions" button for quick return to main page
+- **12+ Filter Controls**: Team filters, game context, field position, scores, and advanced metrics
+- **Session State Reset**: Reliable filter reset functionality using flag pattern
+- **Pagination**: Display 50-500 rows per page with navigation controls
 
 ### **🔧 Bug Fixes & System Improvements (Latest)**
 - **Fixed Over/Under Column Names**: Corrected KeyError for `pred_totalsProb` → `prob_overHit`
@@ -347,7 +367,7 @@ nfl-predictions/
 - **Technical**: Fixed variable mutation issues across Streamlit sections through data isolation
 
 ### **✅ Git LFS Integration (October 2025)**
-- **Added**: Large file support for `nfl_history_2020_2024.csv.gz` (73.95MB)
+- **Added**: Large file support for `nfl_play_by_play_historical.csv.gz` (73.95MB)
 - **Benefit**: Enables deployment to Streamlit Cloud with access to large datasets
 - **Setup**: Properly configured `.gitignore` and `.gitattributes` for optimal repo management
 
@@ -405,7 +425,7 @@ nfl-predictions/
 - **Cause**: Old Streamlit version compatibility issue
 - **Fix**: Updated in recent version - use `git pull` to get latest fixes
 
-**"Missing file: nfl_history_2020_2024.csv.gz"**
+**"Missing file: nfl_play_by_play_historical.csv.gz"**
 - **Cause**: Large file not available locally
 - **Fix**: Dashboard includes error handling and fallback data display
 
@@ -434,7 +454,7 @@ nfl-predictions/
 - **Cause**: Old Streamlit version compatibility issue
 - **Solution**: System now includes modern Streamlit compatibility - use `git pull` for latest fixes
 
-#### **"Missing file: nfl_history_2020_2024.csv.gz"**
+#### **"Missing file: nfl_play_by_play_historical.csv.gz"**
 - **Cause**: Large file not available locally (Git LFS)
 - **Solution**: Dashboard includes graceful error handling and fallback data display
 - **Alternative**: Download manually or use Git LFS: `git lfs pull`
