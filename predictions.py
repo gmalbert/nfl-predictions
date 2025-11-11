@@ -5,7 +5,7 @@ st.set_page_config(
     page_title="NFL Outcome Predictor",
     page_icon="🏈",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="collapsed",  # Sidebar starts collapsed
     menu_items={
         'About': "NFL Predictions - Machine Learning powered betting predictions"
     }
@@ -74,8 +74,6 @@ try:
         best_features_totals = [line.strip() for line in f if line.strip()]
 except FileNotFoundError:
     best_features_totals = features
-
-
 
 # Load full NFL schedule from ESPN API (all regular season weeks) and save to CSV
 current_year = datetime.now().year
@@ -255,6 +253,31 @@ def log_betting_recommendations(predictions_df):
             combined_log.to_csv(log_path, index=False)
     else:
         new_records_df.to_csv(log_path, index=False)
+
+def get_dataframe_height(df, row_height=35, header_height=38, padding=2, max_height=600):
+    """
+    Calculate the optimal height for a Streamlit dataframe based on number of rows.
+    
+    Args:
+        df (pd.DataFrame): The dataframe to display
+        row_height (int): Height per row in pixels. Default: 35
+        header_height (int): Height of header row in pixels. Default: 38
+        padding (int): Extra padding in pixels. Default: 2
+        max_height (int): Maximum height cap in pixels. Default: 600 (None for no limit)
+    
+    Returns:
+        int: Calculated height in pixels
+    
+    Example:
+        height = get_dataframe_height(my_df)
+        st.dataframe(my_df, height=height)
+    """
+    num_rows = len(df)
+    calculated_height = (num_rows * row_height) + header_height + padding
+    
+    if max_height is not None:
+        return min(calculated_height, max_height)
+    return calculated_height
 
 # Function to automatically update completed game results
 def update_completed_games():
@@ -631,10 +654,11 @@ with pred_tab2:
             if col in display_df.columns:
                 display_df[col] = display_df[col] * 100
         
+        height = get_dataframe_height(display_df)
         st.dataframe(
             display_df, 
             hide_index=True, 
-            height=600,
+            height=height,
             column_config={
                 'gameday': st.column_config.DateColumn('Date', format='MM/DD/YYYY', width='small'),
                 'home_team': st.column_config.TextColumn('Home', width='small'),
@@ -937,6 +961,7 @@ with pred_tab4:
             if 'Date' in final_display.columns:
                 final_display = final_display.sort_values('Date')
             
+            height = get_dataframe_height(final_display)
             st.dataframe(
                 final_display,
                 column_config={
@@ -949,7 +974,7 @@ with pred_tab4:
                     'Model %': st.column_config.NumberColumn(format='%.1f%%'),
                     'Expected Payout': st.column_config.TextColumn(width='large')
                 },
-                height=400,
+                height=height,
                 hide_index=True
             )
             
@@ -1066,6 +1091,7 @@ with pred_tab5:
                 elif 'Date' in final_spread_display.columns:
                     final_spread_display = final_spread_display.sort_values('Date')
                 
+                height = get_dataframe_height(final_spread_display)
                 st.dataframe(
                     final_spread_display,
                     column_config={
@@ -1079,7 +1105,7 @@ with pred_tab5:
                         'Value Edge': st.column_config.NumberColumn(format='%.1f%%') if 'Value Edge' in final_spread_display.columns and final_spread_display['Value Edge'].dtype != 'object' else st.column_config.TextColumn(),
                         'Expected Payout': st.column_config.TextColumn(width='large')
                     },
-                    height=500,
+                    height=height,
                     hide_index=True
                 )
                 
@@ -1233,10 +1259,12 @@ with pred_tab6:
                     'Confidence': st.column_config.TextColumn('Confidence', width='medium')
                 })
                 
+                height = get_dataframe_height(display_totals)
                 st.dataframe(
                     display_totals[list(display_cols.keys())].rename(columns=display_cols),
                     column_config=col_config,
-                    hide_index=True
+                    hide_index=True,
+                    height=height
                 )
                 
                 # Confidence tier breakdown
@@ -1374,6 +1402,13 @@ with pred_tab7:
             display_log['gameday'] = display_log['gameday'].dt.strftime('%Y-%m-%d')
             display_log['log_date'] = display_log['log_date'].dt.strftime('%Y-%m-%d %H:%M')
             
+            # Handle NaN values in numeric columns to prevent red triangles
+            display_log['model_probability'] = pd.to_numeric(display_log['model_probability'], errors='coerce').fillna(0).astype(float)
+            display_log['edge'] = pd.to_numeric(display_log['edge'], errors='coerce').fillna(0).astype(float)
+            display_log['spread_line'] = pd.to_numeric(display_log['spread_line'], errors='coerce').fillna(0).astype(float)
+            display_log['week'] = pd.to_numeric(display_log['week'], errors='coerce').fillna(0).astype(int)
+            display_log['bet_profit'] = pd.to_numeric(display_log['bet_profit'], errors='coerce').fillna(0).astype(float)
+            
             # Select columns to display
             display_cols = [
                 'log_date', 'gameday', 'week', 'home_team', 'away_team', 
@@ -1396,8 +1431,8 @@ with pred_tab7:
                     'bet_type': st.column_config.TextColumn('Bet Type', width='medium'),
                     'recommended_team': st.column_config.TextColumn('Bet On', width='medium'),
                     'spread_line': st.column_config.NumberColumn('Spread', format='%.1f'),
-                    'model_probability': st.column_config.NumberColumn('Model Prob', format='%.1%'),
-                    'edge': st.column_config.NumberColumn('Edge', format='%.2%'),
+                    'model_probability': st.column_config.NumberColumn('Model Prob', format='%.1f%%', help='Model probability (percentage)'),
+                    'edge': st.column_config.NumberColumn('Edge', format='%.3f', help='Edge over sportsbook odds (decimal)'),
                     'confidence_tier': st.column_config.TextColumn('Tier', width='small'),
                     'bet_result': st.column_config.TextColumn('Result', width='small'),
                     'bet_profit': st.column_config.NumberColumn('Profit', format='$%.2f')
@@ -1526,11 +1561,12 @@ with adv_tab1:
         with feat_tab1:
             st.write("### Spread Model Feature Importances (Top 25)")
             spread_features = importances_df[importances_df['model'] == 'spread'].head(25)
+            height = get_dataframe_height(spread_features)
             if len(spread_features) > 0:
                 st.dataframe(
                     spread_features[['feature', 'importance_mean']],
                     hide_index=True,
-                    height=600,
+                    height=height,
                     width=400,
                     column_config={
                         'feature': st.column_config.TextColumn('Feature Name'),
@@ -1543,11 +1579,12 @@ with adv_tab1:
         with feat_tab2:
             st.write("### Moneyline Model Feature Importances (Top 25)")
             moneyline_features = importances_df[importances_df['model'] == 'moneyline'].head(25)
+            height = get_dataframe_height(moneyline_features)
             if len(moneyline_features) > 0:
                 st.dataframe(
                     moneyline_features[['feature', 'importance_mean']],
                     hide_index=True,
-                    height=600,
+                    height=height,
                     width=400,
                     column_config={
                         'feature': st.column_config.TextColumn('Feature Name'),
@@ -1560,11 +1597,12 @@ with adv_tab1:
         with feat_tab3:
             st.write("### Over/Under Model Feature Importances (Top 25)")
             totals_features = importances_df[importances_df['model'] == 'totals'].head(25)
+            height = get_dataframe_height(totals_features)
             if len(totals_features) > 0:
                 st.dataframe(
                     totals_features[['feature', 'importance_mean']],
                     hide_index=True,
-                    height=600,
+                    height=height,
                     width=400,
                     column_config={
                         'feature': st.column_config.TextColumn('Feature Name'),
