@@ -302,7 +302,22 @@ def update_completed_games():
     completed_games = pending_bets[pending_bets['gameday'] < today].copy()
     
     if len(completed_games) == 0:
-        return  # No games to check
+        return  # No games to check - they are all future games
+    
+    # Team name mapping for matching ESPN full names to our abbreviations
+    team_abbrev_to_full = {
+        'ARI': 'Arizona Cardinals', 'ATL': 'Atlanta Falcons', 'BAL': 'Baltimore Ravens',
+        'BUF': 'Buffalo Bills', 'CAR': 'Carolina Panthers', 'CHI': 'Chicago Bears',
+        'CIN': 'Cincinnati Bengals', 'CLE': 'Cleveland Browns', 'DAL': 'Dallas Cowboys',
+        'DEN': 'Denver Broncos', 'DET': 'Detroit Lions', 'GB': 'Green Bay Packers',
+        'HOU': 'Houston Texans', 'IND': 'Indianapolis Colts', 'JAX': 'Jacksonville Jaguars',
+        'KC': 'Kansas City Chiefs', 'LV': 'Las Vegas Raiders', 'LAC': 'Los Angeles Chargers',
+        'LAR': 'Los Angeles Rams', 'MIA': 'Miami Dolphins', 'MIN': 'Minnesota Vikings',
+        'NE': 'New England Patriots', 'NO': 'New Orleans Saints', 'NYG': 'New York Giants',
+        'NYJ': 'New York Jets', 'PHI': 'Philadelphia Eagles', 'PIT': 'Pittsburgh Steelers',
+        'SF': 'San Francisco 49ers', 'SEA': 'Seattle Seahawks', 'TB': 'Tampa Bay Buccaneers',
+        'TEN': 'Tennessee Titans', 'WAS': 'Washington Commanders'
+    }
     
     # Fetch scores from ESPN API for each completed game
     updates_made = False
@@ -319,6 +334,10 @@ def update_completed_games():
             if response.status_code == 200:
                 data = response.json()
                 
+                # Convert our team abbreviations to full names for matching
+                bet_home_full = team_abbrev_to_full.get(str(bet['home_team']).upper(), str(bet['home_team']))
+                bet_away_full = team_abbrev_to_full.get(str(bet['away_team']).upper(), str(bet['away_team']))
+                
                 # Find matching game by team names
                 for event in data.get("events", []):
                     comp = event.get("competitions", [{}])[0]
@@ -330,8 +349,8 @@ def update_completed_games():
                         away_team = competitors[1].get("team", {}).get("displayName", "")
                         
                         # Match by team names (case-insensitive)
-                        if (home_team.lower() == str(bet['home_team']).lower() and 
-                            away_team.lower() == str(bet['away_team']).lower()):
+                        if (home_team.lower() == bet_home_full.lower() and 
+                            away_team.lower() == bet_away_full.lower()):
                             
                             # Check if game is completed
                             status = event.get("status", {}).get("type", {}).get("completed", False)
@@ -1837,6 +1856,12 @@ with pred_tab7:
             display_log['gameday'] = display_log['gameday'].dt.strftime('%Y-%m-%d')
             display_log['log_date'] = display_log['log_date'].dt.strftime('%Y-%m-%d %H:%M')
             
+            # Format probability and edge as strings to avoid sorting arrows
+            if 'model_probability' in display_log.columns:
+                display_log['model_probability'] = display_log['model_probability'].apply(lambda x: f"{x:.1%}" if pd.notna(x) else "")
+            if 'edge' in display_log.columns:
+                display_log['edge'] = display_log['edge'].apply(lambda x: f"{x:.2%}" if pd.notna(x) else "")
+            
             # Select columns to display
             display_cols = [
                 'log_date', 'gameday', 'week', 'home_team', 'away_team', 
@@ -1859,8 +1884,8 @@ with pred_tab7:
                     'bet_type': st.column_config.TextColumn('Bet Type', width='medium'),
                     'recommended_team': st.column_config.TextColumn('Bet On', width='medium'),
                     'spread_line': st.column_config.NumberColumn('Spread', format='%.1f'),
-                    'model_probability': st.column_config.NumberColumn('Model Prob', format='%.1%'),
-                    'edge': st.column_config.NumberColumn('Edge', format='%.2%'),
+                    'model_probability': st.column_config.TextColumn('Model Prob', width='small', help='Model\'s predicted probability'),
+                    'edge': st.column_config.TextColumn('Edge', width='small', help='Model\'s edge over sportsbook'),
                     'confidence_tier': st.column_config.TextColumn('Tier', width='small'),
                     'bet_result': st.column_config.TextColumn('Result', width='small'),
                     'bet_profit': st.column_config.NumberColumn('Profit', format='$%.2f')
@@ -1870,14 +1895,15 @@ with pred_tab7:
             )
             
             # Instructions for automatic updates
-            st.success("""
-            **✨ Automatic Updates Enabled:**
-            - Scores are automatically fetched from ESPN API for completed games
-            - Win/loss results and profit calculations are done automatically
-            - Just refresh the app after game day to see updated statistics
-            - No manual data entry required!
+            st.info("""
+            **🔄 Automatic Updates:**
+            - Results are automatically updated when games are completed
+            - The system checks ESPN for scores after game day
+            - Future games will show "pending" until they're played
+            - Refresh the app after games complete to see updated results
             
-            **Note**: The system checks for completed games each time you load the app.
+            **Note**: All games in the current log are scheduled for the future (Nov 16, 2025), 
+            so no results have been updated yet. Results will appear automatically after games are played.
             """)
             
         else:
