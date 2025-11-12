@@ -290,6 +290,47 @@ nfl-predictions/
 
 ## 📁 **Recent Updates (November 2025)**
 
+### **⚙️ Cache Management UI (Latest)**
+- **Problem Solved**: Users couldn't manually refresh cached data or check cache status
+- **Solution**: Added Settings panel in sidebar with:
+  - "🔄 Refresh Data" button to clear all cached data and reload
+  - Helpful tooltips explaining functionality
+- **Impact**: Gives users control over data freshness
+- **Technical**: Uses `st.cache_data.clear()` for cache management
+
+### **💰 Bankroll Management Tool (Latest)**
+- **Problem Solved**: Users didn't know how much to bet on each recommendation for optimal risk management
+- **Solution**: Added dedicated "💰 Bankroll Management" tab with:
+  - Bankroll input field with configurable amounts ($100-$1M+)
+  - Risk tolerance selector (Conservative 1%, Moderate 2%, Aggressive 3%, Very Aggressive 5%)
+  - Elite bet identification (≥65% confidence threshold)
+  - Position sizing calculator showing recommended bet amounts
+  - Expected payout calculations for each bet
+  - Expected value analysis (positive EV bets only)
+  - Bankroll impact tracking (total exposure percentage)
+- **Impact**: Enables responsible betting with Kelly Criterion-inspired position sizing
+- **Technical**: Filters predictions for elite opportunities and calculates optimal bet sizes
+
+### **�📈 Model Performance Dashboard (Latest)**
+- **Problem Solved**: Users couldn't see if betting recommendations were actually accurate
+- **Solution**: Added dedicated "📈 Model Performance" tab with:
+  - Overall metrics: Total bets, win rate, ROI, units won
+  - Performance breakdown by confidence tier (Elite/Strong/Good/Standard)
+  - Weekly performance tracking with line charts
+  - Best performing bet types analysis
+- **Impact**: Builds trust and transparency in model performance
+- **Technical**: Reads from `betting_recommendations_log.csv` and calculates ROI metrics
+
+### **⚡ Loading Progress Indicators (Latest)**
+- **Problem Solved**: Users experienced 5-10 second load times with no feedback on progress
+- **Solution**: Added detailed progress bar showing specific loading steps:
+  - 25%: "Loading historical games..." - loads game-level data with predictions
+  - 50%: "Loading model predictions..." - loads betting predictions CSV
+  - 75%: "Loading play-by-play data..." - loads historical play-by-play records
+  - 100%: "Ready!" - shows completion with brief pause
+- **Impact**: Significantly improved perceived performance and user experience
+- **Technical**: Uses Streamlit progress bar with text updates and automatic cleanup
+
 ### **⚡ Performance Optimizations for Historical Data (Latest)**
 - **Memory-Efficient Data Types**: Reduced memory usage by ~50% using float32 and Int8 instead of float64/int64
 - **Eliminated Data Copying**: Removed unnecessary `.copy()` operations on 196k row dataset

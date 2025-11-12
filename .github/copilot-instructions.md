@@ -23,7 +23,60 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
   ```
 - **No data leakage**: All features/statistics must use only pre-game info. Rolling stats must exclude current game.
 - **UI structure**: Use tabs for sections, expanders for large data, columns for metrics. Use `width='stretch'` for dataframes.
-- **Session state**: Use reset flag pattern for filters, not `.clear()`.
+- **Loading progress**: Always show detailed progress during data loading with `st.progress()` and descriptive text updates. Example:
+  ```python
+  with st.spinner("Loading data..."):
+      progress_bar = st.progress(0)
+      progress_bar.progress(25, text="Loading step 1...")
+      # load data
+      progress_bar.progress(50, text="Loading step 2...")
+      # load more data
+      progress_bar.progress(100, text="Ready!")
+      time.sleep(0.5)
+      progress_bar.empty()
+  ```
+- **Cache management**: Provide users control over cached data with sidebar settings. Example:
+  ```python
+  # Add to sidebar
+  with st.sidebar:
+      st.write("### ⚙️ Settings")
+      
+      if st.button("🔄 Refresh Data", help="Clear cache and reload all data"):
+          st.cache_data.clear()
+          st.rerun()
+  ```
+- **Performance dashboard**: Track model accuracy and profitability with betting log analysis. Example:
+  ```python
+  # Load betting log and calculate metrics
+  betting_log = pd.read_csv('data_files/betting_recommendations_log.csv')
+  completed_bets = betting_log[betting_log['bet_result'].isin(['win', 'loss'])]
+  
+  # Overall metrics
+  win_rate = (completed_bets['bet_result'] == 'win').mean() * 100
+  roi = calculate_roi(betting_log)
+  units_won = completed_bets['bet_profit'].sum() / 100
+  
+  # Performance by confidence tier
+  confidence_performance = completed_bets.groupby('confidence_tier').agg({
+      'bet_result': lambda x: (x == 'win').mean() * 100,
+      'bet_profit': 'sum'
+  })
+  ```
+- **Bankroll management**: Smart position sizing for elite bets with Kelly-inspired risk management. Example:
+  ```python
+  # Bankroll input and risk calculation
+  bankroll = st.number_input("Current Bankroll ($)", value=10000, step=100)
+  risk_pct = {"Conservative (1%)": 0.01, "Moderate (2%)": 0.02}[risk_level]
+  bet_amount = bankroll * risk_pct
+  
+  # Elite bet identification (≥65% confidence)
+  elite_bets = predictions_df[(predictions_df['prob_underdogWon'] >= 0.65) & 
+                              (predictions_df['pred_underdogWon_optimal'] == 1)]
+  
+  # Expected value calculation
+  expected_value = (confidence * payout_multiplier - 100)
+  ```
+- **Session state**: Use reset flag pattern for filters, not `.clear()`.}
 - **Navigation**: Use `st.switch_page()` for page changes.
 - **Model training**: Three XGBoost models (spread, moneyline, totals), calibrated with isotonic regression. Betting thresholds are F1-optimized (not 50%).
 - **Betting log**: All recommendations tracked in `betting_recommendations_log.csv`. Results auto-fetched from ESPN API.

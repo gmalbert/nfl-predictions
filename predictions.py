@@ -429,7 +429,7 @@ if predictions_df is not None:
 
 @st.cache_data
 def load_data():
-    file_path = path.join(DATA_DIR, 'nfl_history_2020_2024.csv.gz')
+    file_path = path.join(DATA_DIR, 'nfl_play_by_play_historical.csv.gz')
     if os.path.exists(file_path):
         historical_data = pd.read_csv(file_path, compression='gzip', sep='\t', low_memory=False)
         return historical_data
@@ -452,6 +452,26 @@ def load_schedule():
         st.error(f"Error loading schedule data: {str(e)}")
         return pd.DataFrame()
 
+# Calculate ROI from betting log
+def calculate_roi(betting_log):
+    """Calculate return on investment from betting log"""
+    if len(betting_log) == 0:
+        return 0.0
+    
+    # Filter to completed bets only
+    completed_bets = betting_log[betting_log['bet_result'].isin(['win', 'loss'])]
+    if len(completed_bets) == 0:
+        return 0.0
+    
+    # Calculate total profit and total wagered
+    total_profit = completed_bets['bet_profit'].sum()
+    total_wagered = len(completed_bets) * 100  # Assuming $100 per bet
+    
+    # ROI = (total profit / total wagered) * 100
+    roi = (total_profit / total_wagered) * 100 if total_wagered > 0 else 0.0
+    
+    return roi
+
 schedule = None
 
 # Display NFL logo at the top
@@ -460,6 +480,14 @@ if os.path.exists(logo_path):
     st.image(logo_path, width=300)
 
 st.title('NFL Game Outcome Predictor')
+
+# Cache Management UI
+with st.sidebar:
+    st.write("### ⚙️ Settings")
+    
+    if st.button("🔄 Refresh Data", help="Clear cache and reload all data"):
+        st.cache_data.clear()
+        st.rerun()
 
 # Sidebar filters
 
@@ -476,15 +504,33 @@ from xgboost import XGBClassifier
 # Load data NOW (lazily, only when user accesses the app)
 print("📊 About to load historical data...", file=sys.stderr, flush=True)
 with st.spinner("🏈 Loading NFL data and predictions..."):
+    progress_bar = st.progress(0)
+    
+    # Load historical data
+    progress_bar.progress(25, text="Loading historical games...")
     if historical_game_level_data is None:
         print("📂 Loading historical game data from CSV...", file=sys.stderr, flush=True)
         historical_game_level_data = load_historical_data()
         print(f"✅ Loaded {len(historical_game_level_data)} rows", file=sys.stderr, flush=True)
     
+    # Load predictions
+    progress_bar.progress(50, text="Loading model predictions...")
     if predictions_df is None:
         print("📂 Loading predictions CSV...", file=sys.stderr, flush=True)
         predictions_df = load_predictions_csv()
         print(f"✅ Loaded predictions: {len(predictions_df) if predictions_df is not None else 0} rows", file=sys.stderr, flush=True)
+    
+    # Load play-by-play data (for historical analysis)
+    progress_bar.progress(75, text="Loading play-by-play data...")
+    if historical_data is None:
+        print("📂 Loading historical play-by-play data...", file=sys.stderr, flush=True)
+        historical_data = load_data()
+        print(f"✅ Loaded historical data: {len(historical_data)} rows", file=sys.stderr, flush=True)
+    
+    progress_bar.progress(100, text="Ready!")
+    import time
+    time.sleep(0.5)  # Brief pause to show completion
+    progress_bar.empty()
 
 print("🎉 Data loading complete, proceeding with app...", file=sys.stderr, flush=True)
 
@@ -997,14 +1043,16 @@ else:
         st.info("Schedule or prediction data not available.")
 
 print("✅ Main tabs section loaded", file=sys.stderr, flush=True)
-pred_tab1, pred_tab2, pred_tab3, pred_tab4, pred_tab5, pred_tab6, pred_tab7 = st.tabs([
+pred_tab1, pred_tab2, pred_tab3, pred_tab4, pred_tab5, pred_tab6, pred_tab7, pred_tab8, pred_tab9 = st.tabs([
     "📊 Model Predictions", 
     "🎯 Probabilities & Edges",
     "💰 Betting Performance",
     "🔥 Underdog Bets",
     "🏈 Spread Bets",
     "🎯 Over/Under Bets",
-    "📋 Betting Log"
+    "📋 Betting Log",
+    "📈 Model Performance",
+    "💰 Bankroll Management"
 ])
 
 with pred_tab1:
@@ -1718,7 +1766,7 @@ with pred_tab6:
                     },
                     hide_index=True,
                     height=height,
-                    use_container_width=True
+                    width='stretch'
                 )
                 
                 # Confidence tier breakdown
@@ -1845,7 +1893,7 @@ with pred_tab7:
                 
                 if tier_stats:
                     tier_df = pd.DataFrame(tier_stats)
-                    st.dataframe(tier_df, hide_index=True, use_container_width=True)
+                    st.dataframe(tier_df, hide_index=True, width='stretch')
             
             # Display the log
             st.write("#### 📋 Detailed Betting Log")
@@ -1911,6 +1959,283 @@ with pred_tab7:
     
     else:
         st.warning("No betting log file found. The log will be created automatically when predictions with betting signals are available.")
+
+with pred_tab8:
+    st.write("### 📈 Model Performance Dashboard")
+    st.write("*Track the accuracy and profitability of betting recommendations*")
+    
+    # Load betting log with results
+    log_path = path.join(DATA_DIR, 'betting_recommendations_log.csv')
+    
+    if os.path.exists(log_path):
+        betting_log = pd.read_csv(log_path)
+        
+        if len(betting_log) > 0:
+            # Filter to completed bets only for performance metrics
+            completed_bets = betting_log[betting_log['bet_result'].isin(['win', 'loss'])]
+            
+            # Overall metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Bets", len(betting_log))
+            with col2:
+                if len(completed_bets) > 0:
+                    win_rate = (completed_bets['bet_result'] == 'win').mean() * 100
+                    st.metric("Win Rate", f"{win_rate:.1f}%")
+                else:
+                    st.metric("Win Rate", "N/A")
+            with col3:
+                if len(completed_bets) > 0:
+                    roi = calculate_roi(betting_log)
+                    st.metric("ROI", f"{roi:.1f}%")
+                else:
+                    st.metric("ROI", "N/A")
+            with col4:
+                if len(completed_bets) > 0:
+                    units_won = completed_bets['bet_profit'].sum() / 100  # Convert to units
+                    st.metric("Units Won", f"{units_won:+.1f}")
+                else:
+                    st.metric("Units Won", "N/A")
+            
+            if len(completed_bets) > 0:
+                # Performance by confidence tier
+                st.write("#### 🎯 Performance by Confidence Level")
+                confidence_performance = completed_bets.groupby('confidence_tier').agg({
+                    'bet_result': lambda x: (x == 'win').mean() * 100,
+                    'bet_profit': 'sum'
+                }).round(2)
+                confidence_performance.columns = ['Win Rate %', 'Total Profit $']
+                confidence_performance = confidence_performance.sort_values('Win Rate %', ascending=False)
+                st.dataframe(confidence_performance, width='stretch')
+                
+                # Week-over-week tracking
+                st.write("#### 📅 Weekly Performance")
+                # Convert gameday to datetime and extract week
+                completed_bets['gameday'] = pd.to_datetime(completed_bets['gameday'], errors='coerce')
+                completed_bets['week'] = completed_bets['gameday'].dt.isocalendar().week
+                
+                weekly_data = completed_bets.groupby('week').agg({
+                    'bet_result': lambda x: (x == 'win').mean() * 100,
+                    'bet_profit': 'sum'
+                }).round(2)
+                weekly_data.columns = ['Win Rate %', 'Total Profit $']
+                
+                if len(weekly_data) > 1:
+                    st.line_chart(weekly_data)
+                else:
+                    st.dataframe(weekly_data, width='stretch')
+                
+                # Additional insights
+                st.write("#### 📊 Key Insights")
+                elite_bets = completed_bets[completed_bets['confidence_tier'] == 'Elite']
+                if len(elite_bets) > 0:
+                    elite_win_rate = (elite_bets['bet_result'] == 'win').mean() * 100
+                    st.info(f"🏆 **Elite Tier Performance**: {len(elite_bets)} bets with {elite_win_rate:.1f}% win rate")
+                
+                # Best performing bet types
+                bet_type_performance = completed_bets.groupby('bet_type').agg({
+                    'bet_result': lambda x: (x == 'win').mean() * 100,
+                    'bet_profit': 'sum'
+                }).round(2)
+                bet_type_performance.columns = ['Win Rate %', 'Total Profit $']
+                bet_type_performance = bet_type_performance.sort_values('Win Rate %', ascending=False)
+                
+                if len(bet_type_performance) > 1:
+                    st.write("#### 🏆 Best Performing Bet Types")
+                    st.dataframe(bet_type_performance.head(3), width='stretch')
+            else:
+                st.info("📊 **No completed bets yet.** Performance metrics will appear here once games are played and results are recorded. All current bets are scheduled for future games.")
+        else:
+            st.info("No betting recommendations have been logged yet.")
+    else:
+        st.warning("Betting log file not found. Performance dashboard will be available once betting recommendations are generated.")
+
+with pred_tab9:
+    st.write("### 💰 Bankroll Management Tool")
+    st.write("*Smart position sizing for elite bets to optimize risk and reward*")
+    
+    # Bankroll input
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        bankroll = st.number_input(
+            "Current Bankroll ($)", 
+            min_value=100, 
+            max_value=1000000, 
+            value=10000,
+            step=100,
+            help="Your total betting bankroll amount"
+        )
+    with col2:
+        risk_level = st.selectbox(
+            "Risk Level",
+            ["Conservative (1%)", "Moderate (2%)", "Aggressive (3%)", "Very Aggressive (5%)"],
+            index=1,
+            help="Percentage of bankroll to risk per bet"
+        )
+    
+    # Parse risk percentage
+    risk_pct = {
+        "Conservative (1%)": 0.01,
+        "Moderate (2%)": 0.02,
+        "Aggressive (3%)": 0.03,
+        "Very Aggressive (5%)": 0.05
+    }[risk_level]
+    
+    st.write(f"**Risk per bet**: ${bankroll * risk_pct:,.2f} ({risk_pct*100:.0f}% of bankroll)")
+    
+    # Load current predictions to find elite bets
+    if predictions_df is not None:
+        # Filter for upcoming games only
+        predictions_df_upcoming = predictions_df.copy()
+        predictions_df_upcoming['gameday'] = pd.to_datetime(predictions_df_upcoming['gameday'], errors='coerce')
+        today = pd.to_datetime(datetime.now().date())
+        predictions_df_upcoming = predictions_df_upcoming[predictions_df_upcoming['gameday'] > today]
+        
+        # Identify elite bets (≥65% confidence)
+        elite_bets = []
+        
+        # Check moneyline predictions for elite confidence
+        if 'prob_underdogWon' in predictions_df_upcoming.columns:
+            moneyline_elite = predictions_df_upcoming[
+                (predictions_df_upcoming['prob_underdogWon'] >= 0.65) & 
+                (predictions_df_upcoming['pred_underdogWon_optimal'] == 1)
+            ].copy()
+            for _, row in moneyline_elite.iterrows():
+                # Get underdog odds
+                underdog_odds = max(row.get('away_moneyline', 0), row.get('home_moneyline', 0))
+                if underdog_odds > 0:
+                    payout_multiplier = underdog_odds
+                else:
+                    payout_multiplier = 100 / abs(underdog_odds) * 100 if underdog_odds != 0 else 0
+                
+                bet_amount = bankroll * risk_pct
+                expected_payout = bet_amount * (payout_multiplier / 100)
+                
+                elite_bets.append({
+                    'game': f"{row['away_team']} @ {row['home_team']}",
+                    'gameday': row['gameday'].strftime('%m/%d/%Y') if pd.notna(row['gameday']) else 'TBD',
+                    'bet_type': 'Moneyline',
+                    'bet_on': row['away_team'] if row.get('away_moneyline', 0) > row.get('home_moneyline', 0) else row['home_team'],
+                    'confidence': f"{row['prob_underdogWon']*100:.1f}%",
+                    'odds': f"+{underdog_odds}" if underdog_odds > 0 else f"{underdog_odds}",
+                    'recommended_bet': f"${bet_amount:,.2f}",
+                    'expected_payout': f"${expected_payout:,.2f}",
+                    'expected_value': f"{(row['prob_underdogWon'] * payout_multiplier - 100):+.1f}%"
+                })
+        
+        # Check spread predictions for elite confidence
+        if 'prob_underdogCovered' in predictions_df_upcoming.columns:
+            spread_elite = predictions_df_upcoming[
+                (predictions_df_upcoming['prob_underdogCovered'] >= 0.65) & 
+                (predictions_df_upcoming['pred_spreadCovered_optimal'] == 1)
+            ].copy()
+            for _, row in spread_elite.iterrows():
+                # Get underdog for spread bets
+                if row.get('spread_line', 0) < 0:
+                    underdog = row['home_team']
+                    spread_odds = row.get('home_spread_odds', -110)
+                else:
+                    underdog = row['away_team']
+                    spread_odds = row.get('away_spread_odds', -110)
+                
+                bet_amount = bankroll * risk_pct
+                if spread_odds > 0:
+                    payout_multiplier = spread_odds
+                else:
+                    payout_multiplier = 100 / abs(spread_odds) * 100
+                
+                expected_payout = bet_amount * (payout_multiplier / 100)
+                
+                elite_bets.append({
+                    'game': f"{row['away_team']} @ {row['home_team']}",
+                    'gameday': row['gameday'].strftime('%m/%d/%Y') if pd.notna(row['gameday']) else 'TBD',
+                    'bet_type': 'Spread',
+                    'bet_on': f"{underdog} ({row.get('spread_line', 0):+.1f})",
+                    'confidence': f"{row['prob_underdogCovered']*100:.1f}%",
+                    'odds': f"+{spread_odds}" if spread_odds > 0 else f"{spread_odds}",
+                    'recommended_bet': f"${bet_amount:,.2f}",
+                    'expected_payout': f"${expected_payout:,.2f}",
+                    'expected_value': f"{(row['prob_underdogCovered'] * payout_multiplier - 100):+.1f}%"
+                })
+        
+        # Check totals predictions for elite confidence
+        if 'prob_overHit' in predictions_df_upcoming.columns:
+            totals_elite = predictions_df_upcoming[
+                (predictions_df_upcoming['prob_overHit'] >= 0.65) & 
+                (predictions_df_upcoming['pred_overHit_optimal'] == 1)
+            ].copy()
+            for _, row in totals_elite.iterrows():
+                over_odds = row.get('over_odds', -110)
+                bet_amount = bankroll * risk_pct
+                
+                if over_odds > 0:
+                    payout_multiplier = over_odds
+                else:
+                    payout_multiplier = 100 / abs(over_odds) * 100
+                
+                expected_payout = bet_amount * (payout_multiplier / 100)
+                
+                elite_bets.append({
+                    'game': f"{row['away_team']} @ {row['home_team']}",
+                    'gameday': row['gameday'].strftime('%m/%d/%Y') if pd.notna(row['gameday']) else 'TBD',
+                    'bet_type': 'Over/Under',
+                    'bet_on': f"Over {row.get('total_line', 0):.1f}",
+                    'confidence': f"{row['prob_overHit']*100:.1f}%",
+                    'odds': f"+{over_odds}" if over_odds > 0 else f"{over_odds}",
+                    'recommended_bet': f"${bet_amount:,.2f}",
+                    'expected_payout': f"${expected_payout:,.2f}",
+                    'expected_value': f"{(row['prob_overHit'] * payout_multiplier - 100):+.1f}%"
+                })
+        
+        if elite_bets:
+            st.write("#### 🏆 Elite Bets (≥65% Confidence)")
+            elite_df = pd.DataFrame(elite_bets)
+            
+            # Sort by expected value (highest first)
+            elite_df['ev_numeric'] = elite_df['expected_value'].str.rstrip('%').astype(float)
+            elite_df = elite_df.sort_values('ev_numeric', ascending=False).drop('ev_numeric', axis=1)
+            
+            st.dataframe(
+                elite_df,
+                column_config={
+                    'game': st.column_config.TextColumn('Game', width='large'),
+                    'gameday': st.column_config.TextColumn('Date', width='medium'),
+                    'bet_type': st.column_config.TextColumn('Type', width='medium'),
+                    'bet_on': st.column_config.TextColumn('Bet On', width='medium'),
+                    'confidence': st.column_config.TextColumn('Confidence', width='small'),
+                    'odds': st.column_config.TextColumn('Odds', width='small'),
+                    'recommended_bet': st.column_config.TextColumn('Bet Amount', width='medium'),
+                    'expected_payout': st.column_config.TextColumn('Expected Payout', width='medium'),
+                    'expected_value': st.column_config.TextColumn('Expected Value', width='small', help='Positive EV = profitable long-term')
+                },
+                height=400,
+                hide_index=True
+            )
+            
+            # Summary stats
+            total_elite_bets = len(elite_bets)
+            total_recommended_wager = sum(float(bet['recommended_bet'].strip('$').replace(',', '')) for bet in elite_bets)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Elite Opportunities", total_elite_bets)
+            with col2:
+                st.metric("Total Recommended Wager", f"${total_recommended_wager:,.2f}")
+            with col3:
+                st.metric("Max Bankroll Impact", f"{(total_recommended_wager/bankroll)*100:.1f}%")
+            
+            st.info(f"""
+            **💡 Bankroll Strategy:**
+            - **Elite bets only**: Only betting when model confidence ≥65%
+            - **Position sizing**: {risk_pct*100:.0f}% of bankroll per bet (${bankroll * risk_pct:,.2f})
+            - **Expected value**: All shown bets have positive expected value
+            - **Risk management**: Maximum exposure is {total_recommended_wager/bankroll*100:.1f}% of your bankroll
+            """)
+        else:
+            st.info("🎯 **No elite betting opportunities found.** Elite bets require ≥65% model confidence. Check back when new predictions are available or adjust your risk criteria.")
+    
+    else:
+        st.warning("No predictions data available. Run the model script to generate predictions.")
 
 # Create tabs for advanced model features
 st.write("---")
