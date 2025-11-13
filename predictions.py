@@ -499,7 +499,7 @@ def calculate_roi(betting_log):
 schedule = None
 
 # Display NFL logo at the top
-logo_path = os.path.join(DATA_DIR, "gridiron-oracle.png")
+logo_path = os.path.join(DATA_DIR, "gridiron-oracle-transparent.png")
 if os.path.exists(logo_path):
     st.image(logo_path, width=300)
 
