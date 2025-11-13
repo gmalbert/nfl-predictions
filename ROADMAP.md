@@ -1,5 +1,7 @@
 # 🗺️ NFL Predictions - Product Roadmap
 
+[⬅️ Back to README](./README.md)
+
 ## 📋 Current Status: Beta 0.1 (November 2025)
 
 ### ✅ Shipped Features

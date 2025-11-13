@@ -1,5 +1,7 @@
 # 🏈 NFL Betting Analytics & Predictions Dashboard
 
+[📍 View the Product Roadmap](./ROADMAP.md)
+
 A sophisticated NFL analytics platform that uses advanced machine learning to identify profitable betting opportunities. This system analyzes historical NFL data with **50+ enhanced features** across multiple time scales to predict game outcomes and provides actionable betting insights with proven **60.9% ROI** performance on data-leakage-free models.
 
 **Now featuring a multi-page Streamlit app** with dedicated Historical Data page for advanced filtering and analysis of 196k+ play-by-play records.
@@ -119,7 +121,7 @@ The dashboard uses **modern multi-page navigation** with a main predictions page
 #### **🏈 Main Page: Predictions**
 The primary predictions interface with tab-based navigation for betting analysis.
 
-#### **� Tab: Model Predictions**
+#### **📊 Tab: Model Predictions**
 - **Model Predictions vs Actual Results**: Historical game outcomes with checkbox indicators
   - Formatted columns: Game Date (MM/DD/YYYY), Team names, Scores, Spread/O/U lines
   - Checkbox columns show predicted vs actual spread coverage and totals
@@ -150,7 +152,7 @@ The primary predictions interface with tab-based navigation for betting analysis
 - **Real payout calculations**: Exact profit amounts for $100 bets using live moneyline odds
 - **Example**: "Vikings (H) +180 ($180 profit on $100)" when Chargers are favored
 
-#### **� Tab: Spread Bets** ⭐ *ELITE PERFORMANCE*
+#### **📈 Tab: Spread Bets** ⭐ *ELITE PERFORMANCE*
 - **Next 15 Spread Betting Opportunities**: High-confidence spread recommendations
 - **Confidence Tiers**: 🔥 Elite (75%+), ⭐ Strong (65-74%), 📈 Good (54-64%)
 - **Historical Performance**: 91.9% win rate on high-confidence bets, 75.5% ROI
@@ -311,7 +313,7 @@ nfl-predictions/
 - **Impact**: Enables responsible betting with Kelly Criterion-inspired position sizing
 - **Technical**: Filters predictions for elite opportunities and calculates optimal bet sizes
 
-### **�📈 Model Performance Dashboard (Latest)**
+### **📈 Model Performance Dashboard (Latest)**
 - **Problem Solved**: Users couldn't see if betting recommendations were actually accurate
 - **Solution**: Added dedicated "📈 Model Performance" tab with:
   - Overall metrics: Total bets, win rate, ROI, units won
