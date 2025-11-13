@@ -13,7 +13,7 @@ st.set_page_config(
 DATA_DIR = 'data_files/'
 
 # Load historical play-by-play data with optimizations
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_historical_data():
     file_path = path.join(DATA_DIR, 'nfl_play_by_play_historical.csv.gz')
     if os.path.exists(file_path):
@@ -33,7 +33,11 @@ def load_historical_data():
                 'defteam_score': 'float32',
                 'epa': 'float32',
                 'pass_attempt': 'Int8',
-                'rush_attempt': 'Int8'
+                'rush_attempt': 'Int8',
+                'complete_pass': 'Int8',
+                'interception': 'Int8',
+                'fumble_lost': 'Int8',
+                'touchdown': 'Int8'
             }
         )
         return data
