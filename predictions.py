@@ -498,12 +498,25 @@ def calculate_roi(betting_log):
 
 schedule = None
 
-# Display NFL logo at the top
-logo_path = os.path.join(DATA_DIR, "gridiron-oracle-transparent.png")
-if os.path.exists(logo_path):
-    st.image(logo_path, width=300)
+# Display compact header with logo and title
+col1, col2 = st.columns([1, 4])
 
-st.title('NFL Game Outcome Predictor')
+with col1:
+    logo_path = os.path.join(DATA_DIR, "gridiron-oracle-transparent.png")
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=200)  # Reduced from 250 to 200
+
+with col2:
+    # Spaces added to vertically center the header
+    st.write("")
+    st.write("")
+    st.write("")
+    st.write("")
+    st.write("")
+    st.write("")
+    st.write("")
+    st.write("")
+    st.header('NFL Game Outcome Predictor')
 
 # Cache Management UI
 with st.sidebar:
@@ -527,39 +540,77 @@ from xgboost import XGBClassifier
 
 # Load data NOW (lazily, only when user accesses the app)
 print("📊 About to load historical data...", file=sys.stderr, flush=True)
-with st.spinner("🏈 Loading NFL data and predictions..."):
+with st.spinner("🏈 Loading NFL data..."):
     progress_bar = st.progress(0)
-    
+
     # Load historical data
-    progress_bar.progress(25, text="Loading historical games...")
+    progress_bar.progress(25, text="Loading games...")
     if historical_game_level_data is None:
         print("📂 Loading historical game data from CSV...", file=sys.stderr, flush=True)
         historical_game_level_data = load_historical_data()
         print(f"✅ Loaded {len(historical_game_level_data)} rows", file=sys.stderr, flush=True)
-    
+
     # Load predictions
-    progress_bar.progress(50, text="Loading model predictions...")
+    progress_bar.progress(50, text="Loading predictions...")
     if predictions_df is None:
         print("📂 Loading predictions CSV...", file=sys.stderr, flush=True)
         predictions_df = load_predictions_csv()
         print(f"✅ Loaded predictions: {len(predictions_df) if predictions_df is not None else 0} rows", file=sys.stderr, flush=True)
-    
+
     # Load play-by-play data (for historical analysis)
-    progress_bar.progress(75, text="Loading play-by-play data...")
+    progress_bar.progress(75, text="Loading play-by-play...")
     if historical_data is None:
         print("📂 Loading historical play-by-play data...", file=sys.stderr, flush=True)
         historical_data = load_data()
         print(f"✅ Loaded historical data: {len(historical_data)} rows", file=sys.stderr, flush=True)
-    
+
     progress_bar.progress(100, text="Ready!")
-    import time
-    time.sleep(0.5)  # Brief pause to show completion
     progress_bar.empty()
-    
-    # Clear progress bar and temporary variables to free memory
-    del progress_bar
 
 print("🎉 Data loading complete, proceeding with app...", file=sys.stderr, flush=True)
+
+# In-App Notifications for Elite and Strong Bets
+# Store new bets in session state to avoid duplicate notifications
+if 'notified_games' not in st.session_state:
+    st.session_state.notified_games = set()
+
+# Check for new high-confidence bets if predictions are available
+if predictions_df is not None:
+    # Filter for elite bets (≥65% confidence) that haven't been notified yet
+    elite_bets = predictions_df[
+        (predictions_df.get('prob_underdogWon', 0) >= 0.65) | 
+        (predictions_df.get('prob_underdogCovered', 0) >= 0.65) |
+        (predictions_df.get('prob_overHit', 0) >= 0.65)
+    ]
+    
+    # Filter for strong bets (60-65% confidence) that haven't been notified yet
+    strong_bets = predictions_df[
+        ((predictions_df.get('prob_underdogWon', 0) >= 0.60) & (predictions_df.get('prob_underdogWon', 0) < 0.65)) | 
+        ((predictions_df.get('prob_underdogCovered', 0) >= 0.60) & (predictions_df.get('prob_underdogCovered', 0) < 0.65)) |
+        ((predictions_df.get('prob_overHit', 0) >= 0.60) & (predictions_df.get('prob_overHit', 0) < 0.65))
+    ]
+    
+    # Filter out already notified games for elite bets
+    if 'game_id' in elite_bets.columns:
+        new_elite_bets = elite_bets[~elite_bets['game_id'].isin(st.session_state.notified_games)]
+        
+        if len(new_elite_bets) > 0:
+            # Show elite notification
+            st.toast(f"🔥 {len(new_elite_bets)} new elite betting opportunities!", icon="🔥")
+            
+            # Add to notified set to avoid duplicate notifications
+            st.session_state.notified_games.update(new_elite_bets['game_id'].tolist())
+    
+    # Filter out already notified games for strong bets
+    if 'game_id' in strong_bets.columns:
+        new_strong_bets = strong_bets[~strong_bets['game_id'].isin(st.session_state.notified_games)]
+        
+        if len(new_strong_bets) > 0:
+            # Show strong notification
+            st.toast(f"⭐ {len(new_strong_bets)} new strong betting opportunities!", icon="⭐")
+            
+            # Add to notified set to avoid duplicate notifications
+            st.session_state.notified_games.update(new_strong_bets['game_id'].tolist())
 
 # Feature list for modeling and Monte Carlo selection
 print("📋 Setting up features...", file=sys.stderr, flush=True)
@@ -1069,7 +1120,6 @@ else:
     with st.expander("📅 Upcoming Games Schedule", expanded=False):
         st.info("Schedule or prediction data not available.")
 
-print("✅ Main tabs section loaded", file=sys.stderr, flush=True)
 pred_tab1, pred_tab2, pred_tab3, pred_tab4, pred_tab5, pred_tab6, pred_tab7, pred_tab8, pred_tab9 = st.tabs([
     "📊 Model Predictions", 
     "🎯 Probabilities & Edges",

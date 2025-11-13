@@ -292,6 +292,29 @@ nfl-predictions/
 
 ## 📁 **Recent Updates (November 2025)**
 
+### **🔔 In-App Notification System (Latest)**
+- **Problem Solved**: Users miss high-value betting opportunities when they load the app
+- **Solution**: Added automatic clickable in-app notifications for elite and strong betting opportunities:
+  - **Elite notifications** (🔥): ≥65% confidence bets with fire emoji and clickable sidebar button
+  - **Strong notifications** (⭐): 60-65% confidence bets with star emoji and clickable sidebar button
+  - Clickable buttons appear in sidebar and navigate directly to the "Underdog Bets" tab
+  - Session state tracking prevents duplicate notifications for the same games
+  - Checks moneyline, spread, and totals predictions for both confidence tiers
+  - Interactive notifications that improve user workflow and engagement
+- **Impact**: Increases user engagement by highlighting valuable betting opportunities and providing direct navigation
+- **Technical**: Uses sidebar buttons with `st.button()` and session state management for tab navigation
+
+### **🎨 UI Layout Optimization (Latest)**
+- **Problem Solved**: Excessive vertical space at the top of the main page reduced available screen real estate
+- **Solutions Implemented**:
+  - **Compact Header Layout**: Logo and title now arranged in columns [1, 4] instead of stacked vertically
+  - **Logo Size Reduction**: Logo reduced from 250px to 150px width for better proportions
+  - **Logo Positioning**: Logo positioned at top-left of its column with minimal spacing
+  - **Loading Progress Optimization**: Reduced verbose loading messages and progress indicators
+  - **Debug Message Cleanup**: Removed unnecessary debug print statements from UI
+- **Impact**: Significantly more content visible above the fold, improved user experience
+- **Technical**: Uses `st.columns()` for responsive layout and optimized spacing
+
 ### **🧠 Memory Optimization & Streamlit Cloud Deployment (Latest)**
 - **Problem Solved**: App exceeded Streamlit Cloud resource limits due to high memory usage (1.5GB+)
 - **Solutions Implemented**:

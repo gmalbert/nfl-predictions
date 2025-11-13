@@ -225,10 +225,10 @@ with tab_performance:
 
 ---
 
-#### 1. **Notification System** (Priority: MEDIUM)
-**Problem**: Users miss high-value betting opportunities
+#### ~~1. **Notification System** (Priority: MEDIUM)~~ ✅ **COMPLETED**
+~~**Problem**: Users miss high-value betting opportunities~~
 
-**Implementation** (Two approaches):
+~~**Implementation** (Two approaches):
 
 **Option A: Email Notifications** (Requires external service)
 ```python
@@ -267,19 +267,35 @@ with st.sidebar:
 if 'notified_games' not in st.session_state:
     st.session_state.notified_games = set()
 
-# Check for new high-confidence bets
+# Check for new elite bets (≥65% confidence)
 elite_bets = predictions_df[
-    (predictions_df['confidence_tier'] == 'Elite') &
-    (~predictions_df['game_id'].isin(st.session_state.notified_games))
+    (predictions_df.get('prob_underdogWon', 0) >= 0.65) | 
+    (predictions_df.get('prob_underdogCovered', 0) >= 0.65) |
+    (predictions_df.get('prob_overHit', 0) >= 0.65)
 ]
 
-if len(elite_bets) > 0:
-    st.toast(f"🔥 {len(elite_bets)} new elite betting opportunities!", icon="🔥")
-    st.session_state.notified_games.update(elite_bets['game_id'])
+new_elite_bets = elite_bets[~elite_bets['game_id'].isin(st.session_state.notified_games)]
+
+if len(new_elite_bets) > 0:
+    st.toast(f"🔥 {len(new_elite_bets)} new elite betting opportunities!", icon="🔥")
+    st.session_state.notified_games.update(new_elite_bets['game_id'].tolist())
+
+# Check for new strong bets (60-65% confidence)
+strong_bets = predictions_df[
+    ((predictions_df.get('prob_underdogWon', 0) >= 0.60) & (predictions_df.get('prob_underdogWon', 0) < 0.65)) | 
+    ((predictions_df.get('prob_underdogCovered', 0) >= 0.60) & (predictions_df.get('prob_underdogCovered', 0) < 0.65)) |
+    ((predictions_df.get('prob_overHit', 0) >= 0.60) & (predictions_df.get('prob_overHit', 0) < 0.65))
+]
+
+new_strong_bets = strong_bets[~strong_bets['game_id'].isin(st.session_state.notified_games)]
+
+if len(new_strong_bets) > 0:
+    st.toast(f"⭐ {len(new_strong_bets)} new strong betting opportunities!", icon="⭐")
+    st.session_state.notified_games.update(new_strong_bets['game_id'].tolist())
 ```
 
 **Effort**: 8-12 hours (Option A) or 3-4 hours (Option B)  
-**Impact**: Increases engagement and user retention
+**Impact**: Increases engagement and user retention~~
 
 ---
 

@@ -29,7 +29,7 @@ __pypackages__/
 # Large data files (excluded from Git)
 /data_files/nfl_history_2020_2024.csv
 /data_files/nfl_play_by_play_thru_2025.csv.gz
-# Note: nfl_history_2020_2024.csv.gz is tracked by Git LFS
+# Note: nfl_play_by_play_historical.csv.gz is tracked by Git LFS
 
 # Data file patterns
 /data_files/stats_player*
@@ -50,6 +50,8 @@ logo for NFL predict.png
 /data_files/NFL-Logo.png
 /data_files/nfl_favicon.ico
 /data_files/gridiron-oracle_nonwhitebkgd.png
+/data_files/gridiron-oracle_small.png
+/data_files/gridiron-oracle.png
 
 # Temporary/backup files
 create_nflfastR_fields_md.py
