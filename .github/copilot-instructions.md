@@ -23,6 +23,13 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
   ```
 - **No data leakage**: All features/statistics must use only pre-game info. Rolling stats must exclude current game.
 - **UI structure**: Use tabs for sections, expanders for large data, columns for metrics. Use `width='stretch'` for dataframes.
+- **Memory optimization**: For Streamlit Cloud deployment, implement memory-efficient patterns:
+  - Use `float32` dtypes for numeric columns (50% memory reduction vs float64)
+  - Use `Int8` for boolean/binary columns instead of float64
+  - Create DataFrame views with filtering instead of `.copy()` to avoid memory duplication
+  - Use `@st.cache_data(show_spinner=False)` for technical pages to suppress cache messages
+  - Implement pagination for large datasets (>10k rows) with user warnings
+  - Avoid module-level data loading - always use lazy loading with caching
 - **Loading progress**: Always show detailed progress during data loading with `st.progress()` and descriptive text updates. Example:
   ```python
   with st.spinner("Loading data..."):
@@ -80,6 +87,7 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 - **Navigation**: Use `st.switch_page()` for page changes.
 - **Model training**: Three XGBoost models (spread, moneyline, totals), calibrated with isotonic regression. Betting thresholds are F1-optimized (not 50%).
 - **Betting log**: All recommendations tracked in `betting_recommendations_log.csv`. Results auto-fetched from ESPN API.
+- **Memory optimization**: Use `float32` for numeric columns, `Int8` for boolean columns, DataFrame views instead of copies, `@st.cache_data(show_spinner=False)` for technical pages to reduce memory usage and suppress cache messages.
 
 ## Developer Workflow
 - **Run app**: `streamlit run predictions.py`
@@ -110,6 +118,7 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 - Python 3.13 not supported
 - Module-level data loading causes silent crashes—always use lazy pattern
 - Large CSVs: Use tab-separated, cache with `@st.cache_data`
+- **RESOLVED**: Memory resource limits on Streamlit Cloud - implemented dtype optimizations, DataFrame views, and pagination
 
 ## References
 - See `README.md` for project summary and local setup

@@ -292,6 +292,18 @@ nfl-predictions/
 
 ## 📁 **Recent Updates (November 2025)**
 
+### **🧠 Memory Optimization & Streamlit Cloud Deployment (Latest)**
+- **Problem Solved**: App exceeded Streamlit Cloud resource limits due to high memory usage (1.5GB+)
+- **Solutions Implemented**:
+  - **Data Type Optimization**: `float32` for numeric columns (50% memory reduction), `Int8` for boolean columns
+  - **DataFrame Views**: Replaced `.copy()` operations with views to eliminate memory duplication
+  - **Lazy Loading**: All data loading uses `@st.cache_data` decorators with lazy initialization
+  - **Pagination**: Added pagination for large datasets (>10k rows) with user warnings
+  - **Spinner Configuration**: Suppress cache messages on technical pages, show on main UI
+  - **Variable Cleanup**: Added `del` statements to clean up progress bars and temporary variables
+- **Impact**: Reduced memory usage while maintaining full functionality, enabled Streamlit Cloud deployment
+- **Technical**: Memory-efficient patterns prevent resource limit violations
+
 ### **⚙️ Cache Management UI (Latest)**
 - **Problem Solved**: Users couldn't manually refresh cached data or check cache status
 - **Solution**: Added Settings panel in sidebar with:
@@ -455,7 +467,12 @@ nfl-predictions/
    streamlit run predictions.py
    ```
 
-4. **Start Analyzing**
+4. **Deploy to Streamlit Cloud** (Recommended)
+   - All data files are committed to repository
+   - Memory optimizations ensure compatibility with Streamlit Cloud resource limits
+   - Python 3.12 required for deployment
+
+5. **Start Analyzing**
    - Check "Show Betting Analysis & Performance" for ROI metrics
    - Look for `pred_underdogWon_optimal = 1` in upcoming games
    - Use the edge calculations to find the best value bets
@@ -480,7 +497,8 @@ nfl-predictions/
 - **Training time**: ~5-10 minutes with optimized parameters (300 estimators)
 - **Monte Carlo time**: ~3-5 minutes for feature selection (200 iterations, 15-feature subsets)  
 - **Dashboard load time**: ~10-30 seconds for full data processing
-- **Memory usage**: ~500MB-1GB during model training with enhanced features
+- **Memory usage**: ~1.5GB during data loading (optimized with float32/Int8 dtypes and DataFrame views)
+- **Streamlit Cloud**: Fully compatible with memory optimizations for cloud deployment
 
 [⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 

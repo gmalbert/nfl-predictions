@@ -116,8 +116,8 @@ def log_betting_recommendations(predictions_df):
     
     log_path = path.join(DATA_DIR, 'betting_recommendations_log.csv')
     
-    # Filter for upcoming games only (future games)
-    upcoming_df = predictions_df.copy()
+    # Filter for upcoming games only (future games) - USE VIEW, NOT COPY
+    upcoming_df = predictions_df[predictions_df['gameday'] > today]
     if 'gameday' in upcoming_df.columns:
         upcoming_df['gameday'] = pd.to_datetime(upcoming_df['gameday'], errors='coerce')
         upcoming_df = upcoming_df[upcoming_df['gameday'] > pd.to_datetime(datetime.now())]
@@ -130,7 +130,8 @@ def log_betting_recommendations(predictions_df):
     
     # Moneyline bets (underdog)
     if 'pred_underdogWon_optimal' in upcoming_df.columns:
-        moneyline_bets = upcoming_df[upcoming_df['pred_underdogWon_optimal'] == 1].copy()
+        # Filter for moneyline bets - USE VIEW, NOT COPY
+        moneyline_bets = upcoming_df[upcoming_df['pred_underdogWon_optimal'] == 1]
         
         for _, row in moneyline_bets.iterrows():
             # Determine underdog team
@@ -179,7 +180,8 @@ def log_betting_recommendations(predictions_df):
     
     # Spread bets
     if 'pred_spreadCovered_optimal' in upcoming_df.columns:
-        spread_bets = upcoming_df[upcoming_df['pred_spreadCovered_optimal'] == 1].copy()
+        # Filter for spread bets - USE VIEW, NOT COPY
+        spread_bets = upcoming_df[upcoming_df['pred_spreadCovered_optimal'] == 1]
         
         for _, row in spread_bets.iterrows():
             # Determine underdog team for spread
@@ -289,7 +291,7 @@ def update_completed_games():
     log_df = pd.read_csv(log_path)
     
     # Filter for pending bets only
-    pending_bets = log_df[log_df['bet_result'] == 'pending'].copy()
+    pending_bets = log_df[log_df['bet_result'] == 'pending']
     
     if len(pending_bets) == 0:
         return  # No pending bets to update
@@ -299,7 +301,7 @@ def update_completed_games():
     
     # Only check games that should be completed (game day has passed)
     today = pd.to_datetime(datetime.now().date())
-    completed_games = pending_bets[pending_bets['gameday'] < today].copy()
+    completed_games = pending_bets[pending_bets['gameday'] < today]
     
     if len(completed_games) == 0:
         return  # No games to check - they are all future games
@@ -312,7 +314,7 @@ def update_completed_games():
         'DEN': 'Denver Broncos', 'DET': 'Detroit Lions', 'GB': 'Green Bay Packers',
         'HOU': 'Houston Texans', 'IND': 'Indianapolis Colts', 'JAX': 'Jacksonville Jaguars',
         'KC': 'Kansas City Chiefs', 'LV': 'Las Vegas Raiders', 'LAC': 'Los Angeles Chargers',
-        'LAR': 'Los Angeles Rams', 'MIA': 'Miami Dolphins', 'MIN': 'Minnesota Vikings',
+        'LA': 'Los Angeles Rams', 'LAR': 'Los Angeles Rams', 'MIA': 'Miami Dolphins', 'MIN': 'Minnesota Vikings',
         'NE': 'New England Patriots', 'NO': 'New Orleans Saints', 'NYG': 'New York Giants',
         'NYJ': 'New York Jets', 'PHI': 'Philadelphia Eagles', 'PIT': 'Pittsburgh Steelers',
         'SF': 'San Francisco 49ers', 'SEA': 'Seattle Seahawks', 'TB': 'Tampa Bay Buccaneers',
@@ -431,13 +433,35 @@ if predictions_df is not None:
 def load_data():
     file_path = path.join(DATA_DIR, 'nfl_play_by_play_historical.csv.gz')
     if os.path.exists(file_path):
-        historical_data = pd.read_csv(file_path, compression='gzip', sep='\t', low_memory=False)
+        # Memory-optimized loading with float32/int8 dtypes (only for truly numeric columns)
+        historical_data = pd.read_csv(
+            file_path, 
+            compression='gzip', 
+            sep='\t', 
+            low_memory=False,
+            dtype={
+                # Convert large numeric columns to float32 (50% memory reduction)
+                'down': 'float32',
+                'qtr': 'float32', 
+                'ydstogo': 'float32',
+                'yardline_100': 'float32',
+                'score_differential': 'float32',
+                'posteam_score': 'float32',
+                'defteam_score': 'float32',
+                'epa': 'float32',
+                'wp': 'float32',
+                'td_prob': 'float32',
+                # Convert boolean-like integer columns to int8 (only if they contain 0/1/NaN)
+                'pass_attempt': 'Int8',
+                'rush_attempt': 'Int8'
+                # Removed: complete_pass, interception, fumble_lost, touchdown, field_goal_result
+                # These may contain strings or other non-numeric values
+            }
+        )
         return historical_data
     else:
         st.warning("Historical play-by-play data file not found. Some features may be limited.")
-        return pd.DataFrame()  # Return empty DataFrame as fallback
-
-# DON'T load at module level - will be loaded lazily when needed
+        return pd.DataFrame()  # Return empty DataFrame as fallback# DON'T load at module level - will be loaded lazily when needed
 historical_data = None
 
 @st.cache_data
@@ -531,6 +555,9 @@ with st.spinner("🏈 Loading NFL data and predictions..."):
     import time
     time.sleep(0.5)  # Brief pause to show completion
     progress_bar.empty()
+    
+    # Clear progress bar and temporary variables to free memory
+    del progress_bar
 
 print("🎉 Data loading complete, proceeding with app...", file=sys.stderr, flush=True)
 
