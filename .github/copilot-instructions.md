@@ -52,6 +52,38 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
           st.cache_data.clear()
           st.rerun()
   ```
+- **In-app notifications**: Alert users to elite and strong betting opportunities using session state tracking. Example:
+  ```python
+  # Store new bets in session state to avoid duplicates
+  if 'notified_games' not in st.session_state:
+      st.session_state.notified_games = set()
+  
+  # Check for new elite bets (≥65% confidence)
+  elite_bets = predictions_df[
+      (predictions_df.get('prob_underdogWon', 0) >= 0.65) | 
+      (predictions_df.get('prob_underdogCovered', 0) >= 0.65) |
+      (predictions_df.get('prob_overHit', 0) >= 0.65)
+  ]
+  
+  new_elite_bets = elite_bets[~elite_bets['game_id'].isin(st.session_state.notified_games)]
+  
+  if len(new_elite_bets) > 0:
+      st.toast(f"🔥 {len(new_elite_bets)} new elite betting opportunities!", icon="🔥")
+      st.session_state.notified_games.update(new_elite_bets['game_id'].tolist())
+  
+  # Check for new strong bets (60-65% confidence)
+  strong_bets = predictions_df[
+      ((predictions_df.get('prob_underdogWon', 0) >= 0.60) & (predictions_df.get('prob_underdogWon', 0) < 0.65)) | 
+      ((predictions_df.get('prob_underdogCovered', 0) >= 0.60) & (predictions_df.get('prob_underdogCovered', 0) < 0.65)) |
+      ((predictions_df.get('prob_overHit', 0) >= 0.60) & (predictions_df.get('prob_overHit', 0) < 0.65))
+  ]
+  
+  new_strong_bets = strong_bets[~strong_bets['game_id'].isin(st.session_state.notified_games)]
+  
+  if len(new_strong_bets) > 0:
+      st.toast(f"⭐ {len(new_strong_bets)} new strong betting opportunities!", icon="⭐")
+      st.session_state.notified_games.update(new_strong_bets['game_id'].tolist())
+  ```
 - **Performance dashboard**: Track model accuracy and profitability with betting log analysis. Example:
   ```python
   # Load betting log and calculate metrics
