@@ -226,76 +226,21 @@ with tab_performance:
 ---
 
 #### ~~1. **Notification System** (Priority: MEDIUM)~~ ✅ **COMPLETED**
-~~**Problem**: Users miss high-value betting opportunities~~
+**Problem**: Users miss high-value betting opportunities
 
-~~**Implementation** (Two approaches):
+**Implementation (deployed)**:
+- Automatic in-app toasts for Elite (≥65%) and Strong (60–65%) opportunities. Toasts are deduplicated via `st.session_state` so the same game doesn't re-notify within a session.
+- Toasts are actionable and link to per-alert pages, reachable with the query parameter `?alert=<guid>`; per-alert pages render friendly bet labels, team logos, gameday/time, and a small recommendation table.
+- The app attempts to detect its public base URL from the browser and persists it to `data_files/app_config.json`; `scripts/generate_rss.py` uses that value (if present) to build `data_files/alerts_feed.xml` with working per-alert links.
+- The running app exposes a sidebar `"🔁 Rebuild RSS"` button to re-generate the feed in-place and report success/errors.
 
-**Option A: Email Notifications** (Requires external service)
-```python
-# Use SendGrid or Mailgun
-import sendgrid
-from sendgrid.helpers.mail import Mail
+**Files & locations**:
+- Per-alert rendering: `predictions.py` (reads `data_files/betting_recommendations_log.csv` and responds to `?alert=` query param)
+- Persisted config: `data_files/app_config.json` (contains `{"app_base_url": "https://..."}` when detected)
+- RSS generator: `scripts/generate_rss.py` → output `data_files/alerts_feed.xml`
 
-def send_bet_alert(user_email, bet_details):
-    message = Mail(
-        from_email='alerts@nfl-predictions.com',
-        to_emails=user_email,
-        subject=f'🔥 Elite Bet Alert: {bet_details["matchup"]}',
-        html_content=f'''
-        <h2>High Confidence Betting Opportunity</h2>
-        <p><strong>Game:</strong> {bet_details["matchup"]}</p>
-        <p><strong>Bet:</strong> {bet_details["recommendation"]}</p>
-        <p><strong>Confidence:</strong> {bet_details["confidence"]}</p>
-        <p><strong>Expected ROI:</strong> {bet_details["roi"]}%</p>
-        '''
-    )
-    sg = sendgrid.SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
-    sg.send(message)
-
-# Add subscription form in sidebar
-with st.sidebar:
-    st.write("### 🔔 Bet Alerts")
-    email = st.text_input("Email for alerts")
-    min_confidence = st.slider("Minimum confidence", 50, 70, 60)
-    if st.button("Subscribe"):
-        save_subscription(email, min_confidence)
-```
-
-**Option B: In-App Notifications** (Simpler, no external dependencies)
-```python
-# Store new bets in session state
-if 'notified_games' not in st.session_state:
-    st.session_state.notified_games = set()
-
-# Check for new elite bets (≥65% confidence)
-elite_bets = predictions_df[
-    (predictions_df.get('prob_underdogWon', 0) >= 0.65) | 
-    (predictions_df.get('prob_underdogCovered', 0) >= 0.65) |
-    (predictions_df.get('prob_overHit', 0) >= 0.65)
-]
-
-new_elite_bets = elite_bets[~elite_bets['game_id'].isin(st.session_state.notified_games)]
-
-if len(new_elite_bets) > 0:
-    st.toast(f"🔥 {len(new_elite_bets)} new elite betting opportunities!", icon="🔥")
-    st.session_state.notified_games.update(new_elite_bets['game_id'].tolist())
-
-# Check for new strong bets (60-65% confidence)
-strong_bets = predictions_df[
-    ((predictions_df.get('prob_underdogWon', 0) >= 0.60) & (predictions_df.get('prob_underdogWon', 0) < 0.65)) | 
-    ((predictions_df.get('prob_underdogCovered', 0) >= 0.60) & (predictions_df.get('prob_underdogCovered', 0) < 0.65)) |
-    ((predictions_df.get('prob_overHit', 0) >= 0.60) & (predictions_df.get('prob_overHit', 0) < 0.65))
-]
-
-new_strong_bets = strong_bets[~strong_bets['game_id'].isin(st.session_state.notified_games)]
-
-if len(new_strong_bets) > 0:
-    st.toast(f"⭐ {len(new_strong_bets)} new strong betting opportunities!", icon="⭐")
-    st.session_state.notified_games.update(new_strong_bets['game_id'].tolist())
-```
-
-**Effort**: 8-12 hours (Option A) or 3-4 hours (Option B)  
-**Impact**: Increases engagement and user retention~~
+**Effort**: ~3-6 hours (implemented, testing + UI polish)  
+**Impact**: Improves engagement and enables external alerting via RSS
 
 ---
 

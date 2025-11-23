@@ -18,11 +18,14 @@ from sklearn.metrics import mean_absolute_error, accuracy_score
 from sklearn.inspection import permutation_importance
 import os
 from datetime import datetime
+from streamlit.components.v1 import html as components_html
+import re
 import requests
 import sys
+import json
 
 # Debug: Print to logs to verify app is running
-print("🚀 Starting NFL Predictor app...", file=sys.stderr, flush=True)
+# Startup log removed to keep terminal output clean
 
 DATA_DIR = 'data_files/'
 
@@ -103,6 +106,39 @@ def load_predictions_csv():
     if os.path.exists(predictions_csv_path):
         return pd.read_csv(predictions_csv_path, sep='\t')
     return None
+
+
+def get_base_url_from_browser(timeout_ms: int = 1000):
+        """Inject JS to set a transient query param with the base URL and reload.
+
+        The JS will set `__detected_base` to `origin + pathname` and navigate so
+        Python can read it from `st.query_params` on the next run. This avoids
+        relying on component return values which can be inconsistent across
+        Streamlit versions.
+        """
+        js = """
+        <script>
+            try {
+                const base = window.location.origin + window.location.pathname;
+                const params = new URLSearchParams(window.location.search);
+                if (!params.has('__detected_base')) {
+                    params.set('__detected_base', base);
+                    const newUrl = window.location.pathname + '?' + params.toString();
+                    window.location.href = newUrl;
+                }
+            } catch (e) {
+                // noop
+            }
+        </script>
+        """
+        try:
+                # Render the snippet; the JS will navigate and cause a reload where
+                # the param will be processed at startup. We don't expect a Python
+                # return value from this call.
+                components_html(js, height=0)
+        except Exception:
+                pass
+        return None
 
 # DON'T load predictions at module level - will be loaded lazily when needed
 predictions_csv_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
@@ -518,13 +554,398 @@ with col2:
     st.write("")
     st.header('NFL Game Outcome Predictor')
 
+
+# If the app was opened with an alert query param, render the per-item alert page
+# Use the stable API `st.query_params` instead of the experimental function.
+try:
+    params = dict(st.query_params) if hasattr(st, 'query_params') else {}
+except Exception:
+    params = {}
+
+# If a base URL was injected by the browser (via the helper), capture it and
+# store it in session state then remove the transient query param.
+try:
+    if '__detected_base' in params and params.get('__detected_base'):
+        raw = params.get('__detected_base')
+        if isinstance(raw, list) and len(raw) > 0:
+            detected = raw[0]
+        else:
+            detected = raw
+        if detected:
+            st.session_state['app_base_url'] = detected
+            # Persist detected base URL so external scripts (RSS generator) can read it
+            try:
+                os.makedirs(DATA_DIR, exist_ok=True)
+                cfg_path = path.join(DATA_DIR, 'app_config.json')
+                with open(cfg_path, 'w', encoding='utf-8') as cf:
+                    json.dump({'app_base_url': detected}, cf)
+            except Exception:
+                # Do not fail the app if persistence fails
+                pass
+except Exception:
+    pass
+
+# If we don't yet have a detected base URL, try automatic detection once.
+# This injects JS that sets a transient `__detected_base` param and reloads
+# the page so the value can be captured above. We guard with a session flag
+# to avoid repeated attempts if JS is blocked.
+try:
+    if 'app_base_url' not in st.session_state:
+        already = st.session_state.get('_tried_detect_base', False)
+        if not already and '__detected_base' not in params:
+            st.session_state['_tried_detect_base'] = True
+            # This JS will navigate and cause a reload where the param is present
+            get_base_url_from_browser()
+            # Do not stop execution; if JS navigation is blocked we'll still
+            # render the manual fallback UI below. Avoiding st.stop() prevents
+            # a blank page when the JS navigation is not allowed.
+except Exception:
+    pass
+
+# Query params parsed above; no debug logging here
+
+# (removed temporary on-screen debug caption)
+
+if 'alert' in params and params.get('alert'):
+    raw_alert = params.get('alert')
+    if isinstance(raw_alert, list) and len(raw_alert) > 0:
+        alert_guid = raw_alert[0]
+    else:
+        alert_guid = raw_alert
+    # Load betting log and find matching GUID (game_id-bet_type)
+    log_path = path.join(DATA_DIR, 'betting_recommendations_log.csv')
+    if os.path.exists(log_path):
+        try:
+            log_df = pd.read_csv(log_path, low_memory=False)
+            # Build guid column for matching
+            def _make_guid(row):
+                gid = str(row.get('game_id', ''))
+                btype = str(row.get('bet_type', ''))
+                return f"{gid}-{btype}"
+
+            log_df['__guid'] = log_df.apply(_make_guid, axis=1)
+            match = log_df[log_df['__guid'] == alert_guid]
+            if len(match) == 0:
+                st.warning(f"Alert not found: {alert_guid}")
+            else:
+                row = match.iloc[0]
+                # Map abbreviations to full team names (reuse mapping from update_completed_games)
+                team_map = {
+                    'ARI': 'Arizona Cardinals', 'ATL': 'Atlanta Falcons', 'BAL': 'Baltimore Ravens',
+                    'BUF': 'Buffalo Bills', 'CAR': 'Carolina Panthers', 'CHI': 'Chicago Bears',
+                    'CIN': 'Cincinnati Bengals', 'CLE': 'Cleveland Browns', 'DAL': 'Dallas Cowboys',
+                    'DEN': 'Denver Broncos', 'DET': 'Detroit Lions', 'GB': 'Green Bay Packers',
+                    'HOU': 'Houston Texans', 'IND': 'Indianapolis Colts', 'JAX': 'Jacksonville Jaguars',
+                    'KC': 'Kansas City Chiefs', 'LV': 'Las Vegas Raiders', 'LAC': 'Los Angeles Chargers',
+                    'LA': 'Los Angeles Rams', 'LAR': 'Los Angeles Rams', 'MIA': 'Miami Dolphins', 'MIN': 'Minnesota Vikings',
+                    'NE': 'New England Patriots', 'NO': 'New Orleans Saints', 'NYG': 'New York Giants',
+                    'NYJ': 'New York Jets', 'PHI': 'Philadelphia Eagles', 'PIT': 'Pittsburgh Steelers',
+                    'SF': 'San Francisco 49ers', 'SEA': 'Seattle Seahawks', 'TB': 'Tampa Bay Buccaneers',
+                    'TEN': 'Tennessee Titans', 'WAS': 'Washington Commanders'
+                }
+
+                away_abbr = str(row.get('away_team', '')).upper()
+                home_abbr = str(row.get('home_team', '')).upper()
+                away_full = team_map.get(away_abbr, row.get('away_team', 'Away'))
+                home_full = team_map.get(home_abbr, row.get('home_team', 'Home'))
+
+                # Friendly bet type display
+                btype = str(row.get('bet_type', 'recommendation'))
+                if btype == 'moneyline_underdog':
+                    btype_label = 'Moneyline — Underdog'
+                elif btype == 'spread':
+                    btype_label = 'Spread'
+                elif btype in ('over', 'under', 'total', 'over_under'):
+                    btype_label = 'Totals'
+                else:
+                    btype_label = btype.replace('_', ' ').title()
+
+                # Header with logos and friendly names (logos expected at data_files/logos/{ABBR}.png)
+                logo_dir = path.join(DATA_DIR, 'logos')
+                left_col, right_col = st.columns([3, 1])
+                with left_col:
+                    # Away team row: logo + name
+                    away_logo_path = path.join(logo_dir, f"{away_abbr}.png")
+                    # Make logo column wider so large widths actually display
+                    c1, c2 = st.columns([1, 4])
+                    if os.path.exists(away_logo_path):
+                        c1.image(away_logo_path, width=300)
+                    else:
+                        c1.write('')
+                    c2.markdown(f"**{away_full}**")
+
+                    st.write("@")
+
+                    # Home team row: logo + name
+                    home_logo_path = path.join(logo_dir, f"{home_abbr}.png")
+                    c3, c4 = st.columns([1, 4])
+                    if os.path.exists(home_logo_path):
+                        c3.image(home_logo_path, width=300)
+                    else:
+                        c3.write('')
+                    c4.markdown(f"**{home_full}**")
+
+                # Right column: friendly bet type label
+                with right_col:
+                    st.markdown(f"**{btype_label}**")
+
+                # Top-level back functionality removed — use the deterministic
+                # visible "Return to Predictions" anchor rendered below.
+
+                # Visible inline anchor fallback (use detected base URL when available)
+                base_url = st.session_state.get('app_base_url', '/') if 'app_base_url' in st.session_state else '/'
+                fallback_inline = (
+                    f"<div style='margin-top:8px;'>"
+                    f"<a href='{base_url}' target='_top' "
+                    "style='display:inline-block;padding:8px 12px;border-radius:6px;border:1px solid #ccc;background:#f3f4f6;color:#111;text-decoration:none;font-weight:600;'>"
+                    "Return to Predictions"
+                    "</a>"
+                    "</div>"
+                )
+                st.markdown(fallback_inline, unsafe_allow_html=True)
+
+                # Game datetime
+                gameday_raw = row.get('gameday', '')
+                gameday_text = ''
+                try:
+                    raw_str = str(gameday_raw)
+                    # Detect if original value includes a time component
+                    has_time = bool(re.search(r"\d{1,2}:\d{2}", raw_str) or ('T' in raw_str and ':' in raw_str))
+
+                    gd = pd.to_datetime(gameday_raw, errors='coerce')
+                    if pd.isna(gd):
+                        gameday_text = raw_str
+                    else:
+                        try:
+                            # If naive, assume UTC then convert to Eastern Time; if tz-aware, convert to ET
+                            if gd.tzinfo is None:
+                                gd = gd.tz_localize('UTC').tz_convert('America/New_York')
+                            else:
+                                gd = gd.tz_convert('America/New_York')
+                        except Exception:
+                            # If tz localization/conversion fails, leave as-is
+                            pass
+
+                        if has_time:
+                            gameday_text = gd.strftime('%a, %b %d %Y %I:%M %p')
+                        else:
+                            gameday_text = gd.strftime('%a, %b %d %Y')
+                except Exception:
+                    gameday_text = str(gameday_raw)
+
+                st.markdown(f"**Game Time:** {gameday_text}")
+
+                # Recommendation and quick stats
+                recommended_text = row.get('recommended_team','')
+
+                # Map of team primary colors (hex) for subtle tinting
+                team_colors = {
+                    'ARI': '#97233F', 'ATL': '#A71930', 'BAL': '#241773', 'BUF': '#00338D',
+                    'CAR': '#0085CA', 'CHI': '#0B162A', 'CIN': '#FB4F14', 'CLE': '#311D00',
+                    'DAL': '#002244', 'DEN': '#FB4F14', 'DET': '#0076B6', 'GB': '#203731',
+                    'HOU': '#03202F', 'IND': '#002C5F', 'JAX': '#006778', 'KC': '#E31837',
+                    'LV': '#000000', 'LAC': '#002A5E', 'LA': '#003594', 'LAR': '#003594',
+                    'MIA': '#0091A0', 'MIN': '#4F2683', 'NE': '#0C2340', 'NO': '#D3BC8D',
+                    'NYG': '#0B2265', 'NYJ': '#125740', 'PHI': '#004C54', 'PIT': '#FFB612',
+                    'SF': '#AA0000', 'SEA': '#002244', 'TB': '#D50A0A', 'TEN': '#4B92DB',
+                    'WAS': '#5A1414'
+                }
+
+                # Determine recommended team's abbreviation (some log entries store full names)
+                rec_raw = str(recommended_text)
+                rec_abbr = rec_raw.upper()
+                # If recommended_text is a full team name, try to reverse-map from team_map
+                try:
+                    rev_map = {v: k for k, v in team_map.items()}
+                    if rec_raw in rev_map:
+                        rec_abbr = rev_map[rec_raw]
+                except Exception:
+                    pass
+
+                # Choose color; default to neutral gray
+                primary_hex = team_colors.get(rec_abbr, '#6B7280')
+
+                def _hex_to_rgb(h):
+                    h = h.lstrip('#')
+                    try:
+                        return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+                    except Exception:
+                        return (107, 114, 128)
+
+                r, g, b = _hex_to_rgb(primary_hex)
+                bg_rgba = f'rgba({r},{g},{b},0.10)'
+                border_rgba = f'rgba({r},{g},{b},0.22)'
+                text_color = primary_hex
+
+                badge_html = (
+                    f"<div style='display:inline-block;background:{bg_rgba};color:{text_color};"
+                    f"padding:6px 10px;border-radius:6px;border:1px solid {border_rgba};font-weight:600;font-size:14px;'>{recommended_text}</div>"
+                )
+                try:
+                    st.markdown(badge_html, unsafe_allow_html=True)
+                except Exception:
+                    st.markdown(f"**Recommended:** {recommended_text}")
+
+                # Format confidence and edge like the app
+                try:
+                    prob = float(row.get('model_probability', ''))
+                    prob_text = f"{prob:.1%}"
+                except Exception:
+                    prob_text = str(row.get('model_probability', 'N/A'))
+
+                try:
+                    edge_raw = row.get('edge', '')
+                    if pd.isna(edge_raw) or edge_raw == '':
+                        raise ValueError("missing")
+                    edge_val = float(edge_raw)
+                    if np.isfinite(edge_val):
+                        edge_text = f"{edge_val:.1f}"
+                    else:
+                        edge_text = 'N/A'
+                except Exception:
+                    edge_text = 'N/A'
+
+                cols = st.columns(3)
+                cols[0].metric('Confidence', prob_text)
+                cols[1].metric('Edge', edge_text)
+                cols[2].metric('Spread', row.get('spread_line', 'N/A'))
+
+                st.write('---')
+
+                # Present the full log entry as a readable table (no numeric index)
+                display_fields = [
+                    'log_date', 'season', 'week', 'gameday', 'home_team', 'away_team',
+                    'bet_type', 'recommended_team', 'spread_line', 'total_line', 'moneyline_odds',
+                    'model_probability', 'edge', 'confidence_tier', 'bet_result', 'bet_profit'
+                ]
+
+                # Friendly labels for rows
+                field_labels = {
+                    'log_date': 'Logged At', 'season': 'Season', 'week': 'Week', 'gameday': 'Game Time',
+                    'home_team': 'Home Team', 'away_team': 'Away Team', 'bet_type': 'Bet Type',
+                    'recommended_team': 'Recommended', 'spread_line': 'Spread', 'total_line': 'Total',
+                    'moneyline_odds': 'Moneyline Odds', 'model_probability': 'Model Confidence',
+                    'edge': 'Edge', 'confidence_tier': 'Confidence Tier', 'bet_result': 'Result',
+                    'bet_profit': 'Profit'
+                }
+
+                rows = []
+                for f in display_fields:
+                    if f not in row.index:
+                        continue
+                    label = field_labels.get(f, f.replace('_', ' ').title())
+                    val = row.get(f, '')
+                    # Substitute full team names
+                    if f in ('home_team', 'away_team'):
+                        try:
+                            abb = str(val).upper()
+                            val = team_map.get(abb, val)
+                        except Exception:
+                            pass
+                    # Format bet type, model probability and edge for readability
+                    if f == 'bet_type':
+                        try:
+                            bt = str(val)
+                            if bt == 'moneyline_underdog':
+                                val = 'Moneyline — Underdog'
+                            elif bt == 'spread':
+                                val = 'Spread'
+                            elif bt in ('over', 'under', 'total', 'over_under'):
+                                val = 'Totals'
+                            else:
+                                # Fallback: make a readable title from underscores
+                                val = bt.replace('_', ' ').title()
+                        except Exception:
+                            pass
+
+                    if f == 'model_probability':
+                        try:
+                            val = f"{float(val):.1%}"
+                        except Exception:
+                            pass
+
+                    if f == 'edge':
+                        try:
+                            if pd.isna(val) or val == '':
+                                val = 'N/A'
+                            else:
+                                v = float(val)
+                                val = f"{v:.1f}"
+                        except Exception:
+                            val = 'N/A'
+
+                    # Coerce all values to plain strings to avoid mixed-type Arrow serialization errors
+                    try:
+                        if pd.isna(val):
+                            val_str = ''
+                        else:
+                            val_str = str(val)
+                    except Exception:
+                        val_str = str(val)
+
+                    rows.append((label, val_str))
+
+                import pandas as _pd
+                df_display = _pd.DataFrame(rows, columns=['Field', 'Value']).set_index('Field')
+                st.table(df_display)
+
+                # Visible inline fallback for bottom (use detected base URL when available)
+                base_url = st.session_state.get('app_base_url', '/') if 'app_base_url' in st.session_state else '/'
+                fallback_inline_bottom = (
+                    f"<div style='margin-top:8px;'>"
+                    f"<a href='{base_url}' target='_top' "
+                    "style='display:inline-block;padding:8px 12px;border-radius:6px;border:1px solid #ccc;background:#f3f4f6;color:#111;text-decoration:none;font-weight:600;'>"
+                    "Return to Predictions"
+                    "</a>"
+                    "</div>"
+                )
+                st.markdown(fallback_inline_bottom, unsafe_allow_html=True)
+
+        except Exception as e:
+            st.error(f"Failed to load betting log: {e}")
+    else:
+        st.warning('Betting log not available.')
+    # Stop further rendering of main UI when viewing an alert
+    st.stop()
+
 # Cache Management UI
 with st.sidebar:
     st.write("### ⚙️ Settings")
-    
+
     if st.button("🔄 Refresh Data", help="Clear cache and reload all data"):
         st.cache_data.clear()
         st.rerun()
+    
+    # Rebuild RSS feed from betting log
+    if st.button("🔁 Rebuild RSS", help="Generate alerts_feed.xml using current app base URL"):
+        import subprocess
+        import shlex
+
+        rss_script = path.join("scripts", "generate_rss.py")
+        cmd = [sys.executable, rss_script]
+
+        with st.spinner("Generating RSS feed..."):
+            try:
+                proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                stdout = proc.stdout.strip()
+                stderr = proc.stderr.strip()
+
+                if proc.returncode == 0:
+                    st.success("RSS feed rebuilt successfully.")
+                    # if stdout:
+                    #     st.text_area("Generator output", stdout, height=200)
+                    # Show link to the generated feed file if it exists
+                    feed_path = path.join(DATA_DIR, 'alerts_feed.xml')
+                    # if os.path.exists(feed_path):
+                        # st.write(f"Feed written to: `{feed_path}`")
+                else:
+                    st.error(f"RSS generator exited with code {proc.returncode}.")
+                    if stderr:
+                        st.text_area("Generator errors", stderr, height=200)
+                    if stdout:
+                        st.text_area("Generator output", stdout, height=200)
+            except Exception as e:
+                st.error(f"Failed to run RSS generator: {e}")
 
 # Sidebar filters
 
@@ -539,35 +960,35 @@ from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
 # Load data NOW (lazily, only when user accesses the app)
-print("📊 About to load historical data...", file=sys.stderr, flush=True)
+    # Loading logs removed to keep terminal output clean
 with st.spinner("🏈 Loading NFL data..."):
     progress_bar = st.progress(0)
 
     # Load historical data
     progress_bar.progress(25, text="Loading games...")
     if historical_game_level_data is None:
-        print("📂 Loading historical game data from CSV...", file=sys.stderr, flush=True)
+        # Loading historical game data log removed
         historical_game_level_data = load_historical_data()
-        print(f"✅ Loaded {len(historical_game_level_data)} rows", file=sys.stderr, flush=True)
+        # Loaded historical game data (log suppressed)
 
     # Load predictions
     progress_bar.progress(50, text="Loading predictions...")
     if predictions_df is None:
-        print("📂 Loading predictions CSV...", file=sys.stderr, flush=True)
+        # Loading predictions log suppressed
         predictions_df = load_predictions_csv()
-        print(f"✅ Loaded predictions: {len(predictions_df) if predictions_df is not None else 0} rows", file=sys.stderr, flush=True)
+        # Loaded predictions (log suppressed)
 
     # Load play-by-play data (for historical analysis)
     progress_bar.progress(75, text="Loading play-by-play...")
     if historical_data is None:
-        print("📂 Loading historical play-by-play data...", file=sys.stderr, flush=True)
+        # Loading play-by-play log suppressed
         historical_data = load_data()
-        print(f"✅ Loaded historical data: {len(historical_data)} rows", file=sys.stderr, flush=True)
+        # Loaded historical play-by-play data (log suppressed)
 
     progress_bar.progress(100, text="Ready!")
     progress_bar.empty()
 
-print("🎉 Data loading complete, proceeding with app...", file=sys.stderr, flush=True)
+# Data loading complete (terminal logs suppressed)
 
 # In-App Notifications for Elite and Strong Bets
 # Store new bets in session state to avoid duplicate notifications
@@ -613,7 +1034,7 @@ if predictions_df is not None:
             st.session_state.notified_games.update(new_strong_bets['game_id'].tolist())
 
 # Feature list for modeling and Monte Carlo selection
-print("📋 Setting up features...", file=sys.stderr, flush=True)
+# Feature setup log suppressed
 features = [
     'spread_line', 'total', 'homeTeamWinPct', 'awayTeamWinPct', 'homeTeamCloseGamePct', 'awayTeamCloseGamePct',
     'homeTeamBlowoutPct', 'awayTeamBlowoutPct', 'homeTeamAvgScore', 'awayTeamAvgScore', 'homeTeamAvgScoreAllowed',
@@ -624,7 +1045,7 @@ features = [
     'homeTeamUnderHitPct', 'awayTeamUnderHitPct', 'homeTeamTotalHitPct', 'awayTeamTotalHitPct', 'total_line_diff'
 ]
 # Target
-print("🎯 Setting up target variables...", file=sys.stderr, flush=True)
+# Target variable setup log suppressed
 if 'spreadCovered' in historical_game_level_data.columns:
     target_spread = 'spreadCovered'
 else:
@@ -633,43 +1054,43 @@ else:
 # Prepare data for MC feature selection
 
 # Define X and y for spread
-print("📊 Preparing spread model data...", file=sys.stderr, flush=True)
+# Preparing spread model data (log suppressed)
 X = historical_game_level_data[features]
 y_spread = historical_game_level_data[target_spread]
 
 # Spread model (using best features) - filter to numeric only
 available_spread_features = [f for f in best_features_spread if f in historical_game_level_data.columns]
 X_spread_full = historical_game_level_data[available_spread_features].select_dtypes(include=["number", "bool", "category"])
-print(f"✅ Spread features: {len(available_spread_features)} columns", file=sys.stderr, flush=True)
+# Spread features loaded (log suppressed)
 X_train_spread, X_test_spread, y_spread_train, y_spread_test = train_test_split(
     X_spread_full, y_spread, test_size=0.2, random_state=42, stratify=y_spread)
-print("✅ Spread train/test split complete", file=sys.stderr, flush=True)
+# Spread train/test split complete (log suppressed)
 
 # --- Moneyline (underdogWon) target and split ---
-print("💰 Preparing moneyline model data...", file=sys.stderr, flush=True)
+# Preparing moneyline model data (log suppressed)
 target_moneyline = 'underdogWon'
 y_moneyline = historical_game_level_data[target_moneyline]
 # Filter to only numeric features for XGBoost compatibility
 available_moneyline_features = [f for f in best_features_moneyline if f in historical_game_level_data.columns]
 X_moneyline_full = historical_game_level_data[available_moneyline_features].select_dtypes(include=["number", "bool", "category"])
-print(f"✅ Moneyline features: {len(available_moneyline_features)} columns", file=sys.stderr, flush=True)
+# Moneyline features loaded (log suppressed)
 X_train_ml, X_test_ml, y_train_ml, y_test_ml = train_test_split(
     X_moneyline_full, y_moneyline, test_size=0.2, random_state=42, stratify=y_moneyline)
-print("✅ Moneyline train/test split complete", file=sys.stderr, flush=True)
+# Moneyline train/test split complete (log suppressed)
 
 # --- Totals (overHit) target and split ---
-print("🎯 Preparing totals/over-under model data...", file=sys.stderr, flush=True)
+# Preparing totals model data (log suppressed)
 try:
     target_totals = 'overHit'
     y_totals = historical_game_level_data[target_totals]
-    print(f"✅ Target 'overHit' loaded: {len(y_totals)} rows", file=sys.stderr, flush=True)
+    # Target 'overHit' loaded (log suppressed)
     
     # Filter to only numeric features for XGBoost compatibility
     available_totals_features = [f for f in best_features_totals if f in historical_game_level_data.columns]
-    print(f"✅ Totals features: {len(available_totals_features)} columns", file=sys.stderr, flush=True)
+    # Totals features loaded (log suppressed)
     
     X_totals_full = historical_game_level_data[available_totals_features].select_dtypes(include=["number", "bool", "category"])
-    print(f"✅ X_totals_full shape: {X_totals_full.shape}", file=sys.stderr, flush=True)
+    # X_totals_full shape (log suppressed)
     
     X_train_tot, X_test_tot, y_train_tot, y_test_tot = train_test_split(
         X_totals_full, y_totals, test_size=0.2, random_state=42, stratify=y_totals)
