@@ -118,6 +118,8 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 - **Session state**: Use reset flag pattern for filters, not `.clear()`.}
 - **Navigation**: Use `st.switch_page()` for page changes.
 - **Model training**: Three XGBoost models (spread, moneyline, totals), calibrated with isotonic regression. Betting thresholds are F1-optimized (not 50%).
+
+- **Automatic Base-URL Detection & RSS**: The app attempts to detect its public base URL from the browser and persist it to `data_files/app_config.json`. The RSS generator (`scripts/generate_rss.py`) uses that persisted base URL (if present) to build `data_files/alerts_feed.xml` with working per-alert links (`?alert=<guid>`). The running app exposes a sidebar `"🔁 Rebuild RSS"` button to re-generate the feed in-place.
 - **Betting log**: All recommendations tracked in `betting_recommendations_log.csv`. Results auto-fetched from ESPN API.
 - **Memory optimization**: Use `float32` for numeric columns, `Int8` for boolean columns, DataFrame views instead of copies, `@st.cache_data(show_spinner=False)` for technical pages to reduce memory usage and suppress cache messages.
 

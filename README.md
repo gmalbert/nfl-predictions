@@ -293,16 +293,24 @@ nfl-predictions/
 ## 📁 **Recent Updates (November 2025)**
 
 ### **🔔 In-App Notification System (Latest)**
-- **Problem Solved**: Users miss high-value betting opportunities when they load the app
-- **Solution**: Added automatic clickable in-app notifications for elite and strong betting opportunities:
-  - **Elite notifications** (🔥): ≥65% confidence bets with fire emoji and clickable sidebar button
-  - **Strong notifications** (⭐): 60-65% confidence bets with star emoji and clickable sidebar button
-  - Clickable buttons appear in sidebar and navigate directly to the "Underdog Bets" tab
-  - Session state tracking prevents duplicate notifications for the same games
-  - Checks moneyline, spread, and totals predictions for both confidence tiers
-  - Interactive notifications that improve user workflow and engagement
-- **Impact**: Increases user engagement by highlighting valuable betting opportunities and providing direct navigation
-- **Technical**: Uses sidebar buttons with `st.button()` and session state management for tab navigation
+- **Problem Solved**: Users miss high-value betting opportunities when they open the app.
+- **Solution**: Automatic, actionable in-app notifications that highlight Elite and Strong opportunities:
+  - **Elite notifications** (🔥): bets with ≥65% model confidence
+  - **Strong notifications** (⭐): bets with 60–65% model confidence
+  - Notifications are shown as toasts and are deduplicated using `st.session_state` so the same game doesn't re-notify in the same session.
+  - Each alert links to a per-alert page (query param `?alert=<guid>`) that shows friendly bet details, logos, bet type, gameday/time, and a small recommendation table.
+  - The app also persists a detected public base URL (when available) into `data_files/app_config.json` so external tools (and the RSS generator) can create working per-alert links.
+- **Impact**: Improves engagement by surfacing high-value bets and providing one-click access to full alert details.
+- **Technical**: Uses `st.toast()` for toasts, session-state deduplication, per-alert pages rendered from `data_files/betting_recommendations_log.csv`, and persisted base-URL for external link generation.
+
+### **🔔 RSS Feed & Rebuild Button**
+- **Purpose**: Provide external notifications via RSS with per-alert links pointing back to the app.
+- **Implementation**:
+  - `scripts/generate_rss.py` builds `data_files/alerts_feed.xml`. It prefers the persisted `app_base_url` in `data_files/app_config.json` (if present), otherwise falls back to the `ALERTS_SITE_URL` environment variable or `http://localhost:8501/`.
+  - The running app exposes a sidebar `"🔁 Rebuild RSS"` button that runs the generator in-place and reports success/errors.
+- **Files**:
+  - Persisted config: `data_files/app_config.json` (contains `{"app_base_url": "https://..."}` when detected)
+  - RSS output: `data_files/alerts_feed.xml`
 
 ### **🎨 UI Layout Optimization (Latest)**
 - **Problem Solved**: Excessive vertical space at the top of the main page reduced available screen real estate

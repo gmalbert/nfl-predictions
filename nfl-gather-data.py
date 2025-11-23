@@ -295,10 +295,21 @@ def calculate_betting_return(row, bet_type='moneyline'):
                 outcome = 1 - row['overHit']  # Under hits when over doesn't
             
             if outcome == 1:  # Bet won
-                if odds > 0:  # Positive American odds
-                    return odds  # Win $odds on $100 bet
+                # Safely handle missing/zero odds
+                try:
+                    o = float(odds)
+                except Exception:
+                    return 0
+
+                if o == 0 or np.isnan(o):
+                    # Invalid odds; cannot compute payout reliably
+                    return 0
+
+                if o > 0:  # Positive American odds
+                    return o  # Win $odds on $100 bet
                 else:  # Negative American odds
-                    return 100 * 100 / abs(odds)  # Standard calculation
+                    # For negative odds like -150: profit on $100 = 100 * (100 / 150)
+                    return 100 * 100 / abs(o)
             else:  # Bet lost
                 return -100
         else:
