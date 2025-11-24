@@ -107,7 +107,11 @@ A sophisticated NFL analytics platform that uses advanced machine learning to id
 
 ### **1. Running the System**
 ```bash
-# Train the models (run first or when you want updated predictions)
+# Build historical data and train models (single-step):
+python build_and_train_pipeline.py
+
+# Or run the steps separately:
+# Train the models (build features and train)
 python nfl-gather-data.py
 
 # Launch the dashboard
@@ -489,9 +493,10 @@ nfl-predictions/
    ```
 
 2. **Train Initial Models**
-   ```bash
-   python nfl-gather-data.py
-   ```
+  ```bash
+  # Single-step: build historical data and train models
+  python build_and_train_pipeline.py
+  ```
 
 3. **Launch Dashboard**
    ```bash
@@ -537,9 +542,9 @@ nfl-predictions/
 
 ### **Common Issues & Solutions**
 
-#### **KeyError: Features not in index**
+-#### **KeyError: Features not in index**
 - **Cause**: Feature list mismatch between training and dashboard files
-- **Solution**: Run `python nfl-gather-data.py` to regenerate feature files and ensure synchronization
+- **Solution**: Run `python build_and_train_pipeline.py` (or `python nfl-gather-data.py` to run only the training step) to regenerate feature files and ensure synchronization
 - **Prevention**: Both files now auto-sync feature lists to prevent future mismatches
 
 #### **"TypeError: 'str' object cannot be interpreted as an integer"**
@@ -619,6 +624,6 @@ python smoke_test.py
 This prints basic progress and a final `SMOKE OK` line when successful. For full interactive use:
 
 ```bash
-python nfl-gather-data.py   # builds predictions/data if needed
+python build_and_train_pipeline.py   # builds predictions/data if needed (single-step)
 streamlit run predictions.py
 ```
