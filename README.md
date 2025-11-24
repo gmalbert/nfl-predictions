@@ -598,3 +598,27 @@ This project welcomes contributions! Areas for improvement:
 [⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
 **Built with**: Python • Streamlit • XGBoost • Scikit-learn • NFLverse Data
+
+## 📥 Export Downloads & Sidebar (Nov 23, 2025)
+
+- **Where to find exports**: The app exposes always-visible download controls in the sidebar for:
+  - `Predictions CSV` — current predictions shown in the app
+  - `Betting Log` — the `betting_recommendations_log.csv` file
+- **Why you might not see them**: The Streamlit sidebar can be collapsed by default. If you do not see the download buttons, click the small chevron in the top-left of the page to expand the sidebar.
+- **Behavior**: Download buttons are rendered after the app finishes loading data (the app reserves lightweight placeholders while data loads and populates the real `st.download_button` once `predictions_df` and the betting log are available).
+
+## 🧪 Smoke Test & Quick Run
+
+To validate the core imports and data-loading behavior without running the full Streamlit UI, use the included smoke test:
+
+```bash
+# Run a lightweight import-and-load smoke test
+python smoke_test.py
+```
+
+This prints basic progress and a final `SMOKE OK` line when successful. For full interactive use:
+
+```bash
+python nfl-gather-data.py   # builds predictions/data if needed
+streamlit run predictions.py
+```

@@ -158,3 +158,12 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 - See `README.md` for project summary and local setup
 - See `ROADMAP.md` for planned features
 - See `data_files/` for all model/data artifacts
+
+## Recent Changes (Nov 23, 2025)
+
+- **Data Export**: Added download helpers and sidebar download controls for `predictions_df` and `betting_recommendations_log.csv`. Downloads are created from lightweight placeholders so the sidebar renders immediately and the buttons appear once data is loaded.
+- **Sidebar behavior**: The app now reserves sidebar placeholders early in execution and populates the actual `st.download_button` controls after the data-loading progress completes. If users cannot find the downloads, advise them to expand the sidebar (chevron in top-left).
+- **Smoke Test**: Added `smoke_test.py` to validate imports and lazy data loading without requiring `streamlit run`. Encourage CI to run this script on PRs.
+- **Memory & Stability**: Reiterated memory optimizations (float32/Int8, views vs copies, lazy loading, pagination) to avoid Streamlit Cloud resource limit issues.
+
+When making further UI changes, keep these patterns in mind so the app remains stable under Streamlit runner and in CI smoke-test scenarios.

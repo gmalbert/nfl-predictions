@@ -12,6 +12,21 @@ st.set_page_config(
 
 DATA_DIR = 'data_files/'
 
+
+def convert_df_to_csv(df: pd.DataFrame) -> bytes:
+    """Convert DataFrame to CSV bytes for Streamlit download_button."""
+    try:
+        return df.to_csv(index=False).encode('utf-8')
+    except Exception:
+        # Fallback: coerce to strings then export
+        df2 = df.copy()
+        for c in df2.columns:
+            try:
+                df2[c] = df2[c].astype(str)
+            except Exception:
+                pass
+        return df2.to_csv(index=False).encode('utf-8')
+
 # Load historical play-by-play data with optimizations
 @st.cache_data(show_spinner=False)
 def load_historical_data():
@@ -319,6 +334,21 @@ if 'game_date' in historical_data.columns:
         'field_goal_result': st.column_config.TextColumn('FG Result', width='small')
         }
     )
+
+    # Download button for current filtered view
+    try:
+        to_download = filtered_data[display_cols].iloc[start_idx:end_idx]
+        if not to_download.empty:
+            csv_bytes = convert_df_to_csv(to_download)
+            st.download_button(
+                label="📥 Export Filtered Data",
+                data=csv_bytes,
+                file_name=f'nfl_historical_data_{datetime.now().strftime("%Y%m%d")}.csv',
+                mime='text/csv'
+            )
+    except Exception:
+        # If export fails, don't break the page
+        pass
 
 else:
     # Fallback: show all data without date filtering

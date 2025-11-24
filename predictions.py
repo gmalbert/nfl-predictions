@@ -108,6 +108,24 @@ def load_predictions_csv():
     return None
 
 
+def convert_df_to_csv(df: pd.DataFrame) -> bytes:
+    """Convert a DataFrame to a CSV bytes object suitable for `st.download_button`.
+
+    Keeps encoding explicit to UTF-8 to avoid platform issues.
+    """
+    try:
+        return df.to_csv(index=False).encode('utf-8')
+    except Exception:
+        # Fallback: coerce to strings then export
+        df2 = df.copy()
+        for c in df2.columns:
+            try:
+                df2[c] = df2[c].astype(str)
+            except Exception:
+                pass
+        return df2.to_csv(index=False).encode('utf-8')
+
+
 def get_base_url_from_browser(timeout_ms: int = 1000):
         """Inject JS to set a transient query param with the base URL and reload.
 
@@ -947,6 +965,16 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Failed to run RSS generator: {e}")
 
+        # End of RSS rebuild button handler
+    # Data export placeholders: actual buttons are populated after data loads
+    try:
+        predictions_dl_placeholder = st.empty()
+        betting_log_dl_placeholder = st.empty()
+    except Exception:
+        # Fallback: ignore sidebar placeholders if creation fails
+        predictions_dl_placeholder = None
+        betting_log_dl_placeholder = None
+
 # Sidebar filters
 
 filter_keys = [
@@ -989,6 +1017,44 @@ with st.spinner("🏈 Loading NFL data..."):
     progress_bar.empty()
 
 # Data loading complete (terminal logs suppressed)
+
+# Populate sidebar download placeholders (created earlier) now that data is loaded
+try:
+    # Only populate if placeholders were created successfully
+    if 'predictions_dl_placeholder' in globals() and predictions_dl_placeholder is not None:
+        if predictions_df is not None:
+            try:
+                csv_bytes = convert_df_to_csv(predictions_df)
+                predictions_dl_placeholder.download_button(
+                    label="📥 Download Predictions",
+                    data=csv_bytes,
+                    file_name=f'nfl_predictions_{datetime.now().strftime("%Y%m%d")}.csv',
+                    mime='text/csv'
+                )
+            except Exception:
+                # If conversion fails, silently skip the download button
+                pass
+
+    # Betting log download when present
+    log_path = path.join(DATA_DIR, 'betting_recommendations_log.csv')
+    if 'betting_log_dl_placeholder' in globals() and betting_log_dl_placeholder is not None:
+        if os.path.exists(log_path):
+            try:
+                with open(log_path, 'rb') as _f:
+                    log_bytes = _f.read()
+                betting_log_dl_placeholder.download_button(
+                    label="📥 Download Betting Log",
+                    data=log_bytes,
+                    file_name=f'betting_recommendations_log_{datetime.now().strftime("%Y%m%d")}.csv',
+                    mime='text/csv'
+                )
+            except Exception:
+                # If reading the file fails, skip the button
+                pass
+except Exception:
+    # Do not fail the app if sidebar population fails
+    pass
+
 
 # In-App Notifications for Elite and Strong Bets
 # Store new bets in session state to avoid duplicate notifications
@@ -2192,13 +2258,24 @@ with pred_tab6:
                     else:
                         odds = row['under_odds']
                         bet_on = 'Under'
-                    
-                    if odds > 0:
-                        payout = 100 + (odds)
+                    # Coerce to numeric safely
+                    try:
+                        odds_val = float(odds)
+                    except Exception:
+                        odds_val = float('nan')
+
+                    # Handle missing or zero odds to avoid division-by-zero
+                    if pd.isna(odds_val) or odds_val == 0:
+                        # Unknown payout when odds are missing/zero
+                        return float('nan'), bet_on
+
+                    if odds_val > 0:
+                        payout = 100.0 + odds_val
                     else:
-                        payout = 100 + (100 * 100 / abs(odds))
-                    
-                    return payout, bet_on
+                        # Negative American odds: profit on $100 = 100 * 100 / abs(odds)
+                        payout = 100.0 + (100.0 * 100.0 / abs(odds_val))
+
+                    return float(payout), bet_on
                 
                 totals_bets[['expected_payout', 'bet_on']] = totals_bets.apply(
                     lambda row: pd.Series(calculate_over_payout(row)), axis=1

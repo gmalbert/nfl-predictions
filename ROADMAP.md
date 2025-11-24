@@ -476,3 +476,21 @@ See individual feature implementation notes above. All enhancements should:
 
 **Last Updated**: November 5, 2025  
 **Next Review**: After Beta 0.1 user feedback (approx. November 20, 2025)
+
+---
+
+## Progress Update (Nov 23, 2025)
+
+- **Data Export (COMPLETED)**: Download helpers and CSV export buttons for predictions and the betting log were implemented. The UI uses lightweight sidebar placeholders that are populated with `st.download_button` controls after data loading finishes, ensuring the sidebar renders immediately even when large datasets are being read.
+- **Sidebar Placement**: Export buttons are located in the sidebar to reduce main-page clutter. Note that the sidebar may be collapsed by default — expanding it reveals the download controls.
+- **Move Export Buttons**: The export buttons were moved to the sidebar and the placeholder pattern was implemented to avoid render-order issues (previously downloads sometimes didn't appear because the sidebar rendered before data loaded).
+- **Smoke Test**: Added `smoke_test.py` to validate imports and lazy-loading behavior in CI without launching the full Streamlit server.
+- **Memory & Stability Work**: `float32` and `Int8` dtype changes, DataFrame view usage, `@st.cache_data` lazy loaders, and pagination are in place to keep memory usage compatible with Streamlit Cloud limits (~1.5GB observed during peak loads).
+
+### Immediate Next Priorities
+
+1. **Automated CI** — Add a GitHub Action running `python smoke_test.py` for PRs to catch regressions early.
+2. **Streamlit Staging Deploy** — Deploy to Streamlit Cloud staging and monitor memory and session behavior with real users.
+3. **Server-side Export Persistence (optional)** — Save copies of user exports under `data_files/exports/` with timestamps for auditing and support.
+4. **Sidebar UX** — Consider defaulting to `initial_sidebar_state='expanded'` in `predictions.py` to make exports discoverable for new users.
+
