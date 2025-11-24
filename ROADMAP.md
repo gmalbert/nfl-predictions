@@ -355,6 +355,32 @@ with tab_compare:
 
 ---
 
+#### **Per-Game Detail Page** (Priority: MEDIUM)
+**Problem**: Users want to inspect a single game's full context (predictions, play-by-play, team stats, and alert history) in one place.
+
+**Goal**: Add a dedicated per-game page modeled on the alert/per-alert pages already implemented. The page should be reachable via a query parameter (e.g. `?game=<game_id>`) or a friendly route, and provide a complete, shareable view of an individual matchup.
+
+**Key Features**:
+- **Summary Header**: Team names, logos, gameday/time, venue, spread, moneyline, total line, and quick confidence badges (Elite/Strong/Good).
+- **Model Predictions**: Spread, Moneyline, and Totals probabilities with calibrated probabilities and the model's recommended action(s).
+- **Recent Betting History**: Any historical alerts or betting-log entries for the game (reads from `data_files/betting_recommendations_log.csv`).
+- **Play-by-Play Viewer**: Paginated play-by-play table for the game with filters (quarter, down, play type) and expandable details per play.
+- **Team Season Context**: Side-by-side team stats (season averages, recent 3-game form, head-to-head) using the same memory-efficient dtype patterns.
+- **Edge & Expected Value**: Calculation panel showing implied odds vs model probability, expected value, and suggested bet sizing (Kelly-inspired) when applicable.
+- **Shareable Alert Link**: One-click copy link to the game's per-game page; compatible with the RSS/per-alert generator so external feeds can link directly.
+- **Export & Persist**: Download game-specific CSV (predictions + pbp) and optionally persist a server-side snapshot under `data_files/exports/` for auditability.
+
+**Implementation Notes**:
+- Use the same lazy-loading pattern (`@st.cache_data`) and progress spinner as other pages.
+- Render the page as an independent Streamlit view that reads `st.experimental_get_query_params()` for `game` or `alert` params.
+- Reuse the alert-rendering components and copy the toast/deduplication session-state behavior for in-app notifications.
+- Keep the play-by-play viewer paginated and memory-efficient (views, `float32`, `Int8`), and show a warning if the dataset for a single game is unexpectedly large.
+
+**Effort**: 6-10 hours (including UI polish and testing)
+
+**Impact**: Improves transparency and allows analysts to deep-dive on individual matchups, increases shareability of alerts, and provides a single-source-of-truth page for support and audit.
+
+
 #### **Beta 0.3 Priorities** (Choose 2-3 features)
 
 **Recommended Priority**:

@@ -125,7 +125,8 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 
 ## Developer Workflow
 - **Run app**: `streamlit run predictions.py`
-- **Generate predictions**: `python nfl-gather-data.py` (takes ~5 min)
+- **Generate predictions / Build & Train (single-step)**: `python build_and_train_pipeline.py` (takes ~5 min)
+  - To run training only (features + models): `python nfl-gather-data.py`
 - **Python version**: Must use 3.12
 - **Local testing**: Activate venv, run above commands
 - **Deployment**: Streamlit Cloud, all data files committed

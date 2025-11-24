@@ -89,7 +89,7 @@ def load_historical_data():
         return data
     except FileNotFoundError:
         st.error("Critical file missing: nfl_games_historical_with_predictions.csv")
-        st.info("Please run 'python nfl-gather-data.py' first to generate the required data files.")
+        st.info("Please run 'python build_and_train_pipeline.py' first to generate the required data files.")
         st.stop()  # Stop execution if critical data is missing
     except Exception as e:
         st.error(f"Error loading historical game data: {str(e)}")
@@ -1798,7 +1798,7 @@ with pred_tab3:
             predictions_df_full['moneyline_bet_return'] = predictions_df_full.apply(calc_moneyline_return, axis=1)
         except Exception as e:
             st.error(f"Error loading predictions data for betting analysis: {str(e)}")
-            st.info("Please run 'python nfl-gather-data.py' to generate the required data files.")
+            st.info("Please run 'python build_and_train_pipeline.py' to generate the required data files.")
             predictions_df_full = None
         
         # Calculate betting statistics
