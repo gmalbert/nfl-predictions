@@ -398,6 +398,16 @@ with tab_compare:
 #### Final Features Before Launch
 - [ ] Complete documentation and help system
 - [ ] User authentication (if needed for notifications)
+
+## ✅ Recent Progress (Nov 25, 2025)
+
+- **Per-Game Detail Page (Deployed)**: Implemented a `?game=<game_id>` per-game view with matchup summary, model recommendations, shareable links, and lightweight pagination for play-by-play when explicitly requested. The page avoids loading the entire play-by-play dataset by default to preserve Streamlit Cloud memory.
+- **UX & Navigation Improvements**: Schedule rows now link to per-game pages using path-relative `?game=` and open in the same tab (`target="_self"`). Return navigation replaced markdown links with explicit same-tab anchors.
+- **Underdog Render Logic**: Per-game header marks the underdog in bold using spread-based logic with a moneyline fallback.
+- **Season-aware Schedule Matching**: Schedule→prediction matching updated to prefer candidate prediction rows with matching `season` to avoid historical collisions.
+- **Download Placeholder Pattern**: Sidebar reserves lightweight placeholders for download controls and populates them after data load to avoid premature widget creation and UI flicker.
+
+These updates complete several Beta 0.2/0.3 items earlier than planned and reduce Streamlit Cloud memory pressure while improving shareability and per-game analysis.
 - [ ] Mobile-responsive design improvements
 - [ ] A/B testing framework for UI improvements
 - [ ] Analytics integration (PostHog, Mixpanel, or similar)

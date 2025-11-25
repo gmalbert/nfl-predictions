@@ -167,4 +167,14 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 - **Smoke Test**: Added `smoke_test.py` to validate imports and lazy data loading without requiring `streamlit run`. Encourage CI to run this script on PRs.
 - **Memory & Stability**: Reiterated memory optimizations (float32/Int8, views vs copies, lazy loading, pagination) to avoid Streamlit Cloud resource limit issues.
 
+## Recent Changes (Nov 25, 2025)
+
+- **Per-Game Detail Page**: Added a per-game detail view reachable via `?game=<game_id>`. Important: this page is designed to avoid loading the full play-by-play dataset by default; if a paginated PBP view is requested it will be loaded on demand using the same `float32`/`Int8` memory patterns.
+- **Underdog Labeling**: Implemented underdog detection in the per-game header (spread-first, moneyline fallback) and render a bold `(Underdog)` label next to the appropriate team name.
+- **Schedule Link Behavior**: Use path-relative `?game=` query params and `target="_self"` anchors so links open in the same tab and remain compatible with Streamlit Cloud app subpaths.
+- **Season-Aware Matching**: When matching schedule rows to prediction rows prefer candidates whose `season` matches the game year to avoid historic game_id collisions.
+- **Download Buttons UX**: Sidebar download controls should be rendered from placeholders and populated only after `predictions_df` and the betting log finish loading to avoid rendering heavy widgets during initial load.
+
+When changing UI behavior or routing, preserve these patterns to keep the app memory-efficient and compatible with Streamlit Cloud deployments.
+
 When making further UI changes, keep these patterns in mind so the app remains stable under Streamlit runner and in CI smoke-test scenarios.
