@@ -7,7 +7,7 @@ enableXsrfProtection = false
 # Run in headless mode (no browser window on server)
 # Set to true for Streamlit Cloud deployment
 # For local development, you can set this to false to auto-open browser
-headless = true
+headless = false
 
 # Enable websocket compression for large dataset transfers
 # Reduces bandwidth usage when sending large dataframes to browser
@@ -15,7 +15,7 @@ enableWebsocketCompression = true
 
 [browser]
 # Automatically open browser when running locally
-gatherUsageStats = false
+#gatherUsageStats = false
 
 [runner]
 # Faster script execution
@@ -24,8 +24,8 @@ fastReruns = true
 [client]
 # Increase timeouts for slow data operations
 # This is especially important for loading compressed gzip files
-toolbarMode = "minimal"
+#toolbarMode = "minimal"
 showErrorDetails = true
 
 [logger]
-level = "info"
+#level = "info"

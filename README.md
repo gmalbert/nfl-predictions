@@ -627,3 +627,14 @@ This prints basic progress and a final `SMOKE OK` line when successful. For full
 python build_and_train_pipeline.py   # builds predictions/data if needed (single-step)
 streamlit run predictions.py
 ```
+
+## 📅 Recent Changes (Nov 25, 2025)
+
+- **Per-Game Detail Page**: Added a dedicated per-game view reachable with `?game=<game_id>` showing matchup summary, model predictions, and a shareable link. The per-game page uses lazy loading and intentionally avoids loading the full play-by-play dataset by default to reduce memory pressure.
+- **Underdog Labeling**: Per-game header now highlights the underdog in bold using spread-first logic and a moneyline fallback when spreads are unavailable.
+- **Schedule Links**: Schedule and table links now use path-relative `?game=` query parameters and `target="_self"` so links open in the same tab and remain compatible with subpath deployments.
+- **Season-aware Matching**: Schedule→prediction matching was tightened to prefer predictions from the same season, preventing accidental linking to historical game IDs.
+- **Download UX**: Sidebar download buttons are rendered from lightweight placeholders and populate once `predictions_df` and related data finish loading to avoid early widget creation and reduce perceived load-time issues.
+- **QB Names & Header Polish**: Away/home QB names included in the per-game header; full team names now show before logos and gameday times set to `00:00:00` are hidden.
+
+If you'd like, I can also add screenshots or a short demo GIF for the per-game page to the README.

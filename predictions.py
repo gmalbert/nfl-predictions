@@ -432,48 +432,10 @@ def update_completed_games():
                                         bet_won = away_score > home_score
                                     
                                     # Calculate profit
-                                    if bet_won:
-                                        # Get underdog odds to calculate payout
-                                        odds = float(bet['moneyline_odds']) if pd.notna(bet['moneyline_odds']) else 0
-                                        if odds > 0:
-                                            profit = odds  # Win $odds on $100 bet
-                                        else:
-                                            profit = 100 / abs(odds) * 100 if odds != 0 else 0
-                                    else:
-                                        profit = -100  # Lost the $100 bet
-                                    
-                                elif bet_type == 'spread':
-                                    # Spread: did underdog cover?
-                                    spread_line = float(bet['spread_line']) if pd.notna(bet['spread_line']) else 0
-                                    
-                                    if spread_line < 0:
-                                        # Home is underdog, gets + points
-                                        adjusted_score = home_score - spread_line  # Subtracting negative = adding
-                                        bet_won = adjusted_score > away_score
-                                    else:
-                                        # Away is underdog, gets + points
-                                        adjusted_score = away_score + spread_line
-                                        bet_won = adjusted_score > home_score
-                                    
-                                    # Standard spread profit (assuming -110 odds)
-                                    profit = 90.91 if bet_won else -100
-                                
-                                else:
-                                    bet_won = False
-                                    profit = 0
-                                
-                                # Update result and profit
-                                log_df.at[idx, 'bet_result'] = 'win' if bet_won else 'loss'
-                                log_df.at[idx, 'bet_profit'] = profit
-                                
-                                updates_made = True
-                                break  # Found the game, move to next bet
-        
-        except Exception as e:
+        except Exception:
             # Silently continue if ESPN API fails for a particular week
             continue
-    
-    # Save updated log if any changes were made
+
     if updates_made:
         log_df.to_csv(log_path, index=False)
 
@@ -603,6 +565,212 @@ try:
 except Exception:
     pass
 
+# Per-Game detail page support: render when `?game=<game_id>` is present
+if 'game' in params and params.get('game'):
+    raw_game = params.get('game')
+    if isinstance(raw_game, list) and len(raw_game) > 0:
+        game_id_param = raw_game[0]
+    else:
+        game_id_param = raw_game
+
+    try:
+        game_id = str(game_id_param)
+    except Exception:
+        game_id = game_id_param
+
+    with st.spinner("Loading game details..."):
+        # Load predictions and betting log lazily (avoid loading large PBP dataset)
+        preds = load_predictions_csv() if 'load_predictions_csv' in globals() else None
+        betting_log_path = path.join(DATA_DIR, 'betting_recommendations_log.csv')
+        betting_log = pd.read_csv(betting_log_path, low_memory=False) if os.path.exists(betting_log_path) else pd.DataFrame()
+
+    # Find the game row in predictions
+    game_row = None
+    if preds is not None and not preds.empty:
+        matches = preds[preds['game_id'].astype(str) == str(game_id)]
+        if len(matches) > 0:
+            game_row = matches.iloc[0]
+
+    # Header
+    st.write("### Game Details")
+    if game_row is None:
+        st.warning(f"Game {game_id} not found in predictions dataset.")
+    else:
+        # Basic header: teams, gameday, lines
+        home = game_row.get('home_team', '')
+        away = game_row.get('away_team', '')
+        spread = game_row.get('spread_line', '')
+        ml_home = game_row.get('home_moneyline', '')
+        ml_away = game_row.get('away_moneyline', '')
+        total_line = game_row.get('total_line', '')
+        week = game_row.get('week', '')
+        stadium = game_row.get('stadium', '')
+
+        col_a, col_b = st.columns([3, 1])
+        with col_a:
+            # Team logos (look for files in data_files/logos/{ABBR}.png)
+            logo_dir = path.join(DATA_DIR, 'logos')
+            away_raw = str(game_row.get('away_team', '')).strip()
+            home_raw = str(game_row.get('home_team', '')).strip()
+
+            # Known mapping of abbreviations to full names (used for reverse lookup)
+            team_map = {
+                'ARI': 'Arizona Cardinals', 'ATL': 'Atlanta Falcons', 'BAL': 'Baltimore Ravens',
+                'BUF': 'Buffalo Bills', 'CAR': 'Carolina Panthers', 'CHI': 'Chicago Bears',
+                'CIN': 'Cincinnati Bengals', 'CLE': 'Cleveland Browns', 'DAL': 'Dallas Cowboys',
+                'DEN': 'Denver Broncos', 'DET': 'Detroit Lions', 'GB': 'Green Bay Packers',
+                'HOU': 'Houston Texans', 'IND': 'Indianapolis Colts', 'JAX': 'Jacksonville Jaguars',
+                'KC': 'Kansas City Chiefs', 'LV': 'Las Vegas Raiders', 'LAC': 'Los Angeles Chargers',
+                'LA': 'Los Angeles Rams', 'LAR': 'Los Angeles Rams', 'MIA': 'Miami Dolphins', 'MIN': 'Minnesota Vikings',
+                'NE': 'New England Patriots', 'NO': 'New Orleans Saints', 'NYG': 'New York Giants',
+                'NYJ': 'New York Jets', 'PHI': 'Philadelphia Eagles', 'PIT': 'Pittsburgh Steelers',
+                'SF': 'San Francisco 49ers', 'SEA': 'Seattle Seahawks', 'TB': 'Tampa Bay Buccaneers',
+                'TEN': 'Tennessee Titans', 'WAS': 'Washington Commanders'
+            }
+            rev_map = {v: k for k, v in team_map.items()}
+
+            away_abbr = away_raw.upper()
+            home_abbr = home_raw.upper()
+            # If values look like full names, try reverse mapping to abbreviations
+            if away_abbr not in team_map and away_raw in rev_map:
+                away_abbr = rev_map[away_raw]
+            if home_abbr not in team_map and home_raw in rev_map:
+                home_abbr = rev_map[home_raw]
+
+            # Determine full display names (prefer canonical full names from mapping)
+            away_full = team_map.get(away_abbr, away_raw)
+            home_full = team_map.get(home_abbr, home_raw)
+
+            # Determine which team is the underdog.
+            # Prefer spread_line (positive => home favored, negative => away favored).
+            is_home_underdog = False
+            is_away_underdog = False
+            try:
+                s_raw = game_row.get('spread_line', '')
+                s_val = float(s_raw) if (s_raw != '' and s_raw is not None and str(s_raw).strip() != '') else None
+            except Exception:
+                s_val = None
+
+            if s_val is not None:
+                if s_val < 0:
+                    # negative spread: away is favorite -> home is underdog
+                    is_home_underdog = True
+                elif s_val > 0:
+                    # positive spread: home is favorite -> away is underdog
+                    is_away_underdog = True
+            else:
+                # Fallback to moneyline odds if spread is not available
+                try:
+                    hm = game_row.get('home_moneyline', '')
+                    am = game_row.get('away_moneyline', '')
+                    home_ml = float(hm) if (hm != '' and hm is not None and str(hm).strip() != '') else None
+                    away_ml = float(am) if (am != '' and am is not None and str(am).strip() != '') else None
+                except Exception:
+                    home_ml = away_ml = None
+
+                if home_ml is not None and away_ml is not None:
+                    # Negative moneyline implies favorite. Set underdog accordingly.
+                    if home_ml < 0 and away_ml > 0:
+                        is_away_underdog = True
+                    elif away_ml < 0 and home_ml > 0:
+                        is_home_underdog = True
+
+
+            # Render away and home logos side-by-side with full names and a centered '@'
+            cols = st.columns([1, 3, 0.5, 3, 1])
+            # away logo
+            away_logo_path = path.join(logo_dir, f"{away_abbr}.png")
+            if os.path.exists(away_logo_path):
+                cols[0].image(away_logo_path, width=90)
+            else:
+                cols[0].write('')
+            # away full name (mark underdog in bold if applicable)
+            away_label = f"**{away_full}**"
+            if is_away_underdog:
+                away_label = away_label + " **(Underdog)**"
+            cols[1].markdown(away_label)
+            # away QB name (if available)
+            away_qb = str(game_row.get('away_qb_name', '')).strip()
+            if away_qb:
+                try:
+                    cols[1].markdown(f"<div style='color:#6b7280;font-size:14px;margin-top:4px;'>QB: {away_qb}</div>", unsafe_allow_html=True)
+                except Exception:
+                    cols[1].write(f"QB: {away_qb}")
+            # center '@'
+            cols[2].markdown("**@**")
+            # home full name (mark underdog in bold if applicable)
+            home_label = f"**{home_full}**"
+            if is_home_underdog:
+                home_label = home_label + " **(Underdog)**"
+            cols[3].markdown(home_label)
+            # home QB name (if available)
+            home_qb = str(game_row.get('home_qb_name', '')).strip()
+            if home_qb:
+                try:
+                    cols[3].markdown(f"<div style='color:#6b7280;font-size:14px;margin-top:4px;'>QB: {home_qb}</div>", unsafe_allow_html=True)
+                except Exception:
+                    cols[3].write(f"QB: {home_qb}")
+            # home logo
+            home_logo_path = path.join(logo_dir, f"{home_abbr}.png")
+            if os.path.exists(home_logo_path):
+                cols[4].image(home_logo_path, width=90)
+            else:
+                cols[4].write('')
+
+            st.markdown(f"**Spread:** {spread} • **Total:** {total_line}")
+            st.markdown(f"**Moneylines:** {away}: {ml_away} — {home}: {ml_home}")
+            # Game date/time formatting: omit the time if it's exactly 00:00:00
+            try:
+                gtime = pd.to_datetime(game_row.get('gameday', ''), errors='coerce')
+                if not pd.isna(gtime):
+                    date_part = gtime.date().isoformat()
+                    time_part = gtime.time().strftime('%H:%M:%S')
+                    if time_part == '00:00:00':
+                        st.markdown(f"**Game Date:** {date_part} (Week {week})")
+                    else:
+                        st.markdown(f"**Game Time:** {gtime.strftime('%Y-%m-%d %H:%M:%S')} (Week {week})")
+                st.write(f"**Stadium:** {stadium}")
+            except Exception:
+                pass
+        with col_b:
+            # Quick probabilities (if available)
+            prob_ml = game_row.get('prob_underdogWon', None)
+            prob_spread = game_row.get('prob_underdogCovered', None)
+            prob_over = game_row.get('prob_overHit', None)
+            if prob_ml is not None:
+                st.metric("Moneyline Prob (underdog)", f"{prob_ml:.2%}")
+            if prob_spread is not None:
+                st.metric("Spread Prob (underdog)", f"{prob_spread:.2%}")
+            if prob_over is not None:
+                st.metric("Totals Over Prob", f"{prob_over:.2%}")
+
+    # Play-by-play viewer intentionally removed from per-game page to reduce memory usage.
+    # If detailed play-level analysis is needed, use the Historical Data page instead.
+
+    # Betting history for the game
+    st.write("---")
+    st.write("#### Betting Log Entries")
+    if betting_log is None or betting_log.empty:
+        st.info("No betting log available.")
+    else:
+        try:
+            log_game = betting_log[betting_log['game_id'].astype(str) == str(game_id)]
+        except Exception:
+            log_game = pd.DataFrame()
+
+        if log_game.empty:
+            st.info("No betting log entries for this game.")
+        else:
+            st.dataframe(log_game)
+            try:
+                st.download_button(label="📥 Download Betting Log (CSV)", data=convert_df_to_csv(log_game), file_name=f"betting_log_game_{game_id}.csv", mime='text/csv')
+            except Exception:
+                pass
+
+    st.write("---")
+    # Use an explicit HTML anchor with target="_self" to ensure same-tab navigation
+    st.markdown("<a href='?' target='_self' style='text-decoration:none;font-weight:600;'>Return to Predictions</a>", unsafe_allow_html=True)
+
 # If we don't yet have a detected base URL, try automatic detection once.
 # This injects JS that sets a transient `__detected_base` param and reloads
 # the page so the value can be captured above. We guard with a session flag
@@ -712,9 +880,10 @@ if 'alert' in params and params.get('alert'):
 
                 # Visible inline anchor fallback (use detected base URL when available)
                 base_url = st.session_state.get('app_base_url', '/') if 'app_base_url' in st.session_state else '/'
+                # Use a path-relative query link so navigation stays within the app
                 fallback_inline = (
-                    f"<div style='margin-top:8px;'>"
-                    f"<a href='{base_url}' target='_top' "
+                    "<div style='margin-top:8px;'>"
+                    "<a href='?' target='_self' "
                     "style='display:inline-block;padding:8px 12px;border-radius:6px;border:1px solid #ccc;background:#f3f4f6;color:#111;text-decoration:none;font-weight:600;'>"
                     "Return to Predictions"
                     "</a>"
@@ -909,9 +1078,10 @@ if 'alert' in params and params.get('alert'):
 
                 # Visible inline fallback for bottom (use detected base URL when available)
                 base_url = st.session_state.get('app_base_url', '/') if 'app_base_url' in st.session_state else '/'
+                # Use a path-relative query link at the bottom as well
                 fallback_inline_bottom = (
-                    f"<div style='margin-top:8px;'>"
-                    f"<a href='{base_url}' target='_top' "
+                    "<div style='margin-top:8px;'>"
+                    "<a href='?' target='_self' "
                     "style='display:inline-block;padding:8px 12px;border-radius:6px;border:1px solid #ccc;background:#f3f4f6;color:#111;text-decoration:none;font-weight:600;'>"
                     "Return to Predictions"
                     "</a>"
@@ -1532,11 +1702,20 @@ if not schedule.empty and predictions_df is not None:
                 home_abbrev = team_abbrev_map.get(game['home_team'], game['home_team'])
                 away_abbrev = team_abbrev_map.get(game['away_team'], game['away_team'])
                 
-                # Find matching prediction (if available)
+                # Find matching prediction (if available). Prefer same-season matches to avoid older game_id collisions.
                 pred_match = predictions_df[
                     ((predictions_df['home_team'] == home_abbrev) & (predictions_df['away_team'] == away_abbrev)) |
                     ((predictions_df['home_team'] == away_abbrev) & (predictions_df['away_team'] == home_abbrev))
                 ]
+
+                # Narrow to the same season/year as the scheduled game when possible
+                try:
+                    game_season = int(pd.to_datetime(game['date']).year)
+                    season_vals = pd.to_numeric(pred_match['season'], errors='coerce').fillna(current_year).astype(int)
+                    pred_match = pred_match[season_vals == game_season]
+                except Exception:
+                    # If anything fails, fall back to the broader match (best-effort)
+                    pass
                 
                 if not pred_match.empty:
                     pred = pred_match.iloc[0]
@@ -1561,7 +1740,8 @@ if not schedule.empty and predictions_df is not None:
                         'Over Hit %': f"{pred.get('prob_overHit', 0):.1%}",
                         'ML Edge': f"{pred.get('edge_underdog_ml', 0):.1f}",
                         'Spread Edge': f"{pred.get('edge_underdog_spread', 0):.1f}",
-                        'Total Edge': f"{pred.get('edge_over', 0):.1f}"
+                        'Total Edge': f"{pred.get('edge_over', 0):.1f}",
+                        'game_id': pred.get('game_id', '')
                     })
                 else:
                     # No prediction available
@@ -1575,29 +1755,57 @@ if not schedule.empty and predictions_df is not None:
                         'Over Hit %': "N/A",
                         'ML Edge': "N/A",
                         'Spread Edge': "N/A",
-                        'Total Edge': "N/A"
+                        'Total Edge': "N/A",
+                        'game_id': ''
                     })
             
             if schedule_display:
                 schedule_df = pd.DataFrame(schedule_display)
-                height = get_dataframe_height(schedule_df)
-                st.dataframe(
-                    schedule_df,
-                    hide_index=True,
-                    height=height,
-                    column_config={
-                        'Date': st.column_config.TextColumn('Date/Time', width='medium'),
-                        'Matchup': st.column_config.TextColumn('Matchup', width='large'),
-                        'Spread': st.column_config.TextColumn('Spread', width='medium'),
-                        'Total': st.column_config.TextColumn('O/U', width='small'),
-                        'Underdog Win %': st.column_config.TextColumn('Underdog Win %', width='small'),
-                        'Spread Cover %': st.column_config.TextColumn('Cover %', width='small'),
-                        'Over Hit %': st.column_config.TextColumn('Over %', width='small'),
-                        'ML Edge': st.column_config.NumberColumn('ML Edge', format='%.1f', width='small'),
-                        'Spread Edge': st.column_config.NumberColumn('Spread Edge', format='%.1f', width='small'),
-                        'Total Edge': st.column_config.NumberColumn('Total Edge', format='%.1f', width='small')
-                    }
-                )
+                # Render as markdown so the Matchup cell itself is a clickable link to the per-game page
+                try:
+                    # Render as HTML table with explicit target="_self" so links open in the same window/tab
+                    cols = ['Matchup', 'Date', 'Spread', 'Total', 'Underdog Win %', 'Spread Cover %', 'Over Hit %', 'ML Edge', 'Spread Edge', 'Total Edge']
+                    table_rows = []
+                    for _, r in schedule_df.iterrows():
+                        matchup_text = r.get('Matchup', '')
+                        gid = str(r.get('game_id', '')).strip()
+                        date = r.get('Date', '')
+                        spread = r.get('Spread', '')
+                        total = r.get('Total', '')
+                        uw = r.get('Underdog Win %', '')
+                        sc = r.get('Spread Cover %', '')
+                        oh = r.get('Over Hit %', '')
+                        me = r.get('ML Edge', '')
+                        se = r.get('Spread Edge', '')
+                        te = r.get('Total Edge', '')
+                        if gid:
+                            matchup_cell = f'<a href="?game={gid}" target="_self">{matchup_text}</a>'
+                        else:
+                            matchup_cell = matchup_text
+                        row_html = f"<tr><td>{matchup_cell}</td><td>{date}</td><td>{spread}</td><td>{total}</td><td>{uw}</td><td>{sc}</td><td>{oh}</td><td>{me}</td><td>{se}</td><td>{te}</td></tr>"
+                        table_rows.append(row_html)
+
+                    # Build a full-width HTML table and render via st.markdown with unsafe HTML
+                    # This keeps the table layout consistent with the rest of the page (no mini iframe)
+                    html = '<style>\n'
+                    html += 'table.go-table{border-collapse:collapse;width:100%;font-family:inherit;margin:6px 0;}\n'
+                    html += 'table.go-table th, table.go-table td{border-bottom:1px solid #ddd;padding:8px;text-align:left;}\n'
+                    html += 'table.go-table tr:hover{background:#f9f9f9;}\n'
+                    html += 'table.go-table a{color:inherit;text-decoration:underline;}\n'
+                    html += '</style>\n'
+                    html += '<table class="go-table">'
+                    html += '<thead><tr>' + ''.join([f'<th>{c}</th>' for c in cols]) + '</tr></thead>'
+                    html += '<tbody>' + ''.join(table_rows) + '</tbody></table>'
+
+                    # Use target="_self" on anchors so links open in the same tab/window
+                    st.markdown(html, unsafe_allow_html=True)
+                except Exception:
+                    height = get_dataframe_height(schedule_df)
+                    st.dataframe(
+                        schedule_df,
+                        hide_index=True,
+                        height=height
+                    )
                 st.caption(f"Showing next {len(schedule_display)} upcoming games • Green edges indicate positive expected value bets")
             else:
                 st.info("No upcoming games found in schedule data.")
@@ -1762,7 +1970,23 @@ with pred_tab2:
             }
         )
         st.caption(f"Showing next 50 upcoming games with betting data • {len(predictions_df):,} games in next week")
-        
+
+        # Add per-row links to open the Per-Game detail page for each matchup
+        try:
+            links_df = display_df.copy()
+            if 'game_id' in links_df.columns:
+                links_df = links_df[['gameday', 'away_team', 'home_team', 'game_id']].copy()
+                links_df['matchup'] = links_df.apply(
+                    lambda r: f"{r['away_team']} @ {r['home_team']} ({pd.to_datetime(r['gameday']).date()})",
+                    axis=1
+                )
+                links_df['details_link'] = links_df['game_id'].astype(str).apply(lambda gid: f"[Open](?game={gid})")
+                with st.expander("Open game details (click a link)"):
+                    md = links_df[['matchup', 'details_link']].to_markdown(index=False)
+                    st.markdown(md, unsafe_allow_html=False)
+        except Exception:
+            pass
+
         st.info("""
         **📌 Quick Reference:**
         - **Prob Columns**: Model's predicted probability (higher = more confident)
