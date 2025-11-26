@@ -28,4 +28,4 @@ fastReruns = true
 showErrorDetails = true
 
 [logger]
-#level = "info"
+level = "info"

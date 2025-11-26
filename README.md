@@ -638,3 +638,16 @@ streamlit run predictions.py
 - **QB Names & Header Polish**: Away/home QB names included in the per-game header; full team names now show before logos and gameday times set to `00:00:00` are hidden.
 
 If you'd like, I can also add screenshots or a short demo GIF for the per-game page to the README.
+
+## 📌 Recent Changes (Nov 26, 2025)
+
+- **Per‑Game UI polish & layout fixes**: The per‑game detail page (`?game=<game_id>`) was updated to improve readability and alignment:
+  - Metrics and info now start at the left edge (removed the centered spacer that pushed content right).
+  - Spread/Total and probability metrics were re-aligned for clearer visual grouping under the `@` marker.
+- **Team & QB presentation**: Team names use a larger, bold display (approx. 30px) with responsive CSS; QB lines include extra vertical spacing to separate them from the first-level metrics.
+- **Responsive CSS**: Inline CSS classes (`.team-name`, `.team-qb`) and a mobile media query were added to keep the per‑game header tidy on small screens.
+- **Memory & loading behavior**: The per‑game page no longer loads the large play‑by‑play dataset by default and avoids reading the betting log CSV during initial per‑game rendering to reduce memory pressure.
+- **Betting log removed from per‑game view**: The betting-log table and per‑game CSV download were removed from the per‑game page UI by design; the Betting Performance / Performance dashboard still uses the centralized betting log for analytics.
+- **Bug fix**: Fixed a `NameError` by ensuring UI columns are always created before use (prevents occasional crashes when conditions changed).
+
+[⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)

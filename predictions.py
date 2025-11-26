@@ -579,10 +579,8 @@ if 'game' in params and params.get('game'):
         game_id = game_id_param
 
     with st.spinner("Loading game details..."):
-        # Load predictions and betting log lazily (avoid loading large PBP dataset)
+        # Load predictions lazily (avoid loading large PBP dataset)
         preds = load_predictions_csv() if 'load_predictions_csv' in globals() else None
-        betting_log_path = path.join(DATA_DIR, 'betting_recommendations_log.csv')
-        betting_log = pd.read_csv(betting_log_path, low_memory=False) if os.path.exists(betting_log_path) else pd.DataFrame()
 
     # Find the game row in predictions
     game_row = None
@@ -605,6 +603,11 @@ if 'game' in params and params.get('game'):
         total_line = game_row.get('total_line', '')
         week = game_row.get('week', '')
         stadium = game_row.get('stadium', '')
+
+        # Quick probabilities (if available) - compute up-front so we can place them with the left-side data
+        prob_ml = game_row.get('prob_underdogWon', None)
+        prob_spread = game_row.get('prob_underdogCovered', None)
+        prob_over = game_row.get('prob_overHit', None)
 
         col_a, col_b = st.columns([3, 1])
         with col_a:
@@ -677,6 +680,21 @@ if 'game' in params and params.get('game'):
 
 
             # Render away and home logos side-by-side with full names and a centered '@'
+            # Inject responsive CSS for team names and QB labels so layout stays tidy on mobile
+            style_html = '''
+            <style>
+            .team-name { font-size:30px; font-weight:700; margin-top:4px; }
+            .team-qb { color:#6b7280; font-size:14px; margin-top:4px; margin-bottom:24px; }
+            @media (max-width:600px) {
+              .team-name { font-size:20px; }
+              .team-qb { font-size:13px; margin-bottom:12px; }
+            }
+            </style>
+            '''
+            try:
+                st.markdown(style_html, unsafe_allow_html=True)
+            except Exception:
+                pass
             cols = st.columns([1, 3, 0.5, 3, 1])
             # away logo
             away_logo_path = path.join(logo_dir, f"{away_abbr}.png")
@@ -685,31 +703,49 @@ if 'game' in params and params.get('game'):
             else:
                 cols[0].write('')
             # away full name (mark underdog in bold if applicable)
-            away_label = f"**{away_full}**"
-            if is_away_underdog:
-                away_label = away_label + " **(Underdog)**"
-            cols[1].markdown(away_label)
+            away_label_html = f"<div class='team-name'>{away_full}{' <span style=\"font-weight:700\">(Underdog)</span>' if is_away_underdog else ''}</div>"
+            try:
+                cols[1].markdown(away_label_html, unsafe_allow_html=True)
+            except Exception:
+                # Fallback to plain markdown if HTML rendering is not allowed
+                away_label = f"**{away_full}**"
+                if is_away_underdog:
+                    away_label = away_label + " **(Underdog)**"
+                cols[1].markdown(away_label)
             # away QB name (if available)
             away_qb = str(game_row.get('away_qb_name', '')).strip()
             if away_qb:
                 try:
-                    cols[1].markdown(f"<div style='color:#6b7280;font-size:14px;margin-top:4px;'>QB: {away_qb}</div>", unsafe_allow_html=True)
+                    cols[1].markdown(f"<div class='team-qb'>QB: {away_qb}</div>", unsafe_allow_html=True)
                 except Exception:
                     cols[1].write(f"QB: {away_qb}")
+                    try:
+                        cols[1].markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+                    except Exception:
+                        cols[1].write("")
             # center '@'
             cols[2].markdown("**@**")
             # home full name (mark underdog in bold if applicable)
-            home_label = f"**{home_full}**"
-            if is_home_underdog:
-                home_label = home_label + " **(Underdog)**"
-            cols[3].markdown(home_label)
+            home_label_html = f"<div class='team-name'>{home_full}{' <span style=\"font-weight:700\">(Underdog)</span>' if is_home_underdog else ''}</div>"
+            try:
+                cols[3].markdown(home_label_html, unsafe_allow_html=True)
+            except Exception:
+                # Fallback to plain markdown if HTML rendering is not allowed
+                home_label = f"**{home_full}**"
+                if is_home_underdog:
+                    home_label = home_label + " **(Underdog)**"
+                cols[3].markdown(home_label)
             # home QB name (if available)
             home_qb = str(game_row.get('home_qb_name', '')).strip()
             if home_qb:
                 try:
-                    cols[3].markdown(f"<div style='color:#6b7280;font-size:14px;margin-top:4px;'>QB: {home_qb}</div>", unsafe_allow_html=True)
+                    cols[3].markdown(f"<div class='team-qb'>QB: {home_qb}</div>", unsafe_allow_html=True)
                 except Exception:
                     cols[3].write(f"QB: {home_qb}")
+                    try:
+                        cols[3].markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+                    except Exception:
+                        cols[3].write("")
             # home logo
             home_logo_path = path.join(logo_dir, f"{home_abbr}.png")
             if os.path.exists(home_logo_path):
@@ -717,7 +753,252 @@ if 'game' in params and params.get('game'):
             else:
                 cols[4].write('')
 
-            st.markdown(f"**Spread:** {spread} • **Total:** {total_line}")
+            # Spread and total will be rendered below, centered above the quick-probability metrics
+            # (Rendering moved out of the logo/title column so it centers under the '@' marker)
+        # Centered quick probabilities row (not visually attached to either team)
+        try:
+            # Use a full-width container so the metrics start at the left
+            center_col = st.container()
+            # Add a larger vertical spacer between the team/header row and the info/metrics below
+            try:
+                st.markdown("<div style='height:48px'></div>", unsafe_allow_html=True)
+            except Exception:
+                # Fallback to a simple blank line
+                st.write("")
+
+            # Render spread and total as a centered metric above the three percentage metrics
+            # Format numbers to one decimal place where possible so they match numeric style
+            try:
+                try:
+                    s_val_display = f"{float(spread):.1f}"
+                except Exception:
+                    s_val_display = str(spread)
+                try:
+                    t_val_display = f"{float(total_line):.1f}"
+                except Exception:
+                    t_val_display = str(total_line)
+
+                # Top info row: Weather | Momentum / Recent Form | QB Matchup Index
+                # These are lightweight, computed from the available `game_row` and `preds` datasets.
+                try:
+                    top_info = center_col.columns([1, 1, 1])
+
+                    # Weather (temp, wind, roof/surface)
+                    try:
+                        temp = game_row.get('temp', '')
+                        wind = game_row.get('wind', '')
+                        roof = game_row.get('roof', '') if 'roof' in game_row else ''
+                        weather_parts = []
+                        if temp is not None and str(temp).strip() != '':
+                            weather_parts.append(f"{temp}°F")
+                        if wind is not None and str(wind).strip() != '':
+                            weather_parts.append(f"{wind} mph wind")
+                        if roof is not None and str(roof).strip() != '':
+                            weather_parts.append(str(roof))
+                        weather_text = ' · '.join(weather_parts) if len(weather_parts) > 0 else 'N/A'
+                        try:
+                            top_info[0].metric("Weather", weather_text)
+                        except Exception:
+                            top_info[0].write(f"**Weather:** {weather_text}")
+                    except Exception:
+                        top_info[0].write("")
+
+                    # Momentum / Recent form (last 3 games for each team)
+                    try:
+                        def _recent_form(team, n=3):
+                            try:
+                                df_t = preds[(preds['home_team'] == team) | (preds['away_team'] == team)].copy()
+                                if df_t.empty:
+                                    return None
+                                df_t['gameday_dt'] = pd.to_datetime(df_t['gameday'], errors='coerce')
+                                gday = pd.to_datetime(game_row.get('gameday', ''), errors='coerce')
+                                df_t = df_t[df_t['gameday_dt'] < gday].sort_values('gameday_dt', ascending=False)
+                                df_t = df_t.head(n)
+                                if df_t.empty:
+                                    return None
+                                wins = 0
+                                plays = 0
+                                for _, r in df_t.iterrows():
+                                    try:
+                                        hs = r.get('home_score', None)
+                                        ascore = r.get('away_score', None)
+                                        if pd.isna(hs) or pd.isna(ascore):
+                                            continue
+                                        hs = int(hs)
+                                        ascore = int(ascore)
+                                        plays += 1
+                                        if r.get('home_team') == team:
+                                            if hs > ascore:
+                                                wins += 1
+                                        else:
+                                            if ascore > hs:
+                                                wins += 1
+                                    except Exception:
+                                        continue
+                                return (wins, plays - wins) if plays > 0 else None
+                            except Exception:
+                                return None
+
+                        home_recent = _recent_form(home)
+                        away_recent = _recent_form(away)
+                        if home_recent is None and away_recent is None:
+                            # Fallback to season win pct if available
+                            hwp = game_row.get('homeTeamCurrentSeasonWinPct', None)
+                            awp = game_row.get('awayTeamCurrentSeasonWinPct', None)
+                            if hwp is not None and awp is not None:
+                                mom_text = f"Home: {hwp:.0%} · Away: {awp:.0%}"
+                            else:
+                                mom_text = 'N/A'
+                        else:
+                            htxt = f"{home_recent[0]}-{home_recent[1]}" if home_recent is not None else 'N/A'
+                            atxt = f"{away_recent[0]}-{away_recent[1]}" if away_recent is not None else 'N/A'
+                            mom_text = f"Home: {htxt} · Away: {atxt}"
+                        try:
+                            top_info[1].metric("Momentum (Win/Loss in last 3 games)", mom_text)
+                        except Exception:
+                            top_info[1].write(f"**Momentum:** {mom_text}")
+                    except Exception:
+                        top_info[1].write("")
+
+                    # QB Matchup Index (simple recent-win based index for each QB)
+                    try:
+                        def _qb_recent(qb_name, n=5):
+                            try:
+                                if not qb_name or str(qb_name).strip() == '':
+                                    return None
+                                df_q = preds[(preds['home_qb_name'] == qb_name) | (preds['away_qb_name'] == qb_name)].copy()
+                                if df_q.empty:
+                                    return None
+                                df_q['gameday_dt'] = pd.to_datetime(df_q['gameday'], errors='coerce')
+                                gday = pd.to_datetime(game_row.get('gameday', ''), errors='coerce')
+                                df_q = df_q[df_q['gameday_dt'] < gday].sort_values('gameday_dt', ascending=False).head(n)
+                                if df_q.empty:
+                                    return None
+                                wins = 0
+                                plays = 0
+                                for _, r in df_q.iterrows():
+                                    try:
+                                        hs = r.get('home_score', None)
+                                        ascore = r.get('away_score', None)
+                                        if pd.isna(hs) or pd.isna(ascore):
+                                            continue
+                                        hs = int(hs); ascore = int(ascore)
+                                        plays += 1
+                                        if r.get('home_qb_name') == qb_name:
+                                            if hs > ascore:
+                                                wins += 1
+                                        elif r.get('away_qb_name') == qb_name:
+                                            if ascore > hs:
+                                                wins += 1
+                                    except Exception:
+                                        continue
+                                return (wins, plays)
+                            except Exception:
+                                return None
+
+                        home_qb = str(game_row.get('home_qb_name', '')).strip()
+                        away_qb = str(game_row.get('away_qb_name', '')).strip()
+                        hqb = _qb_recent(home_qb)
+                        aqb = _qb_recent(away_qb)
+                        if hqb is None and aqb is None:
+                            qb_text = 'N/A'
+                        else:
+                            htxt = f"{hqb[0]}/{hqb[1]}" if hqb is not None else 'N/A'
+                            atxt = f"{aqb[0]}/{aqb[1]}" if aqb is not None else 'N/A'
+                            qb_text = f"Home: {htxt} · Away: {atxt}"
+                        try:
+                            top_info[2].metric("QB Recent (Wins and Games Played)", qb_text)
+                        except Exception:
+                            top_info[2].write(f"**QB:** {qb_text}")
+                    except Exception:
+                        top_info[2].write("")
+                except Exception:
+                    # if top_info row fails, continue without it
+                    pass
+
+                top_inner = center_col.columns([1, 1, 1])
+                # Place the Spread above the left (ML%) metric and Total above the center (SP%) metric
+                # so they share the same numeric styling and vertical alignment as the percent metrics.
+                try:
+                    top_inner[0].metric("Spread", f"{s_val_display}")
+                except Exception:
+                    top_inner[0].write("")
+                try:
+                    top_inner[1].metric("Total", f"{t_val_display}")
+                except Exception:
+                    top_inner[1].write("")
+
+                # Compute best available model edge and render above the right (Over %) metric
+                try:
+                    candidates = [
+                        ("ML", game_row.get('edge_underdog_ml', None)),
+                        ("Spread", game_row.get('edge_underdog_spread', None)),
+                        ("Total", game_row.get('edge_over', None)),
+                        ("Under", game_row.get('edge_under', None))
+                    ]
+                    best_label = None
+                    best_val = None
+                    for label, raw in candidates:
+                        try:
+                            if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+                                continue
+                            v = float(raw)
+                        except Exception:
+                            continue
+                        if best_val is None or v > best_val:
+                            best_val = v
+                            best_label = label
+
+                    if best_val is not None and best_label is not None:
+                        display_label = f"Edge ({best_label})"
+                        display_value = f"{best_val:.1f} pts"
+                        try:
+                            top_inner[2].metric(display_label, display_value, delta=best_val)
+                        except Exception:
+                            top_inner[2].write(f"{display_label}: {display_value}")
+                    else:
+                        top_inner[2].write("")
+                except Exception:
+                    top_inner[2].write("")
+            except Exception:
+                # If metrics fail, fall back to plain centered markdown
+                try:
+                    center_col.markdown(f"**Spread:** {spread} • **Total:** {total_line}")
+                except Exception:
+                    center_col.markdown(f"<div style='text-align:center;font-weight:600;margin-bottom:6px;'>**Spread:** {spread} • **Total:** {total_line}</div>", unsafe_allow_html=True)
+
+            inner = center_col.columns([1, 1, 1])
+            if prob_ml is not None:
+                inner[0].metric("Moneyline Probability %", f"{prob_ml:.2%}")
+            else:
+                inner[0].write("")
+            if prob_spread is not None:
+                inner[1].metric("Spread Probability %", f"{prob_spread:.2%}")
+            else:
+                inner[1].write("")
+            if prob_over is not None:
+                inner[2].metric("Over Probability %", f"{prob_over:.2%}")
+            else:
+                inner[2].write("")
+        except Exception:
+            # Fallback to centered markdown
+            try:
+                st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+                if prob_ml is not None:
+                    st.markdown(f"**Moneyline Prob (underdog):** {prob_ml:.2%}")
+                if prob_spread is not None:
+                    st.markdown(f"**Spread Prob (underdog):** {prob_spread:.2%}")
+                if prob_over is not None:
+                    st.markdown(f"**Totals Over Prob:** {prob_over:.2%}")
+                st.markdown("</div>", unsafe_allow_html=True)
+            except Exception:
+                # Last-resort plain text
+                if prob_ml is not None:
+                    st.write(f"Moneyline Prob (underdog): {prob_ml:.2%}")
+                if prob_spread is not None:
+                    st.write(f"Spread Prob (underdog): {prob_spread:.2%}")
+                if prob_over is not None:
+                    st.write(f"Totals Over Prob: {prob_over:.2%}")
             st.markdown(f"**Moneylines:** {away}: {ml_away} — {home}: {ml_home}")
             # Game date/time formatting: omit the time if it's exactly 00:00:00
             try:
@@ -732,42 +1013,47 @@ if 'game' in params and params.get('game'):
                 st.write(f"**Stadium:** {stadium}")
             except Exception:
                 pass
+
         with col_b:
-            # Quick probabilities (if available)
-            prob_ml = game_row.get('prob_underdogWon', None)
-            prob_spread = game_row.get('prob_underdogCovered', None)
-            prob_over = game_row.get('prob_overHit', None)
-            if prob_ml is not None:
-                st.metric("Moneyline Prob (underdog)", f"{prob_ml:.2%}")
-            if prob_spread is not None:
-                st.metric("Spread Prob (underdog)", f"{prob_spread:.2%}")
-            if prob_over is not None:
-                st.metric("Totals Over Prob", f"{prob_over:.2%}")
+            # Right column: show a compact "Model Edge vs Market" metric (best available)
+            try:
+                # Collect possible edge fields from the game row
+                candidates = [
+                    ("ML", game_row.get('edge_underdog_ml', None)),
+                    ("Spread", game_row.get('edge_underdog_spread', None)),
+                    ("Total", game_row.get('edge_over', None)),
+                    ("Under", game_row.get('edge_under', None))
+                ]
+
+                best_label = None
+                best_val = None
+                for label, raw in candidates:
+                    try:
+                        if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+                            continue
+                        v = float(raw)
+                    except Exception:
+                        continue
+                    # Prefer the largest positive edge; if none positive, pick the max value (least negative)
+                    if best_val is None or v > best_val:
+                        best_val = v
+                        best_label = label
+
+                # We moved the visual presentation of the best edge into the top-right cell
+                # above the percentage metrics; keep this column minimal here.
+                col_b.write("")
+            except Exception:
+                # Keep minimal if anything goes wrong
+                try:
+                    st.write("")
+                except Exception:
+                    pass
 
     # Play-by-play viewer intentionally removed from per-game page to reduce memory usage.
     # If detailed play-level analysis is needed, use the Historical Data page instead.
 
-    # Betting history for the game
-    st.write("---")
-    st.write("#### Betting Log Entries")
-    if betting_log is None or betting_log.empty:
-        st.info("No betting log available.")
-    else:
-        try:
-            log_game = betting_log[betting_log['game_id'].astype(str) == str(game_id)]
-        except Exception:
-            log_game = pd.DataFrame()
-
-        if log_game.empty:
-            st.info("No betting log entries for this game.")
-        else:
-            st.dataframe(log_game)
-            try:
-                st.download_button(label="📥 Download Betting Log (CSV)", data=convert_df_to_csv(log_game), file_name=f"betting_log_game_{game_id}.csv", mime='text/csv')
-            except Exception:
-                pass
-
-    st.write("---")
+    # Betting log removed from per-game view by user request
+    # (If you need betting history elsewhere, see the Performance dashboard page.)
     # Use an explicit HTML anchor with target="_self" to ensure same-tab navigation
     st.markdown("<a href='?' target='_self' style='text-decoration:none;font-weight:600;'>Return to Predictions</a>", unsafe_allow_html=True)
 
