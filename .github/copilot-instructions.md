@@ -175,6 +175,15 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 - **Season-Aware Matching**: When matching schedule rows to prediction rows prefer candidates whose `season` matches the game year to avoid historic game_id collisions.
 - **Download Buttons UX**: Sidebar download controls should be rendered from placeholders and populated only after `predictions_df` and the betting log finish loading to avoid rendering heavy widgets during initial load.
 
+## Recent Changes (Nov 26, 2025)
+
+- **Per‑Game Layout & Left‑Alignment**: Adjusted the per‑game detail layout so the info/metrics start at the left edge (removed previous centered spacer). This makes the header and metrics align more naturally with the rest of the app.
+- **Team / QB Presentation**: Team names now use a larger, bold style and QB lines include added vertical spacing for clarity. Inline responsive CSS classes (`.team-name`, `.team-qb`) were added with a mobile media query to keep the per‑game header tidy on small screens.
+- **Removed Betting Log From Per‑Game UI**: The betting-log table and per‑game CSV download were intentionally removed from the per‑game detail page to reduce clutter and avoid unnecessary file reads; the centralized betting log remains available in the Performance dashboard.
+- **Memory & Safety**: The per‑game page avoids loading the full play‑by‑play dataset by default and no longer reads the betting log CSV during initial per‑game rendering to reduce memory usage on Streamlit Cloud.
+- **Stability Fix**: Fixed a `NameError` by ensuring the `st.columns(...)` container is created unconditionally before it's referenced, preventing crashes when earlier conditionals are not taken.
+
+When modifying UI behavior or styling, follow the existing memory and lazy-loading patterns so the app remains stable in Streamlit Cloud and CI smoke tests continue to pass.
 When changing UI behavior or routing, preserve these patterns to keep the app memory-efficient and compatible with Streamlit Cloud deployments.
 
 When making further UI changes, keep these patterns in mind so the app remains stable under Streamlit runner and in CI smoke-test scenarios.
