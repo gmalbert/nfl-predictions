@@ -6,6 +6,7 @@
 /share/*
 .github/*
 !.github/copilot-instructions.md
+!.github/workflows/send_predictions_schedule.yml
 .venv/*
 venv/
 
