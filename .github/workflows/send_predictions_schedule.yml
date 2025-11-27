@@ -1,0 +1,53 @@
+name: Send Predictions Email (scheduled)
+
+on:
+  schedule:
+    # America/New_York 8:00 PM Wednesday mapping:
+    # - Sept & Oct (EDT, UTC-4): 20:00 EDT on Wed => 00:00 UTC Thu
+    - cron: '0 0 * 9-10 thu'
+    # - Nov, Dec, Jan (EST, UTC-5): 20:00 EST on Wed => 01:00 UTC Thu
+    - cron: '0 1 * 11-12,1 thu'
+  workflow_dispatch: {}
+
+jobs:
+  send_predictions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: "Pre-flight: verify required secrets"
+        env:
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        run: |
+          if [ -z "$EMAIL_FROM" ] || [ -z "$EMAIL_TO" ] || [ -z "$EMAIL_PASSWORD" ] || [ -z "$SMTP_SERVER" ] || [ -z "$SMTP_PORT" ]; then
+            echo "ERROR: Missing required secrets. Please set the following GitHub Actions secrets: EMAIL_FROM, EMAIL_TO, EMAIL_PASSWORD, SMTP_SERVER, SMTP_PORT"
+            echo "Tip: In the repo, go to Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "All required secrets present (values not displayed)."
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run predictions email sender
+        env:
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        run: |
+          python scripts/send_rich_email_now.py
