@@ -797,7 +797,12 @@ if 'game' in params and params.get('game'):
                             weather_parts.append(str(roof))
                         weather_text = ' · '.join(weather_parts) if len(weather_parts) > 0 else 'N/A'
                         try:
-                            top_info[0].metric("Weather", weather_text)
+                            # Tooltip explains fields: temperature, wind, roof/surface
+                            top_info[0].markdown(
+                                "<div title='Temperature, wind, and roof/surface. Example: 60.0°F · 5.0 mph wind · outdoors' style='font-size:12px;font-weight:600;margin-bottom:4px'>Weather</div>",
+                                unsafe_allow_html=True,
+                            )
+                            top_info[0].metric("", weather_text)
                         except Exception:
                             top_info[0].write(f"**Weather:** {weather_text}")
                     except Exception:
@@ -854,7 +859,12 @@ if 'game' in params and params.get('game'):
                             atxt = f"{away_recent[0]}-{away_recent[1]}" if away_recent is not None else 'N/A'
                             mom_text = f"Home: {htxt} · Away: {atxt}"
                         try:
-                            top_info[1].metric("Momentum (Win/Loss in last 3 games)", mom_text)
+                            # Tooltip: recent form (wins-losses) over last 3 games for each team
+                            top_info[1].markdown(
+                                "<div title='Win/Loss record in the last 3 games for each team. Format: Home: W-L · Away: W-L' style='font-size:12px;font-weight:600;margin-bottom:4px'>Momentum (Win/Loss in last 3 games)</div>",
+                                unsafe_allow_html=True,
+                            )
+                            top_info[1].metric("", mom_text)
                         except Exception:
                             top_info[1].write(f"**Momentum:** {mom_text}")
                     except Exception:
@@ -907,7 +917,12 @@ if 'game' in params and params.get('game'):
                             atxt = f"{aqb[0]}/{aqb[1]}" if aqb is not None else 'N/A'
                             qb_text = f"Home: {htxt} · Away: {atxt}"
                         try:
-                            top_info[2].metric("QB Recent (Wins and Games Played)", qb_text)
+                            # Tooltip: recent QB performance (wins/games played) over last 5 games
+                            top_info[2].markdown(
+                                "<div title='Wins and games played for each QB over recent games (format: Wins/Games). Example: Home: 3/5 · Away: 3/5' style='font-size:12px;font-weight:600;margin-bottom:4px'>QB Recent (Wins and Games Played)</div>",
+                                unsafe_allow_html=True,
+                            )
+                            top_info[2].metric("", qb_text)
                         except Exception:
                             top_info[2].write(f"**QB:** {qb_text}")
                     except Exception:
@@ -920,11 +935,21 @@ if 'game' in params and params.get('game'):
                 # Place the Spread above the left (ML%) metric and Total above the center (SP%) metric
                 # so they share the same numeric styling and vertical alignment as the percent metrics.
                 try:
-                    top_inner[0].metric("Spread", f"{s_val_display}")
+                    # Tooltip: point spread line (positive => home favored). Example: -3.5
+                    top_inner[0].markdown(
+                        "<div title='Point spread line (positive => home favored). Example: -3.5' style='font-size:12px;font-weight:600;margin-bottom:4px'>Spread</div>",
+                        unsafe_allow_html=True,
+                    )
+                    top_inner[0].metric("", f"{s_val_display}")
                 except Exception:
                     top_inner[0].write("")
                 try:
-                    top_inner[1].metric("Total", f"{t_val_display}")
+                    # Tooltip: over/under total points line
+                    top_inner[1].markdown(
+                        "<div title='Over/Under total points line for the game. Example: 52.5' style='font-size:12px;font-weight:600;margin-bottom:4px'>Total</div>",
+                        unsafe_allow_html=True,
+                    )
+                    top_inner[1].metric("", f"{t_val_display}")
                 except Exception:
                     top_inner[1].write("")
 
@@ -953,7 +978,12 @@ if 'game' in params and params.get('game'):
                         display_label = f"Edge ({best_label})"
                         display_value = f"{best_val:.1f} pts"
                         try:
-                            top_inner[2].metric(display_label, display_value, delta=best_val)
+                            # Tooltip: model edge vs market (displayed in points). Raw value shown for precision.
+                            top_inner[2].markdown(
+                                f"<div title='Model edge vs market for {best_label}. Raw value: {best_val}' style='font-size:12px;font-weight:600;margin-bottom:4px'>{display_label}</div>",
+                                unsafe_allow_html=True,
+                            )
+                            top_inner[2].metric("", display_value, delta=best_val)
                         except Exception:
                             top_inner[2].write(f"{display_label}: {display_value}")
                     else:
@@ -969,15 +999,30 @@ if 'game' in params and params.get('game'):
 
             inner = center_col.columns([1, 1, 1])
             if prob_ml is not None:
-                inner[0].metric("Moneyline Probability %", f"{prob_ml:.2%}")
+                # Tooltip: model probability that the underdog wins (displayed as percent)
+                inner[0].markdown(
+                    "<div title='Model probability that the underdog wins outright (shown as a percentage)' style='font-size:12px;font-weight:600;margin-bottom:4px'>Moneyline Probability %</div>",
+                    unsafe_allow_html=True,
+                )
+                inner[0].metric("", f"{prob_ml:.2%}")
             else:
                 inner[0].write("")
             if prob_spread is not None:
-                inner[1].metric("Spread Probability %", f"{prob_spread:.2%}")
+                # Tooltip: model probability the underdog covers the spread
+                inner[1].markdown(
+                    "<div title='Model probability that the underdog will cover the spread (shown as a percentage)' style='font-size:12px;font-weight:600;margin-bottom:4px'>Spread Probability %</div>",
+                    unsafe_allow_html=True,
+                )
+                inner[1].metric("", f"{prob_spread:.2%}")
             else:
                 inner[1].write("")
             if prob_over is not None:
-                inner[2].metric("Over Probability %", f"{prob_over:.2%}")
+                # Tooltip: model probability that the game total will go over the line
+                inner[2].markdown(
+                    "<div title='Model probability that the game total (points) will be over the published line (shown as a percentage)' style='font-size:12px;font-weight:600;margin-bottom:4px'>Over Probability %</div>",
+                    unsafe_allow_html=True,
+                )
+                inner[2].metric("", f"{prob_over:.2%}")
             else:
                 inner[2].write("")
         except Exception:
