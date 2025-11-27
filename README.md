@@ -118,6 +118,34 @@ python nfl-gather-data.py
 streamlit run predictions.py
 ```
 
+### **Environment variables & .env (local development)**
+
+- The app reads environment variables for optional features such as emailing and RSS feed URL. For local development you can create a `.env` file in the project root and the app will load it automatically.
+- `python-dotenv` is recommended and included in `requirements.txt`. If `python-dotenv` is not installed, the app falls back to a minimal `.env` parser that will still read basic `KEY=VALUE` lines.
+
+Example: copy `.env.example` to `.env` and update values:
+
+```
+EMAIL_FROM=you@example.com
+EMAIL_TO=recipient@example.com
+EMAIL_PASSWORD=your_app_password_here
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+ALERTS_SITE_URL=http://localhost:8501/
+```
+
+- PowerShell example to set environment variables for a single session (optional):
+
+```powershell
+$env:EMAIL_FROM = 'you@example.com'
+$env:EMAIL_TO = 'recipient@example.com'
+$env:EMAIL_PASSWORD = 'your_app_password_here'
+```
+
+- Security note: Do NOT commit real secrets. Add `.env` to your `.gitignore` (the repo currently provides `.env.example` as a template).
+
+- Deployment tip: For Streamlit Cloud or other hosting, prefer the platform's secrets manager (e.g., `st.secrets` on Streamlit Cloud) rather than a `.env` file.
+
 ### **2. Dashboard Sections**
 
 The dashboard uses **modern multi-page navigation** with a main predictions page and dedicated historical data page. Each section displays data with **professional formatting** including percentages, proper date formats, and descriptive column labels.
@@ -611,6 +639,32 @@ This project welcomes contributions! Areas for improvement:
   - `Betting Log` — the `betting_recommendations_log.csv` file
 - **Why you might not see them**: The Streamlit sidebar can be collapsed by default. If you do not see the download buttons, click the small chevron in the top-left of the page to expand the sidebar.
 - **Behavior**: Download buttons are rendered after the app finishes loading data (the app reserves lightweight placeholders while data loads and populates the real `st.download_button` once `predictions_df` and the betting log are available).
+
+## ✉️ Emailing Predictions (Nov 26, 2025)
+
+You can now send predictions via email directly from the app using a Gmail SMTP account and an App Password. The sidebar contains an "Email Predictions" section where you can configure recipients and trigger a send.
+
+Environment variables (recommended):
+
+- `EMAIL_FROM` — sender email address (e.g. `youremail@gmail.com`)
+- `EMAIL_TO` — comma-separated recipient addresses (e.g. `alice@example.com,bob@example.com`)
+- `EMAIL_PASSWORD` — Gmail App Password (create in your Google Account's security settings)
+- `SMTP_SERVER` — SMTP server (default `smtp.gmail.com`)
+- `SMTP_PORT` — SMTP port (default `587`)
+
+Example PowerShell export (set for current session):
+
+```powershell
+$env:EMAIL_FROM = "youremail@gmail.com"
+$env:EMAIL_TO = "recipient@example.com"
+$env:EMAIL_PASSWORD = "<your-app-password>"
+$env:SMTP_SERVER = "smtp.gmail.com"
+$env:SMTP_PORT = "587"
+```
+
+Notes:
+- Do NOT commit credentials to the repository. Use environment variables or a secure secrets store.
+- For production use, consider the Gmail API (OAuth2) or a transactional email provider (SendGrid, Mailgun) for better deliverability and key rotation.
 
 ## 🧪 Smoke Test & Quick Run
 

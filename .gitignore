@@ -14,6 +14,7 @@ venv/
 .vscode/
 *.log
 /data_files/nfl.code-workspace
+*.env
 
 # Python compiled files
 __pycache__/

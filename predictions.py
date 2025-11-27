@@ -24,6 +24,36 @@ import requests
 import sys
 import json
 
+# Load .env automatically if present. Prefer python-dotenv, fallback to a minimal parser.
+try:
+    # Try to use python-dotenv if available (recommended)
+    from dotenv import load_dotenv as _load_dotenv  # type: ignore
+    _load_dotenv()
+except Exception:
+    # Minimal .env loader: read key=value lines and set into os.environ if not already set.
+    def _manual_load_dotenv(dotenv_path='.env'):
+        try:
+            if not os.path.exists(dotenv_path):
+                return
+            with open(dotenv_path, 'r', encoding='utf-8') as fh:
+                for raw in fh:
+                    line = raw.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    if '=' not in line:
+                        continue
+                    key, val = line.split('=', 1)
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    # Don't overwrite existing environment variables
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+        except Exception:
+            # silently ignore parsing errors to avoid breaking the app
+            pass
+
+    _manual_load_dotenv()
+
 # Debug: Print to logs to verify app is running
 # Startup log removed to keep terminal output clean
 
@@ -802,7 +832,7 @@ if 'game' in params and params.get('game'):
                                 "<div title='Temperature, wind, and roof/surface. Example: 60.0°F · 5.0 mph wind · outdoors' style='font-size:12px;font-weight:600;margin-bottom:4px'>Weather</div>",
                                 unsafe_allow_html=True,
                             )
-                            top_info[0].metric("", weather_text)
+                            top_info[0].metric("", weather_text, label_visibility="hidden")
                         except Exception:
                             top_info[0].write(f"**Weather:** {weather_text}")
                     except Exception:
@@ -864,7 +894,7 @@ if 'game' in params and params.get('game'):
                                 "<div title='Win/Loss record in the last 3 games for each team. Format: Home: W-L · Away: W-L' style='font-size:12px;font-weight:600;margin-bottom:4px'>Momentum (Win/Loss in last 3 games)</div>",
                                 unsafe_allow_html=True,
                             )
-                            top_info[1].metric("", mom_text)
+                            top_info[1].metric("", mom_text, label_visibility="hidden")
                         except Exception:
                             top_info[1].write(f"**Momentum:** {mom_text}")
                     except Exception:
@@ -922,7 +952,7 @@ if 'game' in params and params.get('game'):
                                 "<div title='Wins and games played for each QB over recent games (format: Wins/Games). Example: Home: 3/5 · Away: 3/5' style='font-size:12px;font-weight:600;margin-bottom:4px'>QB Recent (Wins and Games Played)</div>",
                                 unsafe_allow_html=True,
                             )
-                            top_info[2].metric("", qb_text)
+                            top_info[2].metric("", qb_text, label_visibility="hidden")
                         except Exception:
                             top_info[2].write(f"**QB:** {qb_text}")
                     except Exception:
@@ -940,7 +970,7 @@ if 'game' in params and params.get('game'):
                         "<div title='Point spread line (positive => home favored). Example: -3.5' style='font-size:12px;font-weight:600;margin-bottom:4px'>Spread</div>",
                         unsafe_allow_html=True,
                     )
-                    top_inner[0].metric("", f"{s_val_display}")
+                    top_inner[0].metric("", f"{s_val_display}", label_visibility="hidden")
                 except Exception:
                     top_inner[0].write("")
                 try:
@@ -949,7 +979,7 @@ if 'game' in params and params.get('game'):
                         "<div title='Over/Under total points line for the game. Example: 52.5' style='font-size:12px;font-weight:600;margin-bottom:4px'>Total</div>",
                         unsafe_allow_html=True,
                     )
-                    top_inner[1].metric("", f"{t_val_display}")
+                    top_inner[1].metric("", f"{t_val_display}", label_visibility="hidden")
                 except Exception:
                     top_inner[1].write("")
 
@@ -983,7 +1013,7 @@ if 'game' in params and params.get('game'):
                                 f"<div title='Model edge vs market for {best_label}. Raw value: {best_val}' style='font-size:12px;font-weight:600;margin-bottom:4px'>{display_label}</div>",
                                 unsafe_allow_html=True,
                             )
-                            top_inner[2].metric("", display_value, delta=best_val)
+                            top_inner[2].metric("", display_value, delta=best_val, label_visibility="hidden")
                         except Exception:
                             top_inner[2].write(f"{display_label}: {display_value}")
                     else:
@@ -1004,7 +1034,7 @@ if 'game' in params and params.get('game'):
                     "<div title='Model probability that the underdog wins outright (shown as a percentage)' style='font-size:12px;font-weight:600;margin-bottom:4px'>Moneyline Probability %</div>",
                     unsafe_allow_html=True,
                 )
-                inner[0].metric("", f"{prob_ml:.2%}")
+                inner[0].metric("", f"{prob_ml:.2%}", label_visibility="hidden")
             else:
                 inner[0].write("")
             if prob_spread is not None:
@@ -1013,7 +1043,7 @@ if 'game' in params and params.get('game'):
                     "<div title='Model probability that the underdog will cover the spread (shown as a percentage)' style='font-size:12px;font-weight:600;margin-bottom:4px'>Spread Probability %</div>",
                     unsafe_allow_html=True,
                 )
-                inner[1].metric("", f"{prob_spread:.2%}")
+                inner[1].metric("", f"{prob_spread:.2%}", label_visibility="hidden")
             else:
                 inner[1].write("")
             if prob_over is not None:
@@ -1022,7 +1052,7 @@ if 'game' in params and params.get('game'):
                     "<div title='Model probability that the game total (points) will be over the published line (shown as a percentage)' style='font-size:12px;font-weight:600;margin-bottom:4px'>Over Probability %</div>",
                     unsafe_allow_html=True,
                 )
-                inner[2].metric("", f"{prob_over:.2%}")
+                inner[2].metric("", f"{prob_over:.2%}", label_visibility="hidden")
             else:
                 inner[2].write("")
         except Exception:
@@ -1177,30 +1207,42 @@ if 'alert' in params and params.get('alert'):
                 else:
                     btype_label = btype.replace('_', ' ').title()
 
-                # Header with logos and friendly names (logos expected at data_files/logos/{ABBR}.png)
-                logo_dir = path.join(DATA_DIR, 'logos')
+                # Header with small team-color markers and friendly names
                 left_col, right_col = st.columns([3, 1])
+                # Small map of team primary colors (hex) for markers. Keeps in-sync
+                # with the later `team_colors` mapping used elsewhere in this file.
+                team_colors_header = {
+                    'ARI': '#97233F', 'ATL': '#A71930', 'BAL': '#241773', 'BUF': '#00338D',
+                    'CAR': '#0085CA', 'CHI': '#0B162A', 'CIN': '#FB4F14', 'CLE': '#311D00',
+                    'DAL': '#002244', 'DEN': '#FB4F14', 'DET': '#0076B6', 'GB': '#203731',
+                    'HOU': '#03202F', 'IND': '#002C5F', 'JAX': '#006778', 'KC': '#E31837',
+                    'LV': '#000000', 'LAC': '#002A5E', 'LA': '#003594', 'LAR': '#003594',
+                    'MIA': '#0091A0', 'MIN': '#4F2683', 'NE': '#0C2340', 'NO': '#D3BC8D',
+                    'NYG': '#0B2265', 'NYJ': '#125740', 'PHI': '#004C54', 'PIT': '#FFB612',
+                    'SF': '#AA0000', 'SEA': '#002244', 'TB': '#D50A0A', 'TEN': '#4B92DB',
+                    'WAS': '#5A1414'
+                }
+
                 with left_col:
-                    # Away team row: logo + name
-                    away_logo_path = path.join(logo_dir, f"{away_abbr}.png")
-                    # Make logo column wider so large widths actually display
-                    c1, c2 = st.columns([1, 4])
-                    if os.path.exists(away_logo_path):
-                        c1.image(away_logo_path, width=300)
-                    else:
-                        c1.write('')
-                    c2.markdown(f"**{away_full}**")
+                    # Away team row: small color marker + full name
+                    away_color = team_colors_header.get(away_abbr, '#6B7280')
+                    away_html = (
+                        f"<span style='display:inline-block;width:12px;height:12px;border-radius:50%;"
+                        f"background:{away_color};margin-right:8px;vertical-align:middle;border:1px solid rgba(0,0,0,0.08)'></span>"
+                        f"<strong style='vertical-align:middle'>{away_full}</strong>"
+                    )
+                    st.markdown(away_html, unsafe_allow_html=True)
 
                     st.write("@")
 
-                    # Home team row: logo + name
-                    home_logo_path = path.join(logo_dir, f"{home_abbr}.png")
-                    c3, c4 = st.columns([1, 4])
-                    if os.path.exists(home_logo_path):
-                        c3.image(home_logo_path, width=300)
-                    else:
-                        c3.write('')
-                    c4.markdown(f"**{home_full}**")
+                    # Home team row: small color marker + full name
+                    home_color = team_colors_header.get(home_abbr, '#6B7280')
+                    home_html = (
+                        f"<span style='display:inline-block;width:12px;height:12px;border-radius:50%;"
+                        f"background:{home_color};margin-right:8px;vertical-align:middle;border:1px solid rgba(0,0,0,0.08)'></span>"
+                        f"<strong style='vertical-align:middle'>{home_full}</strong>"
+                    )
+                    st.markdown(home_html, unsafe_allow_html=True)
 
                 # Right column: friendly bet type label
                 with right_col:
@@ -1467,6 +1509,9 @@ with st.sidebar:
                 st.error(f"Failed to run RSS generator: {e}")
 
         # End of RSS rebuild button handler
+    # Emailing via the sidebar has been removed; use the automated sender instead.
+    # For security and automation, emailing will be handled outside the interactive UI.
+    
     # Data export placeholders: actual buttons are populated after data loads
     try:
         predictions_dl_placeholder = st.empty()
