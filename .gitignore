@@ -1,6 +1,5 @@
 # Python virtual environment files
 /Lib/*
-/Scripts/*
 /Include/*
 /pyvenv.cfg
 /share/*
