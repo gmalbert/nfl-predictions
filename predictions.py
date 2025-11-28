@@ -23,6 +23,19 @@ import re
 import requests
 import sys
 import json
+from io import BytesIO
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+import base64
+import traceback
+import threading
+import http.server
+import socketserver
+import socket
+import functools
 
 # Load .env automatically if present. Prefer python-dotenv, fallback to a minimal parser.
 try:
@@ -134,7 +147,23 @@ def load_predictions_csv():
     """Load predictions CSV with caching"""
     predictions_csv_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
     if os.path.exists(predictions_csv_path):
-        return pd.read_csv(predictions_csv_path, sep='\t')
+        df = pd.read_csv(predictions_csv_path, sep='\t')
+        # Prefer returning the latest-season predictions for the UI (avoids showing only 2020).
+        # If a current season is present, use it; otherwise use the newest season available.
+        try:
+            if 'season' in df.columns:
+                seasons = pd.to_numeric(df['season'], errors='coerce').dropna().astype(int)
+                if len(seasons) > 0:
+                    cur_year = datetime.now().year
+                    if cur_year in seasons.values:
+                        return df[df['season'] == cur_year].reset_index(drop=True)
+                    # Fallback: use the most recent season in the file
+                    latest = int(seasons.max())
+                    return df[df['season'] == latest].reset_index(drop=True)
+        except Exception:
+            # If anything goes wrong deciding season, return the full dataframe
+            return df
+        return df
     return None
 
 
@@ -154,6 +183,139 @@ def convert_df_to_csv(df: pd.DataFrame) -> bytes:
             except Exception:
                 pass
         return df2.to_csv(index=False).encode('utf-8')
+
+
+def generate_predictions_pdf(df: pd.DataFrame, max_rows: int = 200) -> bytes:
+    """Generate a simple PDF summary of the predictions DataFrame and return bytes.
+
+    Keeps layout compact and avoids embedding large images. Uses a landscape
+    letter page with a table of core fields.
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), topMargin=0.4 * inch)
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=16, alignment=1)
+
+    story = []
+    story.append(Paragraph("NFL Predictions", title_style))
+    story.append(Spacer(1, 8))
+
+    date_text = f"Generated: {datetime.now().strftime('%B %d, %Y %H:%M')}"
+    story.append(Paragraph(date_text, styles['Normal']))
+    story.append(Spacer(1, 8))
+
+    # Table header and column selection - keep columns compact for readability
+    # Short, compact headers to improve fit on the PDF
+    header = ['Gameday', 'Home', 'Away', 'Spread', 'Total', 'Home ML', 'Away ML', 'Pr Cover', 'Pr Win', 'Pr Over']
+    table_data = [header]
+    # Only include games that are today or later (no past games)
+    try:
+        today_dt = pd.to_datetime(datetime.now().date())
+        if 'gameday' in df.columns:
+            gamedays = pd.to_datetime(df['gameday'], errors='coerce')
+            upcoming_mask = gamedays >= today_dt
+            df_to_use = df[upcoming_mask]
+        else:
+            df_to_use = df.copy()
+    except Exception:
+        df_to_use = df.copy()
+
+    # If there are no upcoming games, emit a short message instead of a table
+    if df_to_use is None or len(df_to_use) == 0:
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("No upcoming games found for the selected predictions.", styles['Normal']))
+        try:
+            doc.build(story)
+        except Exception:
+            pass
+
+        buffer.seek(0)
+        return buffer.getvalue()
+
+    # Fill rows (limit to max_rows for performance)
+    for _, row in df_to_use.head(max_rows).iterrows():
+        try:
+            gameday_val = row.get('gameday', '')
+            gameday = ''
+            if pd.notna(gameday_val):
+                try:
+                    dt = pd.to_datetime(gameday_val)
+                    # If time is exactly midnight, only show the date (hide 00:00:00)
+                    if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+                        gameday = dt.strftime('%Y-%m-%d')
+                    else:
+                        gameday = dt.strftime('%Y-%m-%d %H:%M')
+                except Exception:
+                    gameday = str(gameday_val)
+
+            def fmt(v, digits=2):
+                try:
+                    if pd.isna(v):
+                        return ''
+                    if isinstance(v, (int, float, np.floating, np.integer)):
+                        return f"{v:.{digits}f}"
+                    return str(v)
+                except Exception:
+                    return str(v)
+
+            row_vals = [
+                gameday,
+                row.get('home_team', ''),
+                row.get('away_team', ''),
+                fmt(row.get('spread_line', '')),
+                fmt(row.get('total_line', '')),
+                str(row.get('home_moneyline', '')),
+                str(row.get('away_moneyline', '')),
+                fmt(row.get('prob_underdogCovered', ''), 2),
+                fmt(row.get('prob_underdogWon', ''), 2),
+                fmt(row.get('prob_overHit', ''), 2),
+            ]
+            table_data.append(row_vals)
+        except Exception:
+            # Skip problematic rows but continue building the PDF
+            continue
+
+    # Create table with reasonable column widths for landscape
+    # Adjust column widths for a tighter, print-friendly layout
+    col_widths = [1.0 * inch, 1.0 * inch, 1.0 * inch, 0.6 * inch, 0.6 * inch, 0.8 * inch, 0.8 * inch, 0.6 * inch, 0.6 * inch, 0.6 * inch]
+    table = Table(table_data, colWidths=col_widths)
+
+    table_style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2f4f4f')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        # Smaller header and body fonts to fit more content
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+        # Tighter paddings for compact layout
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.black),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7f7f7')]),
+        # Alignments: header centered, numeric columns right-aligned for readability
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('ALIGN', (3, 1), (6, -1), 'RIGHT'),
+        ('ALIGN', (7, 1), (9, -1), 'RIGHT')
+    ])
+    table.setStyle(table_style)
+
+    story.append(table)
+
+    # Build PDF
+    try:
+        doc.build(story)
+    except Exception:
+        # If building fails, return an empty bytes object instead of crashing the app
+        return b''
+
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+
 
 
 def get_base_url_from_browser(timeout_ms: int = 1000):
@@ -1516,10 +1678,12 @@ with st.sidebar:
     try:
         predictions_dl_placeholder = st.empty()
         betting_log_dl_placeholder = st.empty()
+        pdf_dl_placeholder = st.empty()
     except Exception:
         # Fallback: ignore sidebar placeholders if creation fails
         predictions_dl_placeholder = None
         betting_log_dl_placeholder = None
+        pdf_dl_placeholder = None
 
 # Sidebar filters
 
@@ -1551,6 +1715,40 @@ with st.spinner("🏈 Loading NFL data..."):
         # Loading predictions log suppressed
         predictions_df = load_predictions_csv()
         # Loaded predictions (log suppressed)
+        # One-time debug: show which season was selected in the returned predictions dataframe
+        try:
+            shown_key = '_shown_selected_season'
+            if not st.session_state.get(shown_key, False):
+                sel_text = "Unknown"
+                # Prefer seasons for upcoming/future games only to confirm what the user will see
+                if predictions_df is not None and 'season' in predictions_df.columns and 'gameday' in predictions_df.columns and len(predictions_df) > 0:
+                    try:
+                        gamedays = pd.to_datetime(predictions_df['gameday'], errors='coerce')
+                        today_dt = pd.to_datetime(datetime.now().date())
+                        upcoming_mask = gamedays >= today_dt
+                        upcoming_df = predictions_df[upcoming_mask]
+                        if len(upcoming_df) > 0:
+                            seasons = sorted(upcoming_df['season'].dropna().unique().tolist())
+                        else:
+                            # Fallback to all seasons in the file if no future games are present
+                            seasons = sorted(predictions_df['season'].dropna().unique().tolist())
+                    except Exception:
+                        seasons = sorted(predictions_df['season'].dropna().unique().tolist())
+
+                    if len(seasons) == 1:
+                        sel_text = str(seasons[0])
+                    else:
+                        sel_text = ", ".join(str(s) for s in seasons)
+                elif predictions_df is not None and 'season' in predictions_df.columns:
+                    seasons = sorted(predictions_df['season'].dropna().unique().tolist())
+                    sel_text = ", ".join(str(s) for s in seasons) if seasons else "Unknown"
+
+                # Small one-time UI hint in the sidebar to confirm which season(s) are present
+                # st.sidebar.info(f"Selected season(s): {sel_text} (upcoming games only)")
+                st.session_state[shown_key] = True
+        except Exception:
+            # Non-fatal: ignore any UI errors for the debug display
+            pass
 
     # Load play-by-play data (for historical analysis)
     progress_bar.progress(75, text="Loading play-by-play...")
@@ -1597,6 +1795,65 @@ try:
             except Exception:
                 # If reading the file fails, skip the button
                 pass
+    # PDF export: generate on demand to avoid pre-building large binary at load time
+    if 'pdf_dl_placeholder' in globals() and pdf_dl_placeholder is not None:
+        if predictions_df is not None:
+            try:
+                # Provide a small button to generate the PDF; after generation expose a download button
+                if pdf_dl_placeholder.button("📄 Generate Predictions PDF"):
+                    try:
+                        pdf_bytes = generate_predictions_pdf(predictions_df)
+                    except Exception as e:
+                        st.sidebar.error(f"PDF generation failed: {e}")
+                        st.sidebar.text(traceback.format_exc())
+                        pdf_bytes = b''
+
+                    if pdf_bytes:
+                        # Save the generated PDF to the exports folder and expose a link
+                        try:
+                            exports_dir = path.join(DATA_DIR, 'exports')
+                            os.makedirs(exports_dir, exist_ok=True)
+                            filename = f'nfl_predictions_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+                            file_path = path.join(exports_dir, filename)
+                            with open(file_path, 'wb') as f:
+                                f.write(pdf_bytes)
+
+                            # Provide a link to the saved file and a download button as a fallback
+                            # Use a relative path with forward slashes so links render correctly in the browser
+                            rel_path = f"data_files/exports/{filename}"
+                            # Provide a relative link that works from the app's current URL and
+                            # also show the absolute path so users can open the file locally.
+                            rel_link = f"./{rel_path}"
+                            abs_path = os.path.abspath(file_path)
+                            # Inform the user the PDF was saved; the download button is the primary way
+                            # to retrieve the file so we no longer render an 'Open PDF' link.
+                            # st.sidebar.success("PDF generated and saved to exports folder.")
+                            try:
+                                st.sidebar.write(f"PDF saved.")
+                            except Exception:
+                                pass
+
+                            # Also expose a download button so users can download immediately
+                            try:
+                                with open(file_path, 'rb') as _f:
+                                    file_bytes = _f.read()
+                                pdf_dl_placeholder.download_button(
+                                    label="⬇️ Download Predictions (PDF)",
+                                    data=file_bytes,
+                                    file_name=filename,
+                                    mime='application/pdf'
+                                )
+                            except Exception as e:
+                                st.sidebar.error(f"Saved PDF but failed to create download button: {e}")
+
+                        except Exception as e:
+                            st.sidebar.error(f"Failed to save generated PDF: {e}")
+                    else:
+                        st.sidebar.error("Failed to generate PDF.")
+            except Exception as e:
+                # Surface any unexpected errors to the user to aid debugging
+                st.sidebar.error(f"PDF export handler error: {e}")
+                st.sidebar.text(traceback.format_exc())
 except Exception:
     # Do not fail the app if sidebar population fails
     pass

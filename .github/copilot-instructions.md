@@ -42,6 +42,12 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
       time.sleep(0.5)
       progress_bar.empty()
   ```
+ - **PDF Export pattern**: Generate PDFs on-demand (do not build at module load). Keep PDF generation deterministic, compact, and leak-free. Use ReportLab or an equivalent library to render a landscape letter PDF. Important rules:
+   - Filter source DataFrame to include only upcoming games (today or later) before rendering the PDF table.
+   - Keep headers short (e.g., `Pr Cover`, `Pr Win`, `Pr Over`) and use reduced font sizes/padding for compact layout.
+   - Save generated PDFs to `data_files/exports/` with a timestamped filename and expose a `st.download_button` for download. Do not rely on spawning local HTTP servers for preview links in production.
+   - Provide a concise sidebar success message and the saved path after generation. If no upcoming games exist, write a short message into the PDF ("No upcoming games found...").
+   - Use `BytesIO` for in-memory generation and return bytes to the UI helper so the UI code can save and create the download button.
 - **Cache management**: Provide users control over cached data with sidebar settings. Example:
   ```python
   # Add to sidebar
