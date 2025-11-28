@@ -62,6 +62,7 @@ nflfastR_games_2020_2024.csv
 fetch_nflfastR_games.py
 nflfastR_fields.md
 nflfastR_fields_streamlit.py
+/data_files/exports/*
 
 # Internal VS Code files
 nfl-predictions.code-workspace
