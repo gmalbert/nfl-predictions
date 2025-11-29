@@ -7,7 +7,7 @@ enableXsrfProtection = false
 # Run in headless mode (no browser window on server)
 # Set to true for Streamlit Cloud deployment
 # For local development, you can set this to false to auto-open browser
-headless = false
+headless = true
 
 # Enable websocket compression for large dataset transfers
 # Reduces bandwidth usage when sending large dataframes to browser
