@@ -12,10 +12,34 @@ st.set_page_config(
 import pandas as pd
 import numpy as np
 from os import path
-from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, accuracy_score
-from sklearn.inspection import permutation_importance
+# Optional heavy ML imports are wrapped so Streamlit can start even if packages
+# are missing on the host. If missing, the app will continue to run and show
+# a friendly error later when model training or prediction features are used.
+try:
+    from xgboost import XGBClassifier
+except Exception as _e:
+    XGBClassifier = None
+    # Log import error to stderr so cloud logs contain the root cause
+    try:
+        import sys
+        print(f"[WARN] xgboost import failed: {_e}", file=sys.stderr)
+    except Exception:
+        pass
+
+try:
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import mean_absolute_error, accuracy_score
+    from sklearn.inspection import permutation_importance
+except Exception as _e:
+    train_test_split = None
+    mean_absolute_error = None
+    accuracy_score = None
+    permutation_importance = None
+    try:
+        import sys
+        print(f"[WARN] scikit-learn import failed: {_e}", file=sys.stderr)
+    except Exception:
+        pass
 import os
 from datetime import datetime
 from streamlit.components.v1 import html as components_html
@@ -32,9 +56,6 @@ from reportlab.lib import colors
 import base64
 import traceback
 import threading
-import http.server
-import socketserver
-import socket
 import functools
 
 # Load .env automatically if present. Prefer python-dotenv, fallback to a minimal parser.
