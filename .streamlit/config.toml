@@ -1,32 +1,25 @@
 # Streamlit server configuration
+# Streamlit server configuration
 [server]
-# Increase timeout for slower operations (default is 60 seconds)
-# This helps with loading large datasets like the 196k+ row historical data
+# Use the filesystem watcher only when developing locally; disable on Cloud
 fileWatcherType = "none"
-enableXsrfProtection = false
-
 # Run in headless mode (no browser window on server)
-# Set to true for Streamlit Cloud deployment
-# For local development, you can set this to false to auto-open browser
+# Set to true for Streamlit Cloud deployment; locally you can override
 headless = true
-
 # Enable websocket compression for large dataset transfers
-# Reduces bandwidth usage when sending large dataframes to browser
 enableWebsocketCompression = true
 
 [browser]
-# Automatically open browser when running locally
-#gatherUsageStats = false
+# Browser group left intentionally minimal for Cloud
 
 [runner]
-# Faster script execution
+# Faster script execution for dev cycles
 fastReruns = true
 
 [client]
-# Increase timeouts for slow data operations
-# This is especially important for loading compressed gzip files
-#toolbarMode = "minimal"
+# Show detailed error info in the Cloud logs
 showErrorDetails = true
 
 [logger]
 level = "info"
+[client]

@@ -77,6 +77,13 @@ def _log_uncaught_exception(exc_type, exc_value, exc_tb):
                 pass
     except Exception:
         pass
+    # Give Streamlit Cloud (or any log-forwarder) a small window to capture
+    # the printed traceback before the process exits. This is intentionally
+    # noisy and temporary — it helps debugging remote startup crashes.
+    try:
+        time.sleep(30)
+    except Exception:
+        pass
 
 try:
     sys.excepthook = _log_uncaught_exception
@@ -489,7 +496,20 @@ def start_background_loader():
         t.start()
 
 # Kick off background loading immediately so the server can bind quickly
-start_background_loader()
+try:
+    start_background_loader()
+except Exception as e:
+    try:
+        import sys
+        print(f"[FATAL] start_background_loader failed during startup: {e}", file=sys.stderr)
+        traceback.print_exc()
+    except Exception:
+        pass
+    # Sleep briefly so the platform log collector can capture the message
+    try:
+        time.sleep(30)
+    except Exception:
+        pass
 
 # Function to automatically log betting recommendations
 def log_betting_recommendations(predictions_df):
@@ -2753,10 +2773,11 @@ with pred_tab2:
             if col in display_df.columns:
                 display_df[col] = display_df[col] * 100
         
+        height = get_dataframe_height(display_df)
         st.dataframe(
             display_df, 
             hide_index=True, 
-            height=600,
+            height=height,
             column_config={
                 'gameday': st.column_config.DateColumn('Date', format='MM/DD/YYYY', width='small'),
                 'home_team': st.column_config.TextColumn('Home', width='small'),
