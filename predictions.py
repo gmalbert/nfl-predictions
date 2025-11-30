@@ -59,6 +59,30 @@ import threading
 import time
 import functools
 
+# Application-level startup log and uncaught exception hook so Cloud logs
+# include clear tracebacks when the app crashes during startup.
+try:
+    print(f"[INFO] app import started: {datetime.now().isoformat()}")
+except Exception:
+    pass
+
+def _log_uncaught_exception(exc_type, exc_value, exc_tb):
+    try:
+        print("[ERROR] Uncaught exception:", file=sys.stderr)
+        import traceback as _tb
+        for line in _tb.format_exception(exc_type, exc_value, exc_tb):
+            try:
+                print(line, end='', file=sys.stderr)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+try:
+    sys.excepthook = _log_uncaught_exception
+except Exception:
+    pass
+
 # Load .env automatically if present. Prefer python-dotenv, fallback to a minimal parser.
 try:
     # Try to use python-dotenv if available (recommended)
@@ -150,7 +174,15 @@ current_year = datetime.now().year
 def load_historical_data():
     """Load historical game data with caching"""
     try:
+        print(f"[DEBUG] load_historical_data() called at {datetime.now().isoformat()}")
+    except Exception:
+        pass
+    try:
         data = pd.read_csv(path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv'), sep='\t')
+        try:
+            print(f"[DEBUG] load_historical_data() loaded rows={len(data)}")
+        except Exception:
+            pass
         return data
     except FileNotFoundError:
         st.error("Critical file missing: nfl_games_historical_with_predictions.csv")
@@ -167,9 +199,17 @@ historical_game_level_data = None
 @st.cache_data
 def load_predictions_csv():
     """Load predictions CSV with caching"""
+    try:
+        print(f"[DEBUG] load_predictions_csv() called at {datetime.now().isoformat()}")
+    except Exception:
+        pass
     predictions_csv_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
     if os.path.exists(predictions_csv_path):
         df = pd.read_csv(predictions_csv_path, sep='\t')
+        try:
+            print(f"[DEBUG] load_predictions_csv() loaded rows={len(df)}")
+        except Exception:
+            pass
         # Prefer returning the latest-season predictions for the UI (avoids showing only 2020).
         # If a current season is present, use it; otherwise use the newest season available.
         try:
@@ -384,6 +424,10 @@ def _background_load():
     """Load large CSVs on a daemon thread to avoid blocking Streamlit startup."""
     global historical_game_level_data, predictions_df, data_loader_started
     try:
+        try:
+            print(f"[INFO] background loader started at {datetime.now().isoformat()}")
+        except Exception:
+            pass
         hist_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
         hist_rows = None
         preds_rows = None
@@ -733,6 +777,10 @@ if predictions_df is not None:
 @st.cache_data
 def load_data():
     file_path = path.join(DATA_DIR, 'nfl_play_by_play_historical.csv.gz')
+    try:
+        print(f"[DEBUG] load_data() called at {datetime.now().isoformat()}")
+    except Exception:
+        pass
     if os.path.exists(file_path):
         # Memory-optimized loading with float32/int8 dtypes (only for truly numeric columns)
         historical_data = pd.read_csv(
@@ -759,6 +807,10 @@ def load_data():
                 # These may contain strings or other non-numeric values
             }
         )
+        try:
+            print(f"[DEBUG] load_data() loaded rows={len(historical_data)}")
+        except Exception:
+            pass
         return historical_data
     else:
         st.warning("Historical play-by-play data file not found. Some features may be limited.")
@@ -1795,7 +1847,7 @@ from xgboost import XGBClassifier
 # Non-blocking startup: show a lightweight status while background loader runs.
 if historical_game_level_data is None or predictions_df is None:
     try:
-        st.info("Loading NFL data in background; some features may be unavailable briefly.")
+        # st.info("Loading NFL data in background; some features may be unavailable briefly.")
         # Small progress indicator to reassure the user; does not block long.
         progress_bar = st.progress(0)
         progress_bar.progress(50, text="Background loader running...")
