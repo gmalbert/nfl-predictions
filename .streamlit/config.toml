@@ -21,8 +21,6 @@ enableWebsocketCompression = true
 [runner]
 # Faster script execution
 fastReruns = true
-# Increase startup timeout so Cloud health checks wait longer for heavy app startup
-startupTimeout = 300
 
 [client]
 # Increase timeouts for slow data operations

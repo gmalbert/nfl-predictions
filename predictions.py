@@ -56,6 +56,7 @@ from reportlab.lib import colors
 import base64
 import traceback
 import threading
+import time
 import functools
 
 # Load .env automatically if present. Prefer python-dotenv, fallback to a minimal parser.
@@ -374,6 +375,77 @@ def get_base_url_from_browser(timeout_ms: int = 1000):
 # DON'T load predictions at module level - will be loaded lazily when needed
 predictions_csv_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
 predictions_df = None
+
+# Background data loader state
+data_loader_started = False
+data_loader_lock = threading.Lock()
+
+def _background_load():
+    """Load large CSVs on a daemon thread to avoid blocking Streamlit startup."""
+    global historical_game_level_data, predictions_df, data_loader_started
+    try:
+        hist_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
+        hist_rows = None
+        preds_rows = None
+
+        if os.path.exists(hist_path):
+            try:
+                historical_game_level_data = pd.read_csv(hist_path, sep='\t')
+                try:
+                    hist_rows = len(historical_game_level_data)
+                except Exception:
+                    hist_rows = None
+            except Exception as e:
+                try:
+                    import sys
+                    print(f"[WARN] background historical load failed: {e}", file=sys.stderr)
+                except Exception:
+                    pass
+
+        preds_path = hist_path
+        if os.path.exists(preds_path):
+            try:
+                predictions_df = pd.read_csv(preds_path, sep='\t')
+                try:
+                    preds_rows = len(predictions_df)
+                except Exception:
+                    preds_rows = None
+            except Exception as e:
+                try:
+                    import sys
+                    print(f"[WARN] background predictions load failed: {e}", file=sys.stderr)
+                except Exception:
+                    pass
+
+        # Emit an application-level info log so Streamlit Cloud logs show completion
+        try:
+            import sys
+            info_parts = []
+            if hist_rows is not None:
+                info_parts.append(f"historical_rows={hist_rows}")
+            if preds_rows is not None:
+                info_parts.append(f"predictions_rows={preds_rows}")
+            if info_parts:
+                print(f"[INFO] background load complete: {' '.join(info_parts)}", file=sys.stdout)
+            else:
+                print(f"[INFO] background load complete (no row counts available)", file=sys.stdout)
+        except Exception:
+            pass
+    finally:
+        with data_loader_lock:
+            data_loader_started = True
+
+def start_background_loader():
+    """Start the background loader once."""
+    global data_loader_started
+    with data_loader_lock:
+        if data_loader_started:
+            return
+        t = threading.Thread(target=_background_load, daemon=True)
+        t.start()
+
+# Kick off background loading immediately so the server can bind quickly
+start_background_loader()
 
 # Function to automatically log betting recommendations
 def log_betting_recommendations(predictions_df):
@@ -1720,66 +1792,99 @@ from xgboost import XGBClassifier
 
 # Load data NOW (lazily, only when user accesses the app)
     # Loading logs removed to keep terminal output clean
-with st.spinner("🏈 Loading NFL data..."):
-    progress_bar = st.progress(0)
+# Non-blocking startup: show a lightweight status while background loader runs.
+if historical_game_level_data is None or predictions_df is None:
+    try:
+        st.info("Loading NFL data in background; some features may be unavailable briefly.")
+        # Small progress indicator to reassure the user; does not block long.
+        progress_bar = st.progress(0)
+        progress_bar.progress(50, text="Background loader running...")
 
-    # Load historical data
-    progress_bar.progress(25, text="Loading games...")
-    if historical_game_level_data is None:
-        # Loading historical game data log removed
-        historical_game_level_data = load_historical_data()
-        # Loaded historical game data (log suppressed)
+        # Poll for a short time for the background loader to finish so the UI
+        # can update automatically. This keeps the server binding non-blocking
+        # while ensuring the loading info clears shortly after completion.
+        max_wait = 10.0
+        poll_interval = 0.5
+        waited = 0.0
+        while waited < max_wait:
+            if historical_game_level_data is not None and predictions_df is not None:
+                try:
+                    progress_bar.progress(75, text="Games loaded")
+                    progress_bar.progress(90, text="Predictions loaded")
+                    progress_bar.progress(100, text="Ready")
+                    progress_bar.empty()
+                except Exception:
+                    pass
+                # Re-run the Streamlit script so the fresh data is picked up in UI
+                try:
+                    st.experimental_rerun()
+                except Exception:
+                    # If rerun isn't allowed in this context, just break and allow
+                    # the user to interact/refresh manually.
+                    break
+            time.sleep(poll_interval)
+            waited += poll_interval
+        # If we exit the polling loop without data, leave the info/progress for now.
+    except Exception:
+        # If Streamlit UI isn't available in this runtime, silently continue.
+        pass
+else:
+    # Data already available from background loader
+    pass
 
-    # Load predictions
-    progress_bar.progress(50, text="Loading predictions...")
-    if predictions_df is None:
-        # Loading predictions log suppressed
-        predictions_df = load_predictions_csv()
-        # Loaded predictions (log suppressed)
-        # One-time debug: show which season was selected in the returned predictions dataframe
-        try:
-            shown_key = '_shown_selected_season'
-            if not st.session_state.get(shown_key, False):
-                sel_text = "Unknown"
-                # Prefer seasons for upcoming/future games only to confirm what the user will see
-                if predictions_df is not None and 'season' in predictions_df.columns and 'gameday' in predictions_df.columns and len(predictions_df) > 0:
-                    try:
-                        gamedays = pd.to_datetime(predictions_df['gameday'], errors='coerce')
-                        today_dt = pd.to_datetime(datetime.now().date())
-                        upcoming_mask = gamedays >= today_dt
-                        upcoming_df = predictions_df[upcoming_mask]
-                        if len(upcoming_df) > 0:
-                            seasons = sorted(upcoming_df['season'].dropna().unique().tolist())
-                        else:
-                            # Fallback to all seasons in the file if no future games are present
-                            seasons = sorted(predictions_df['season'].dropna().unique().tolist())
-                    except Exception:
-                        seasons = sorted(predictions_df['season'].dropna().unique().tolist())
-
-                    if len(seasons) == 1:
-                        sel_text = str(seasons[0])
-                    else:
-                        sel_text = ", ".join(str(s) for s in seasons)
-                elif predictions_df is not None and 'season' in predictions_df.columns:
+# One-time debug: show which season was selected in the returned predictions dataframe
+try:
+    shown_key = '_shown_selected_season'
+    if not st.session_state.get(shown_key, False):
+        sel_text = "Unknown"
+        # Prefer seasons for upcoming/future games only to confirm what the user will see
+        if predictions_df is not None and 'season' in predictions_df.columns and 'gameday' in predictions_df.columns and len(predictions_df) > 0:
+            try:
+                gamedays = pd.to_datetime(predictions_df['gameday'], errors='coerce')
+                today_dt = pd.to_datetime(datetime.now().date())
+                upcoming_mask = gamedays >= today_dt
+                upcoming_df = predictions_df[upcoming_mask]
+                if len(upcoming_df) > 0:
+                    seasons = sorted(upcoming_df['season'].dropna().unique().tolist())
+                else:
+                    # Fallback to all seasons in the file if no future games are present
                     seasons = sorted(predictions_df['season'].dropna().unique().tolist())
-                    sel_text = ", ".join(str(s) for s in seasons) if seasons else "Unknown"
+            except Exception:
+                seasons = sorted(predictions_df['season'].dropna().unique().tolist())
 
-                # Small one-time UI hint in the sidebar to confirm which season(s) are present
-                # st.sidebar.info(f"Selected season(s): {sel_text} (upcoming games only)")
-                st.session_state[shown_key] = True
-        except Exception:
-            # Non-fatal: ignore any UI errors for the debug display
-            pass
+            if len(seasons) == 1:
+                sel_text = str(seasons[0])
+            else:
+                sel_text = ", ".join(str(s) for s in seasons)
+        elif predictions_df is not None and 'season' in predictions_df.columns:
+            seasons = sorted(predictions_df['season'].dropna().unique().tolist())
+            sel_text = ", ".join(str(s) for s in seasons) if seasons else "Unknown"
 
-    # Load play-by-play data (for historical analysis)
-    progress_bar.progress(75, text="Loading play-by-play...")
-    if historical_data is None:
-        # Loading play-by-play log suppressed
-        historical_data = load_data()
-        # Loaded historical play-by-play data (log suppressed)
+        # Small one-time UI hint in the sidebar to confirm which season(s) are present
+        # st.sidebar.info(f"Selected season(s): {sel_text} (upcoming games only)")
+        st.session_state[shown_key] = True
+except Exception:
+    # Non-fatal: ignore any UI errors for the debug display
+    pass
 
-    progress_bar.progress(100, text="Ready!")
-    progress_bar.empty()
+# Load play-by-play data (for historical analysis)
+if 'progress_bar' in locals():
+    try:
+        progress_bar.progress(75, text="Loading play-by-play...")
+    except Exception:
+        pass
+
+if historical_data is None:
+    # Loading play-by-play log suppressed
+    historical_data = load_data()
+    # Loaded historical play-by-play data (log suppressed)
+
+if 'progress_bar' in locals():
+    try:
+        progress_bar.progress(100, text="Ready!")
+        progress_bar.empty()
+    except Exception:
+        pass
 
 # Data loading complete (terminal logs suppressed)
 
@@ -2917,7 +3022,8 @@ with pred_tab4:
             # Sort by date
             if 'Date' in final_display.columns:
                 final_display = final_display.sort_values('Date')
-            
+
+            height = get_dataframe_height(final_display) 
             st.dataframe(
                 final_display,
                 column_config={
@@ -2930,7 +3036,7 @@ with pred_tab4:
                     'Model %': st.column_config.NumberColumn(format='%.1f%%'),
                     'Expected Payout': st.column_config.TextColumn(width='large')
                 },
-                height=400,
+                height=height,
                 hide_index=True
             )
             
