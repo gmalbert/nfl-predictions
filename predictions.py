@@ -835,6 +835,53 @@ def load_data():
     else:
         st.warning("Historical play-by-play data file not found. Some features may be limited.")
         return pd.DataFrame()  # Return empty DataFrame as fallback# DON'T load at module level - will be loaded lazily when needed
+
+
+@st.cache_data
+def load_play_by_play_chunked(max_rows: int | None = None, usecols: list | None = None):
+    """Load play-by-play in chunks and return a concatenated DataFrame.
+
+    This is cached and intended to be called on-demand from the UI.
+    Use `max_rows` to limit memory usage for quick samples.
+    """
+    file_path = path.join(DATA_DIR, 'nfl_play_by_play_historical.csv.gz')
+    if not os.path.exists(file_path):
+        return pd.DataFrame()
+
+    # Default columns to read if none specified
+    if usecols is None:
+        usecols = ['game_id', 'play_id', 'qtr', 'desc', 'offense', 'defense', 'yards_gained', 'play_type', 'game_date']
+
+    chunks = []
+    rows_read = 0
+    try:
+        for chunk in pd.read_csv(file_path, compression='gzip', sep=',', usecols=usecols, chunksize=200_000, low_memory=True):
+            # Cast numeric columns to reduce memory footprint early
+            if 'yards_gained' in chunk.columns:
+                chunk['yards_gained'] = pd.to_numeric(chunk['yards_gained'], errors='coerce').astype('float32')
+
+            chunks.append(chunk)
+            rows_read += len(chunk)
+            if max_rows is not None and rows_read >= max_rows:
+                break
+    except Exception:
+        # Fallback to a full read if chunked read fails for unexpected reasons
+        try:
+            df = pd.read_csv(file_path, compression='gzip', sep=',', low_memory=False)
+            return df if max_rows is None else df.head(max_rows)
+        except Exception:
+            return pd.DataFrame()
+
+    if not chunks:
+        return pd.DataFrame()
+
+    df = pd.concat(chunks, ignore_index=True)
+    if max_rows is not None and len(df) > max_rows:
+        df = df.head(max_rows)
+    return df
+
+
+# DON'T load at module level - will be loaded lazily when needed
 historical_data = None
 
 @st.cache_data
@@ -1859,8 +1906,10 @@ filter_keys = [
 
 
 # --- For Monte Carlo Feature Selection ---
-from sklearn.model_selection import train_test_split
-from xgboost import XGBClassifier
+# The heavy ML imports are handled at the top of the file inside
+# try/except blocks so Streamlit can start in headless/cloud environments.
+# `train_test_split` and `XGBClassifier` may be None if the packages
+# are not available; code that needs them should check and handle None.
 
 # Load data NOW (lazily, only when user accesses the app)
     # Loading logs removed to keep terminal output clean
@@ -1946,10 +1995,8 @@ if 'progress_bar' in locals():
     except Exception:
         pass
 
-if historical_data is None:
-    # Loading play-by-play log suppressed
-    historical_data = load_data()
-    # Loaded historical play-by-play data (log suppressed)
+# Play-by-play load has been moved to the Historical Data expander
+# to avoid showing load prompts on the main predictions page.
 
 if 'progress_bar' in locals():
     try:
@@ -2170,13 +2217,35 @@ except Exception as e:
 
 # TEMPORARILY SKIP: Create expander for data views (collapsed by default)
 # This section causes timeout issues with 196k rows - will fix later
-if False:  # Disable this entire expander section for now
+    # Historical Data & Filters (lazy-load play-by-play on demand)
     with st.expander("📊 Historical Data & Filters", expanded=False):
-        # Lazy load historical data only when expander is accessed
-        if historical_data is None:
-            print("📂 Loading historical play-by-play data...", file=sys.stderr, flush=True)
-            historical_data = load_data()
-            print(f"✅ Loaded historical data: {len(historical_data)} rows", file=sys.stderr, flush=True)
+        # On-demand play-by-play load: avoid prompting on the main predictions page
+        if 'historical_data' not in st.session_state or st.session_state.get('historical_data') is None:
+            try:
+                st.info("Historical views need play-by-play data for deep analysis. Load it on demand.")
+            except Exception:
+                pass
+
+            if st.button("Load play-by-play for historical analysis"):
+                try:
+                    with st.spinner("Loading play-by-play (this may take several minutes)..."):
+                        df = load_play_by_play_chunked()
+                        st.session_state['historical_data'] = df
+                        try:
+                            st.success(f"Loaded {len(df):,} play-by-play rows")
+                        except Exception:
+                            pass
+                        try:
+                            st.experimental_rerun()
+                        except Exception:
+                            pass
+                except Exception as e:
+                    try:
+                        st.error(f"Failed to load play-by-play: {e}")
+                    except Exception:
+                        pass
+        else:
+            historical_data = st.session_state.get('historical_data')
     
     # Create tabs for different data views
     tab1, tab2, tab3, tab4 = st.tabs(["🏈 Play-by-Play Data", "📊 Game Summaries", "📅 Schedule", "🔍 Filters"])

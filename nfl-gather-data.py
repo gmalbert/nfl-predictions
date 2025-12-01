@@ -30,9 +30,11 @@ historical_game_level_data['isCloseGame'] = np.where((historical_game_level_data
 historical_game_level_data['isBlowout'] = np.where((historical_game_level_data['home_score'] - historical_game_level_data['away_score']).abs() >= 20, 1, 0)
 historical_game_level_data['totalScore'] = historical_game_level_data['home_score'] + historical_game_level_data['away_score']
 historical_game_level_data['pointDiff'] = (historical_game_level_data['home_score'] - historical_game_level_data['away_score']).abs()
+
 # Fix: Positive spread_line means home team favored, negative means away team favored
 historical_game_level_data['homeFavored'] = np.where(historical_game_level_data['spread_line'] > 0, 1, 0)
 historical_game_level_data['awayFavored'] = np.where(historical_game_level_data['spread_line'] < 0, 1, 0)
+
 # Fix: spreadCovered = 1 when the favored team covers the spread
 historical_game_level_data['spreadCovered'] = np.where((historical_game_level_data['homeFavored'] == 1) & ((historical_game_level_data['home_score'] - historical_game_level_data['away_score']) > historical_game_level_data['spread_line']), 1,
                                                     np.where((historical_game_level_data['awayFavored'] == 1) & ((historical_game_level_data['away_score'] - historical_game_level_data['home_score']) > abs(historical_game_level_data['spread_line'])), 1, 0))

@@ -1,5 +1,4 @@
 # Streamlit server configuration
-# Streamlit server configuration
 [server]
 # Use the filesystem watcher only when developing locally; disable on Cloud
 fileWatcherType = "none"
@@ -15,11 +14,3 @@ enableWebsocketCompression = true
 [runner]
 # Faster script execution for dev cycles
 fastReruns = true
-
-[client]
-# Show detailed error info in the Cloud logs
-showErrorDetails = true
-
-[logger]
-level = "info"
-[client]

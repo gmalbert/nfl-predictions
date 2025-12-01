@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import re
 from os import path
 from datetime import datetime
 
@@ -59,6 +60,162 @@ def load_historical_data():
     else:
         return pd.DataFrame()
 
+
+def _find_most_recent_pbp_info(candidates=None, chunksize=100000):
+    """Scan candidate PBP files in DATA_DIR to detect the most recent season and game_date.
+    Returns a dict: {'file': filename, 'season': int or None, 'game_date': Timestamp or None}
+    """
+    if candidates is None:
+        candidates = ['nfl_play_by_play_historical.csv.gz']
+
+    best = {'file': None, 'season': None, 'game_date': None}
+
+    for fname in candidates:
+        p = path.join(DATA_DIR, fname)
+        if not os.path.exists(p):
+            continue
+        compression = 'gzip' if fname.endswith('.gz') else None
+        try:
+            for chunk in pd.read_csv(p, compression=compression, sep='\t', usecols=['season', 'game_date'], chunksize=chunksize, low_memory=True):
+                # season
+                try:
+                    if 'season' in chunk.columns:
+                        s = pd.to_numeric(chunk['season'], errors='coerce').dropna()
+                        if not s.empty:
+                            maxs = int(s.max())
+                            if best['season'] is None or maxs > best['season']:
+                                best['season'] = maxs
+                                best['file'] = fname
+                except Exception:
+                    pass
+
+                # game_date
+                try:
+                    if 'game_date' in chunk.columns:
+                        g = pd.to_datetime(chunk['game_date'], errors='coerce')
+                        # Only consider game dates that are today or earlier (compare by calendar date)
+                        try:
+                            today_date = datetime.now().date()
+                            g = g[g.dt.date <= today_date]
+                        except Exception:
+                            # Fallback: compare timestamps if .dt is unavailable
+                            today = pd.Timestamp(datetime.now().date())
+                            g = g[g <= today]
+
+                        if not g.empty and not g.isna().all():
+                            maxd = g.max()
+                            if best['game_date'] is None or maxd > best['game_date']:
+                                best['game_date'] = maxd
+                                best['file'] = fname
+                except Exception:
+                    pass
+
+                # If we have both season and game_date and they look recent, stop early
+                if best['season'] is not None and best['game_date'] is not None:
+                    # small heuristic: if game_date year matches season, likely recent enough
+                    try:
+                        if best['game_date'].year == best['season']:
+                            return best
+                    except Exception:
+                        return best
+        except Exception:
+            continue
+
+    return best
+
+
+def _collect_recent_pbp_rows(filename, season=None, max_rows=450, chunksize=5000):
+    """Collect up to max_rows recent rows from filename for the given season (if provided).
+    Returns a DataFrame (possibly empty).
+    """
+    p = path.join(DATA_DIR, filename)
+    if not os.path.exists(p):
+        return pd.DataFrame()
+    compression = 'gzip' if filename.endswith('.gz') else None
+    collected = []
+    try:
+        for chunk in pd.read_csv(p, compression=compression, sep='\t', chunksize=chunksize, low_memory=True):
+            # normalize season if present
+            if season is not None and 'season' in chunk.columns:
+                try:
+                    chunk['season'] = pd.to_numeric(chunk['season'], errors='coerce')
+                except Exception:
+                    pass
+                subset = chunk[chunk['season'] == season]
+            else:
+                subset = chunk
+
+                if not subset.empty:
+                    # Filter out any future-dated games: compare by calendar date to avoid timezone issues
+                    if 'game_date' in subset.columns:
+                        try:
+                            subset['game_date'] = pd.to_datetime(subset['game_date'], errors='coerce')
+                            today_date = datetime.now().date()
+                            subset = subset[subset['game_date'].dt.date <= today_date]
+                        except Exception:
+                            try:
+                                today = pd.Timestamp(datetime.now().date())
+                                subset['game_date'] = pd.to_datetime(subset['game_date'], errors='coerce')
+                                subset = subset[subset['game_date'] <= today]
+                            except Exception:
+                                pass
+
+                    if not subset.empty:
+                        collected.append(subset)
+            if sum(len(c) for c in collected) >= max_rows:
+                break
+    except Exception:
+        return pd.DataFrame()
+
+    if not collected:
+        return pd.DataFrame()
+
+    df = pd.concat(collected, ignore_index=True)
+    # Enforce final filtering and sorting by calendar date to ensure results are <= today and descending
+    if 'game_date' in df.columns:
+        try:
+            df['game_date'] = pd.to_datetime(df['game_date'], errors='coerce')
+            today_date = datetime.now().date()
+            df = df[df['game_date'].dt.date <= today_date]
+            df = df.sort_values(by='game_date', ascending=False)
+        except Exception:
+            try:
+                df['game_date'] = pd.to_datetime(df['game_date'], errors='coerce')
+                today = pd.Timestamp(datetime.now().date())
+                df = df[df['game_date'] <= today]
+                df = df.sort_values(by='game_date', ascending=False)
+            except Exception:
+                pass
+
+    return df.head(max_rows)
+
+
+def _scan_all_pbp_files_for_latest_season(sample_rows=5000):
+    """Quick-scan all CSV/CSV.GZ files in DATA_DIR by reading up to sample_rows
+    and returning the file with the maximum season observed.
+    This is bounded and safe for a quick check.
+    Returns (best_file, best_season) or (None, None).
+    """
+    best_file = None
+    best_season = None
+    for fname in os.listdir(DATA_DIR):
+        if not (fname.endswith('.csv') or fname.endswith('.csv.gz')):
+            continue
+        p = path.join(DATA_DIR, fname)
+        compression = 'gzip' if fname.endswith('.gz') else None
+        try:
+            df = pd.read_csv(p, compression=compression, sep='\t', usecols=['season'], nrows=sample_rows, low_memory=True)
+            if 'season' in df.columns:
+                svals = pd.to_numeric(df['season'], errors='coerce').dropna().astype(int)
+                if not svals.empty:
+                    maxs = int(svals.max())
+                    if best_season is None or maxs > best_season:
+                        best_season = maxs
+                        best_file = fname
+        except Exception:
+            continue
+    return best_file, best_season
+
 st.title("📊 Historical Data & Filters")
 st.write("Historical play-by-play data and game summaries")
 
@@ -66,18 +223,160 @@ st.write("Historical play-by-play data and game summaries")
 if st.button("🏈 Back to Predictions", type="secondary"):
     st.switch_page("predictions.py")
 
-# Load data
-with st.spinner("Loading historical data..."):
-    historical_data = load_historical_data()
+# Do not load the large play-by-play data automatically. Load on demand from the UI.
+if 'historical_data' not in st.session_state or st.session_state.get('historical_data') is None:
+    # Show a small sample immediately so users see content quickly.
+    file_path = path.join(DATA_DIR, 'nfl_play_by_play_historical.csv.gz')
+    sample_df = pd.DataFrame()
+    if os.path.exists(file_path):
+        try:
+            # Read a small sample of rows and a minimal set of columns for quick display
+            sample_usecols = [
+                'game_date', 'week', 'season', 'home_team', 'away_team', 'posteam', 'defteam',
+                'qtr', 'down', 'ydstogo', 'yardline_100', 'play_type', 'yards_gained', 'desc',
+                # Advanced / numeric columns often used by filters
+                'epa', 'td_prob', 'pass_attempt', 'rush_attempt', 'posteam_score', 'defteam_score', 'score_differential'
+            ]
 
-if historical_data.empty:
-    st.error("Historical play-by-play data file not found. The nfl_play_by_play_historical.csv.gz file may be missing or empty.")
-    st.stop()
+            # Try to bias the sample to the most recent season.
+            # Prefer the predictions CSV (fast). If that doesn't contain recent seasons,
+            # probe any up-to-date play-by-play file (e.g. `nfl_play_by_play_thru_2025.csv.gz`).
+            most_recent_season = None
+            try:
+                preds_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
+                if os.path.exists(preds_path):
+                    seasons_df = pd.read_csv(preds_path, sep='\t', usecols=['season'], low_memory=True)
+                    seasons = pd.to_numeric(seasons_df['season'], errors='coerce').dropna().astype(int).unique().tolist()
+                    if seasons:
+                        most_recent_season = int(max(seasons))
+                        # st.write(f"*Detected most recent season from predictions data: {most_recent_season}*")
+            except Exception:
+                most_recent_season = None
+
+            # If predictions CSV didn't provide a recent season, check common pbp files
+            if most_recent_season is None:
+                try:
+                    pbp_candidates = [
+                        # 'nfl_play_by_play_thru_2025.csv.gz',
+                        'nfl_play_by_play_historical.csv.gz'
+                    ]
+                    for fname in pbp_candidates:
+                        p = path.join(DATA_DIR, fname)
+                        if os.path.exists(p):
+                            try:
+                                sdf = pd.read_csv(p, compression='gzip', sep='\t', usecols=['season'], nrows=2000)
+                                svals = pd.to_numeric(sdf['season'], errors='coerce').dropna().astype(int).unique().tolist()
+                                if svals:
+                                    most_recent_season = int(max(svals))
+                                    break
+                            except Exception:
+                                continue
+                except Exception:
+                    most_recent_season = None
+
+            # Determine available columns first to avoid errors
+            header_cols = pd.read_csv(file_path, compression='gzip', sep='\t', nrows=0).columns.tolist()
+            cols = [c for c in sample_usecols if c in header_cols]
+
+            # If we have a recent season, try to read matching rows in chunks until we have 200 rows
+            if most_recent_season is not None and 'season' in cols:
+                collected = []
+                for chunk in pd.read_csv(file_path, compression='gzip', sep='\t', usecols=cols, chunksize=5000):
+                    try:
+                        # Normalize season column to numeric for robust matching
+                        if chunk['season'].dtype == object:
+                            chunk['season'] = pd.to_numeric(chunk['season'], errors='coerce')
+                        match = chunk[chunk['season'] == most_recent_season]
+                        if not match.empty:
+                            collected.append(match)
+                        if sum(len(c) for c in collected) >= 200:
+                            break
+                    except Exception:
+                        # If chunk processing fails, ignore and continue
+                        continue
+
+                if collected:
+                    sample_df = pd.concat(collected, ignore_index=True).head(200)
+
+            # Fallback: quick nrows read if we didn't collect recent-season rows
+            if sample_df.empty:
+                sample_df = pd.read_csv(file_path, compression='gzip', sep='\t', usecols=cols, nrows=200)
+
+            # Lightweight dtype casts
+            if 'yards_gained' in sample_df.columns:
+                sample_df['yards_gained'] = pd.to_numeric(sample_df['yards_gained'], errors='coerce').astype('float32')
+            if 'game_date' in sample_df.columns:
+                sample_df['game_date'] = pd.to_datetime(sample_df['game_date'], errors='coerce')
+            # If we detected a most recent season, prefer rows from that season
+            try:
+                if most_recent_season is not None and 'season' in sample_df.columns:
+                    # normalize season and filter
+                    sample_df['season'] = pd.to_numeric(sample_df['season'], errors='coerce')
+                    if 'game_date' in sample_df.columns:
+                        sample_df = sample_df[sample_df['season'] == most_recent_season]
+                        sample_df = sample_df.sort_values(by='game_date', ascending=False).head(200)
+                    else:
+                        sample_df = sample_df[sample_df['season'] == most_recent_season].head(200)
+            except Exception:
+                # If filtering fails, keep whatever sample we have
+                pass
+        except Exception:
+            sample_df = pd.DataFrame()
+    else:
+        st.error("Historical play-by-play data file not found. The nfl_play_by_play_historical.csv.gz file may be missing or empty.")
+        st.stop()
+
+    if not sample_df.empty:
+        # Provide the sample to downstream code as `historical_data` so
+        # the rest of the page (tabs) can operate on a DataFrame view
+        # without requiring the full dataset to be loaded. The sample
+        # will be displayed in the "Historical Play-by-Play Data Sample"
+        # tab below to avoid duplicate tables on the page.
+        # Prefer recent-season rows first so the sample looks current.
+        try:
+            if 'season' in sample_df.columns:
+                sample_df['season'] = pd.to_numeric(sample_df['season'], errors='coerce')
+                if 'game_date' in sample_df.columns:
+                    sample_df = sample_df.sort_values(by=['season', 'game_date'], ascending=[False, False])
+                else:
+                    sample_df = sample_df.sort_values(by='season', ascending=False)
+            elif 'game_date' in sample_df.columns:
+                sample_df = sample_df.sort_values(by='game_date', ascending=False)
+        except Exception:
+            # If sorting fails for any reason, keep the original sample
+            pass
+
+        historical_data = sample_df
+    else:
+        st.info("No sample available. You can load the full historical dataset below.")
+        # Ensure downstream code has a defined DataFrame to work with
+        historical_data = pd.DataFrame()
+
+    if st.button("Load full historical play-by-play data"):
+        try:
+            with st.spinner("Loading historical play-by-play (this may take several minutes)..."):
+                df = load_historical_data()
+                st.session_state['historical_data'] = df
+                try:
+                    st.success(f"Loaded {len(df):,} play-by-play rows")
+                except Exception:
+                    pass
+                try:
+                    st.experimental_rerun()
+                except Exception:
+                    pass
+        except Exception as e:
+            st.error(f"Failed to load historical data: {e}")
+            st.stop()
+else:
+    # Get historical_data from session if present, otherwise use empty DataFrame
+    historical_data = st.session_state.get('historical_data', pd.DataFrame())
 
 current_year = datetime.now().year
 
-st.write("### Historical Play-by-Play Data Sample")
-st.write(f"*Showing data from {current_year-4} to {current_year-1} seasons*")
+# Top sample / snapshot removed per user request.
+# The bottom table uses the same `historical_data` DataFrame and the
+# filtering logic below (date filter, sorting, and sidebar filters).
 
 if 'game_date' in historical_data.columns:
     # Don't copy - work with original dataframe to save memory
@@ -122,6 +421,7 @@ if 'game_date' in historical_data.columns:
         
         # Default filter values
         default_filters = {
+            'season': [],
             'posteam': [],
             'defteam': [],
             'down': [],
@@ -131,6 +431,33 @@ if 'game_date' in historical_data.columns:
         }
         
         # Team Filters
+        # Season / Year filter
+        st.subheader("Season / Year")
+        season_options = []
+        # Prefer to read available seasons from the predictions CSV (small, fast)
+        try:
+            preds_path = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
+            if os.path.exists(preds_path):
+                seasons_df = pd.read_csv(preds_path, sep='\t', usecols=['season'], low_memory=True)
+                season_options = sorted(pd.to_numeric(seasons_df['season'], errors='coerce').dropna().astype(int).unique().tolist())
+        except Exception:
+            season_options = []
+
+        # Fallback to filtered_data if predictions CSV not available or empty
+        if not season_options and 'season' in filtered_data.columns:
+            try:
+                season_options = sorted(filtered_data['season'].dropna().unique().tolist())
+            except Exception:
+                season_options = []
+
+        # Do not preselect any seasons by default; allow users to choose explicitly
+        selected_seasons = st.multiselect(
+            "Season (Year)",
+            season_options,
+            default=default_filters['season'] if st.session_state['reset'] else st.session_state.get('season', []),
+            key='season'
+        )
+
         st.subheader("Teams")
         posteam_options = sorted(filtered_data['posteam'].dropna().unique().tolist())
         selected_offense = st.multiselect(
@@ -250,6 +577,9 @@ if 'game_date' in historical_data.columns:
     # Apply filters to the data
     if selected_offense:
         filtered_data = filtered_data[filtered_data['posteam'].isin(selected_offense)]
+
+    if selected_seasons:
+        filtered_data = filtered_data[filtered_data['season'].isin(selected_seasons)]
     
     if selected_defense:
         filtered_data = filtered_data[filtered_data['defteam'].isin(selected_defense)]
@@ -287,23 +617,30 @@ if 'game_date' in historical_data.columns:
     # Add pagination
     rows_per_page = st.selectbox("Rows per page", [50, 100, 250, 500], index=0)
     total_rows = len(filtered_data)
-    total_pages = (total_rows - 1) // rows_per_page + 1
-    
-    # Warn if showing too many rows
-    if rows_per_page > 100 and total_rows > 10000:
-        st.warning(f"⚠️ Displaying {rows_per_page} rows from a large dataset ({total_rows:,} total). Consider using filters to narrow down results for better performance.")
-    
-    page = st.number_input("Page", min_value=1, max_value=total_pages, value=1)
-    start_idx = (page - 1) * rows_per_page
-    end_idx = min(start_idx + rows_per_page, total_rows)
-    
-    st.write(f"Showing rows {start_idx + 1:,} to {end_idx:,} of {total_rows:,}")
-    
-    st.dataframe(
-        filtered_data[display_cols].iloc[start_idx:end_idx],
-        hide_index=True,
-        height=600,
-        column_config={
+
+    if total_rows == 0:
+        st.info("No rows match the current filters. Adjust filters or load the full dataset.")
+        # Show empty dataframe with display columns if available
+        empty_df = filtered_data[display_cols].head(0) if len(display_cols) > 0 else pd.DataFrame()
+        st.dataframe(empty_df, hide_index=True, height=200)
+    else:
+        total_pages = (total_rows - 1) // rows_per_page + 1
+
+        # Warn if showing too many rows
+        if rows_per_page > 100 and total_rows > 10000:
+            st.warning(f"⚠️ Displaying {rows_per_page} rows from a large dataset ({total_rows:,} total). Consider using filters to narrow down results for better performance.")
+
+        page = st.number_input("Page", min_value=1, max_value=total_pages, value=1)
+        start_idx = (page - 1) * rows_per_page
+        end_idx = min(start_idx + rows_per_page, total_rows)
+
+        st.write(f"Showing rows {start_idx + 1:,} to {end_idx:,} of {total_rows:,}")
+
+        st.dataframe(
+            filtered_data[display_cols].iloc[start_idx:end_idx],
+            hide_index=True,
+            height=600,
+            column_config={
             'game_date': st.column_config.DateColumn('Game Date', format='MM/DD/YYYY'),
             'week': st.column_config.NumberColumn('Week', format='%d'),
             'season': st.column_config.NumberColumn('Season', format='%d'),
@@ -335,17 +672,18 @@ if 'game_date' in historical_data.columns:
         }
     )
 
-    # Download button for current filtered view
+    # Download button for current filtered view (only when rows exist)
     try:
-        to_download = filtered_data[display_cols].iloc[start_idx:end_idx]
-        if not to_download.empty:
-            csv_bytes = convert_df_to_csv(to_download)
-            st.download_button(
-                label="📥 Export Filtered Data",
-                data=csv_bytes,
-                file_name=f'nfl_historical_data_{datetime.now().strftime("%Y%m%d")}.csv',
-                mime='text/csv'
-            )
+        if total_rows > 0:
+            to_download = filtered_data[display_cols].iloc[start_idx:end_idx]
+            if not to_download.empty:
+                csv_bytes = convert_df_to_csv(to_download)
+                st.download_button(
+                    label="📥 Export Filtered Data",
+                    data=csv_bytes,
+                    file_name=f'nfl_historical_data_{datetime.now().strftime("%Y%m%d")}.csv',
+                    mime='text/csv'
+                )
     except Exception:
         # If export fails, don't break the page
         pass
