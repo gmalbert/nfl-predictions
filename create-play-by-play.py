@@ -20,5 +20,5 @@ for i in YEARS:
     data = pd.concat([data, i_data], ignore_index=True, sort=True)
     data.reset_index(drop=True, inplace=True)
 
-data.to_csv(path.join(DATA_DIR, 'nfl_play_by_play_thru_' + str(current_year) + '.csv.gz'), compression='gzip', index=False, sep='\t')
-print(f"Saved play-by-play data through {current_year} to nfl_play_by_play_thru_{current_year}.csv.gz")
+data.to_csv(path.join(DATA_DIR, 'nfl_play_by_play_historical.csv.gz'), compression='gzip', index=False, sep='\t')
+print(f"Saved play-by-play data through {current_year} to nfl_play_by_play_historical.csv.gz")

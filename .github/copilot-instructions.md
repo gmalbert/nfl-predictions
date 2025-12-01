@@ -23,6 +23,7 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
   ```
 - **No data leakage**: All features/statistics must use only pre-game info. Rolling stats must exclude current game.
 - **UI structure**: Use tabs for sections, expanders for large data, columns for metrics. Use `width='stretch'` for dataframes.
+  - **Historical Data UI note**: The Historical Data page uses a single, authoritative, filter-driven table (the previous top snapshot/preview table was removed). Sidebar filters control the dataset shown; the page enforces a calendar-date guard (only games with `game_date` on or before today) and sorts results by `game_date` descending to ensure recent games appear first.
 - **Memory optimization**: For Streamlit Cloud deployment, implement memory-efficient patterns:
   - Use `float32` dtypes for numeric columns (50% memory reduction vs float64)
   - Use `Int8` for boolean/binary columns instead of float64

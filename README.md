@@ -206,6 +206,7 @@ The primary predictions interface with tab-based navigation for betting analysis
 #### **📊 Historical Data Page** ⭐ *NEW MULTI-PAGE APP*
 - **Dedicated Page**: Separate navigation page for historical data analysis
 - **196k+ Play Records**: Complete play-by-play data from 2020-2024 seasons
+- **Single Authoritative Table**: The page now displays one filter-driven table (the top snapshot table was removed). Use the sidebar filters to refine results; the table always applies a calendar-date guard (only games on or before today) and displays results sorted by `game_date` descending.
 - **Advanced Filtering**: 12+ filter controls including:
   - Team filters (offense/defense)
   - Game context (down, quarter, play type)
@@ -366,6 +367,13 @@ nfl-predictions/
   - **Variable Cleanup**: Added `del` statements to clean up progress bars and temporary variables
 - **Impact**: Reduced memory usage while maintaining full functionality, enabled Streamlit Cloud deployment
 - **Technical**: Memory-efficient patterns prevent resource limit violations
+
+### **⚡ Performance Improvements (Latest)**
+- **Startup Time**: Reduced cold-start time by avoiding heavy import-time loads and using lazy, chunked CSV scanning; typical cold-starts are dramatically faster for end users.
+- **Memory Footprint**: Numeric dtype and view optimizations (e.g., `float32` and `Int8`) cut memory usage substantially, enabling deployment on Streamlit Cloud where memory was previously constrained.
+- **Rendering Responsiveness**: Pagination, reduced preview sizes, and DataFrame view usage reduce UI thread lag when interacting with large tables and filters.
+- **Deterministic Exports**: On-demand PDF/CSV generation prevents pre-building large assets at startup, keeping initial memory and CPU usage low.
+- **Validation & Monitoring**: Added a lightweight `smoke_test.py` and CI-friendly lazy-loading checks to detect import-time data loading and preserve startup performance.
 
 ### **⚙️ Cache Management UI (Latest)**
 - **Problem Solved**: Users couldn't manually refresh cached data or check cache status
