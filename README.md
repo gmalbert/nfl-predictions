@@ -1,7 +1,7 @@
 # 🏈 NFL Betting Analytics & Predictions Dashboard
 
 <p align="left">
-  <img src="data_files/logos/NFL.png" alt="NFL Predictions Logo" width="450" />
+  <img src="data_files/gridiron-oracle-transparent.png" alt="NFL Predictions Logo" width="450" />
 </p>
 
 [📍 View the Product Roadmap](./ROADMAP.md)
