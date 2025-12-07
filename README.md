@@ -1,5 +1,9 @@
 # 🏈 NFL Betting Analytics & Predictions Dashboard
 
+<p align="left">
+  <img src="data_files/logos/NFL.png" alt="NFL Predictions Logo" width="450" />
+</p>
+
 [📍 View the Product Roadmap](./ROADMAP.md)
 
 A sophisticated NFL analytics platform that uses advanced machine learning to identify profitable betting opportunities. This system analyzes historical NFL data with **50+ enhanced features** across multiple time scales to predict game outcomes and provides actionable betting insights with proven **60.9% ROI** performance on data-leakage-free models.
