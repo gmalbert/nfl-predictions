@@ -211,6 +211,10 @@ The primary predictions interface with tab-based navigation for betting analysis
 - **Dedicated Page**: Separate navigation page for historical data analysis
 - **196k+ Play Records**: Complete play-by-play data from 2020-2024 seasons
 - **Single Authoritative Table**: The page now displays one filter-driven table (the top snapshot table was removed). Use the sidebar filters to refine results; the table always applies a calendar-date guard (only games on or before today) and displays results sorted by `game_date` descending.
+- **Quick Presets**: One-click filter shortcuts at the top of the sidebar:
+  - **Red Zone**: Automatically sets yardline filter to 0-20 yards from opponent endzone
+  - **3rd & Short**: Sets down filter to 3rd down and yards-to-go to 0-3 yards
+  - **Pass Attempts Only**: Checks the pass-only filter for pass play analysis
 - **Advanced Filtering**: 12+ filter controls including:
   - Team filters (offense/defense)
   - Game context (down, quarter, play type)

@@ -132,40 +132,20 @@ with st.sidebar:
 
 ---
 
-#### 3. **Enhanced Filtering UI** (Priority: LOW)
+#### ~~3. **Enhanced Filtering UI** (Priority: LOW)~~ ✅ **COMPLETED**
 **Problem**: Historical Data page filters could be more intuitive
 
-**Implementation**:
-```python
-# Group filters into expandable sections
-with st.sidebar:
-    with st.expander("⚙️ Team Filters", expanded=True):
-        selected_offense = st.multiselect(...)
-        selected_defense = st.multiselect(...)
-    
-    with st.expander("📊 Game Situation Filters"):
-        selected_downs = st.multiselect(...)
-        selected_qtrs = st.multiselect(...)
-        
-    with st.expander("📈 Advanced Metrics"):
-        epa_range = st.slider(...)
-        wp_range = st.slider(...)
-    
-    # Add preset filters
-    st.write("**Quick Filters**")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Red Zone"):
-            # Auto-set yardline_100 to 0-20
-            pass
-    with col2:
-        if st.button("2-Minute Drill"):
-            # Auto-set game_seconds_remaining < 120
-            pass
-```
+**Implementation** (Completed):
+- Added **Quick Presets** at the top of the sidebar with one-click filter shortcuts:
+  - **Red Zone**: Automatically sets yardline filter to 0-20 yards from opponent endzone
+  - **3rd & Short**: Sets down filter to 3rd down and yards-to-go to 0-3 yards
+  - **Pass Attempts Only**: Checks the pass-only filter for pass play analysis
+- **Reset Presets** button to uncheck all preset checkboxes
+- Session state management to persist filter states and avoid widget conflicts
+- Automatic filter updates when presets are checked (no manual slider adjustments needed)
 
 **Effort**: 4-5 hours  
-**Impact**: Makes complex filtering more accessible
+**Impact**: Makes complex filtering more accessible - users can now quickly filter for common scenarios with one click
 
 ---
 

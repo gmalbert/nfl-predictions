@@ -495,21 +495,10 @@ def start_background_loader():
         t = threading.Thread(target=_background_load, daemon=True)
         t.start()
 
-# Kick off background loading immediately so the server can bind quickly
-try:
-    start_background_loader()
-except Exception as e:
-    try:
-        import sys
-        print(f"[FATAL] start_background_loader failed during startup: {e}", file=sys.stderr)
-        traceback.print_exc()
-    except Exception:
-        pass
-    # Sleep briefly so the platform log collector can capture the message
-    try:
-        time.sleep(30)
-    except Exception:
-        pass
+# Note: background loader will be started lazily from the UI thread
+# to avoid doing heavy I/O during module import which can cause
+# Streamlit Cloud health-check issues. Call `start_background_loader()`
+# from the UI path below when the app is rendering.
 
 # Function to automatically log betting recommendations
 def log_betting_recommendations(predictions_df):
@@ -1897,6 +1886,8 @@ with st.sidebar:
         betting_log_dl_placeholder = None
         pdf_dl_placeholder = None
 
+# (Top-level quick filters removed — filters will be shown on the Historical Data page)
+
 # Sidebar filters
 
 filter_keys = [
@@ -1916,6 +1907,16 @@ filter_keys = [
 # Non-blocking startup: show a lightweight status while background loader runs.
 if historical_game_level_data is None or predictions_df is None:
     try:
+        # Start the background loader from the UI thread so heavy I/O
+        # (pandas CSV reads) does not run at module import. This reduces
+        # the chance Streamlit Cloud's health probe sees the process as
+        # unresponsive during import/startup.
+        try:
+            start_background_loader()
+        except Exception:
+            # Non-fatal: background loader will attempt to run again later
+            pass
+
         # st.info("Loading NFL data in background; some features may be unavailable briefly.")
         # Small progress indicator to reassure the user; does not block long.
         progress_bar = st.progress(0)
@@ -2218,7 +2219,7 @@ except Exception as e:
 # TEMPORARILY SKIP: Create expander for data views (collapsed by default)
 # This section causes timeout issues with 196k rows - will fix later
     # Historical Data & Filters (lazy-load play-by-play on demand)
-    with st.expander("📊 Historical Data & Filters", expanded=False):
+    with st.expander("📊 Historical Data & Filters", expanded=True):
         # On-demand play-by-play load: avoid prompting on the main predictions page
         if 'historical_data' not in st.session_state or st.session_state.get('historical_data') is None:
             try:
@@ -2388,9 +2389,69 @@ except Exception as e:
         
             # Helpful message to open sidebar
             st.info("👈 Open the sidebar (click arrow in top-left) to see filter controls")
-        
-            with st.sidebar:
-                st.header("Filters")
+            # Insert the enhanced filter UI directly into the Historical Data page
+            try:
+                with st.expander("⚙️ Team Filters (Play-level)", expanded=True):
+                    team_options = []
+                    try:
+                        if 'historical_data' in st.session_state and st.session_state.get('historical_data') is not None:
+                            hist = st.session_state.get('historical_data')
+                            if 'posteam' in hist.columns and 'defteam' in hist.columns:
+                                team_options = sorted(set(hist['posteam'].dropna().unique().tolist() + hist['defteam'].dropna().unique().tolist()))
+                        elif predictions_df is not None:
+                            if 'home_team' in predictions_df.columns and 'away_team' in predictions_df.columns:
+                                team_options = sorted(set(predictions_df['home_team'].dropna().unique().tolist() + predictions_df['away_team'].dropna().unique().tolist()))
+                    except Exception:
+                        team_options = []
+
+                    st.multiselect("Offense Team", options=team_options, key='filter_selected_offense')
+                    st.multiselect("Defense Team", options=team_options, key='filter_selected_defense')
+
+                with st.expander("📊 Game Situation Filters"):
+                    down_options = [1, 2, 3, 4]
+                    qtr_options = [1, 2, 3, 4]
+                    st.multiselect("Downs", options=down_options, format_func=lambda x: f"{x}rd" if x==3 else (f"{x}th" if x!=1 else "1st"), key='filter_selected_downs')
+                    st.multiselect("Quarters", options=qtr_options, key='filter_selected_qtrs')
+
+                with st.expander("📈 Advanced Metrics"):
+                    epa_min, epa_max = -10.0, 10.0
+                    wp_min, wp_max = 0.0, 1.0
+                    st.slider("EPA range", min_value=epa_min, max_value=epa_max, value=( -2.0, 2.0 ), step=0.1, key='filter_epa_range')
+                    st.slider("Win Prob range", min_value=wp_min, max_value=wp_max, value=(0.0, 1.0), step=0.01, key='filter_wp_range')
+
+                st.write("**Quick Filters**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Red Zone", key='quickfilter_redzone'):
+                        st.session_state['quickfilter_yardline_100'] = (0, 20)
+                        st.experimental_rerun()
+                with col2:
+                    if st.button("2-Minute Drill", key='quickfilter_2min'):
+                        st.session_state['quickfilter_game_seconds_remaining_lt'] = 120
+                        st.experimental_rerun()
+
+                with st.expander("🛠️ Dev Tools (dev only)", expanded=False):
+                    if st.button("Clear Quick Filters", key='dev_clear_quickfilters'):
+                        for k in [
+                            'quickfilter_yardline_100', 'quickfilter_game_seconds_remaining_lt',
+                            'filter_selected_offense', 'filter_selected_defense',
+                            'filter_selected_downs', 'filter_selected_qtrs',
+                            'filter_epa_range', 'filter_wp_range'
+                        ]:
+                            st.session_state.pop(k, None)
+                        st.success("Cleared quick filters and dev filter keys")
+                        st.experimental_rerun()
+
+                    if st.button("Set Example Filters", key='dev_set_example_filters'):
+                        st.session_state['quickfilter_yardline_100'] = (0, 20)
+                        st.session_state['quickfilter_game_seconds_remaining_lt'] = 120
+                        st.session_state['filter_epa_range'] = (-1.5, 1.5)
+                        st.session_state['filter_wp_range'] = (0.25, 0.75)
+                        st.success("Applied example quick filters")
+                        st.experimental_rerun()
+            except Exception:
+                # Non-fatal: continue even if enhanced UI fails
+                pass
                 if 'reset' not in st.session_state:
                     st.session_state['reset'] = False
                 # Initialize session state for filters
