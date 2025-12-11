@@ -13,6 +13,30 @@ st.set_page_config(
 
 DATA_DIR = 'data_files/'
 
+def get_dataframe_height(df, row_height=35, header_height=38, padding=2, max_height=600):
+    """
+    Calculate the optimal height for a Streamlit dataframe based on number of rows.
+    
+    Args:
+        df (pd.DataFrame): The dataframe to display
+        row_height (int): Height per row in pixels. Default: 35
+        header_height (int): Height of header row in pixels. Default: 38
+        padding (int): Extra padding in pixels. Default: 2
+        max_height (int): Maximum height cap in pixels. Default: 600 (None for no limit)
+    
+    Returns:
+        int: Calculated height in pixels
+    
+    Example:
+        height = get_dataframe_height(my_df)
+        st.dataframe(my_df, height=height)
+    """
+    num_rows = len(df)
+    calculated_height = (num_rows * row_height) + header_height + padding
+    
+    if max_height is not None:
+        return min(calculated_height, max_height)
+    return calculated_height
 
 def convert_df_to_csv(df: pd.DataFrame) -> bytes:
     """Convert DataFrame to CSV bytes for Streamlit download_button."""
@@ -378,6 +402,72 @@ current_year = datetime.now().year
 # The bottom table uses the same `historical_data` DataFrame and the
 # filtering logic below (date filter, sorting, and sidebar filters).
 
+# Render Quick Presets in the sidebar unconditionally so they never
+# disappear when the page reruns or when data is loading.
+with st.sidebar:
+    st.subheader("Quick Presets")
+    try:
+        # Small targeted reset button that only unchecks the three preset boxes
+        if st.button("Reset Presets"):
+            # Uncheck the preset checkboxes by setting their keys to False,
+            # then immediately rerun so the UI reflects the change.
+            st.session_state['qp_redzone'] = False
+            st.session_state['qp_3rd_short'] = False
+            st.session_state['qp_pass_only'] = False
+            st.rerun()
+
+        # Track previous preset states to detect changes
+        prev_redzone = st.session_state.get('_prev_qp_redzone', False)
+        prev_3rd_short = st.session_state.get('_prev_qp_3rd_short', False)
+        prev_pass_only = st.session_state.get('_prev_qp_pass_only', False)
+
+        # Persistent checkboxes used as quick-presets so they remain visible
+        qp_redzone = st.checkbox("Red Zone", value=st.session_state.get('qp_redzone', False), key='qp_redzone')
+        qp_3rd_short = st.checkbox("3rd & Short", value=st.session_state.get('qp_3rd_short', False), key='qp_3rd_short')
+        qp_pass_only = st.checkbox("Pass Attempts Only", value=st.session_state.get('qp_pass_only', False), key='qp_pass_only')
+        
+        # Detect if any preset was just checked (changed from False to True)
+        preset_changed = False
+        
+        # Red Zone preset: set yardline_range to 0-20
+        if qp_redzone and not prev_redzone and 'yardline_100' in historical_data.columns:
+            try:
+                ymin = int(historical_data['yardline_100'].min())
+                ymax = int(historical_data['yardline_100'].max())
+                st.session_state['yardline_range'] = (max(ymin, 0), min(20, ymax))
+                preset_changed = True
+            except Exception:
+                pass
+        
+        # 3rd & Short preset: set down to [3] and ydstogo to 0-3
+        if qp_3rd_short and not prev_3rd_short:
+            st.session_state['down'] = [3]
+            if 'ydstogo' in historical_data.columns:
+                try:
+                    ymin = int(historical_data['ydstogo'].min())
+                    ymax = int(historical_data['ydstogo'].max())
+                    st.session_state['ydstogo_range'] = (max(ymin, 0), min(3, ymax))
+                except Exception:
+                    pass
+            preset_changed = True
+        
+        # Pass Only preset: set pass_only checkbox to True
+        if qp_pass_only and not prev_pass_only:
+            st.session_state['pass_only'] = True
+            preset_changed = True
+        
+        # Update previous states for next run
+        st.session_state['_prev_qp_redzone'] = qp_redzone
+        st.session_state['_prev_qp_3rd_short'] = qp_3rd_short
+        st.session_state['_prev_qp_pass_only'] = qp_pass_only
+        
+        # Rerun if any preset was just activated to update filter widgets
+        if preset_changed:
+            st.rerun()
+            
+    except Exception:
+        pass
+
 if 'game_date' in historical_data.columns:
     # Don't copy - work with original dataframe to save memory
     # Only convert game_date once if needed
@@ -409,6 +499,22 @@ if 'game_date' in historical_data.columns:
     if 'reset' not in st.session_state:
         st.session_state['reset'] = False
     
+    # Initialize session state for preset-affected filters if they don't exist
+    # This prevents widget conflicts when presets modify these values
+    if 'down' not in st.session_state:
+        st.session_state['down'] = []
+    if 'pass_only' not in st.session_state:
+        st.session_state['pass_only'] = False
+    if 'ydstogo_range' not in st.session_state and 'ydstogo' in filtered_data.columns:
+        ydstogo_min = int(filtered_data['ydstogo'].min())
+        ydstogo_max = int(filtered_data['ydstogo'].max())
+        st.session_state['ydstogo_range'] = (ydstogo_min, ydstogo_max)
+    if 'yardline_range' not in st.session_state and 'yardline_100' in filtered_data.columns:
+        yardline_min = int(filtered_data['yardline_100'].min())
+        yardline_max = int(filtered_data['yardline_100'].max())
+        st.session_state['yardline_range'] = (yardline_min, yardline_max)
+    
+    # Filters live in the left sidebar (restore original behavior per user request)
     with st.sidebar:
         st.header("🔍 Filters")
         
@@ -418,6 +524,8 @@ if 'game_date' in historical_data.columns:
             st.rerun()
         
         st.divider()
+
+        # (Quick Presets were moved to the top of the sidebar)
         
         # Default filter values
         default_filters = {
@@ -480,10 +588,12 @@ if 'game_date' in historical_data.columns:
         # Game Context Filters
         st.subheader("Game Context")
         down_options = sorted([int(d) for d in filtered_data['down'].dropna().unique() if d > 0])
+        # Reset down filter if reset flag is set
+        if st.session_state['reset']:
+            st.session_state['down'] = default_filters['down']
         selected_downs = st.multiselect(
             "Down", 
             down_options,
-            default=default_filters['down'] if st.session_state['reset'] else st.session_state.get('down', []),
             key='down'
         )
         
@@ -507,9 +617,11 @@ if 'game_date' in historical_data.columns:
             key='play_type'
         )
         
+        # Reset pass_only filter if reset flag is set
+        if st.session_state['reset']:
+            st.session_state['pass_only'] = default_filters['pass_only']
         pass_only = st.checkbox(
             "Pass Attempts Only",
-            value=default_filters['pass_only'] if st.session_state['reset'] else st.session_state.get('pass_only', False),
             key='pass_only'
         )
         
@@ -525,14 +637,20 @@ if 'game_date' in historical_data.columns:
         if 'ydstogo' in filtered_data.columns:
             ydstogo_min = int(filtered_data['ydstogo'].min())
             ydstogo_max = int(filtered_data['ydstogo'].max())
-            ydstogo_range = st.slider("Yards To Go", ydstogo_min, ydstogo_max, (ydstogo_min, ydstogo_max))
+            # Reset ydstogo_range if reset flag is set
+            if st.session_state['reset']:
+                st.session_state['ydstogo_range'] = (ydstogo_min, ydstogo_max)
+            ydstogo_range = st.slider("Yards To Go", ydstogo_min, ydstogo_max, key='ydstogo_range')
         else:
             ydstogo_range = None
         
         if 'yardline_100' in filtered_data.columns:
             yardline_min = int(filtered_data['yardline_100'].min())
             yardline_max = int(filtered_data['yardline_100'].max())
-            yardline_range = st.slider("Yardline (distance from opponent endzone)", yardline_min, yardline_max, (yardline_min, yardline_max))
+            # Reset yardline_range if reset flag is set
+            if st.session_state['reset']:
+                st.session_state['yardline_range'] = (yardline_min, yardline_max)
+            yardline_range = st.slider("Yardline (distance from opponent endzone)", yardline_min, yardline_max, key='yardline_range')
         else:
             yardline_range = None
         
@@ -544,21 +662,21 @@ if 'game_date' in historical_data.columns:
         if 'score_differential' in filtered_data.columns:
             score_diff_min = int(filtered_data['score_differential'].min())
             score_diff_max = int(filtered_data['score_differential'].max())
-            score_diff_range = st.slider("Score Differential", score_diff_min, score_diff_max, (score_diff_min, score_diff_max))
+            score_diff_range = st.slider("Score Differential", score_diff_min, score_diff_max, (score_diff_min, score_diff_max), key='score_diff_range')
         else:
             score_diff_range = None
         
         if 'posteam_score' in filtered_data.columns:
             posteam_score_min = int(filtered_data['posteam_score'].min())
             posteam_score_max = int(filtered_data['posteam_score'].max())
-            posteam_score_range = st.slider("Offense Team Score", posteam_score_min, posteam_score_max, (posteam_score_min, posteam_score_max))
+            posteam_score_range = st.slider("Offense Team Score", posteam_score_min, posteam_score_max, (posteam_score_min, posteam_score_max), key='posteam_score_range')
         else:
             posteam_score_range = None
         
         if 'defteam_score' in filtered_data.columns:
             defteam_score_min = int(filtered_data['defteam_score'].min())
             defteam_score_max = int(filtered_data['defteam_score'].max())
-            defteam_score_range = st.slider("Defense Team Score", defteam_score_min, defteam_score_max, (defteam_score_min, defteam_score_max))
+            defteam_score_range = st.slider("Defense Team Score", defteam_score_min, defteam_score_max, (defteam_score_min, defteam_score_max), key='defteam_score_range')
         else:
             defteam_score_range = None
         
@@ -570,11 +688,55 @@ if 'game_date' in historical_data.columns:
         if 'epa' in filtered_data.columns:
             epa_min = float(filtered_data['epa'].min())
             epa_max = float(filtered_data['epa'].max())
-            epa_range = st.slider("Expected Points Added (EPA)", epa_min, epa_max, (epa_min, epa_max))
+            epa_range = st.slider("Expected Points Added (EPA)", epa_min, epa_max, (epa_min, epa_max), key='epa_range')
         else:
             epa_range = None
+
+        # (Quick Presets were moved to the top of the sidebar)
     
     # Apply filters to the data
+    # Compute effective filter values including quick-preset overrides (persistent checkboxes)
+    effective_selected_downs = selected_downs
+    effective_ydstogo_range = ydstogo_range
+    effective_yardline_range = yardline_range
+    effective_pass_only = pass_only
+
+    # Quick Preset overrides (checkbox-driven)
+    if st.session_state.get('qp_redzone'):
+        if 'yardline_100' in filtered_data.columns and not filtered_data.empty:
+            try:
+                ymin = int(filtered_data['yardline_100'].min())
+                ymax = int(filtered_data['yardline_100'].max())
+                low = max(ymin, 0)
+                high = min(20, ymax)
+                if low > high:
+                    low, high = ymin, ymax
+                effective_yardline_range = (low, high)
+            except Exception:
+                effective_yardline_range = None
+        else:
+            effective_yardline_range = None
+
+    if st.session_state.get('qp_3rd_short'):
+        effective_selected_downs = [3]
+        if 'ydstogo' in filtered_data.columns and not filtered_data.empty:
+            try:
+                ymin = int(filtered_data['ydstogo'].min())
+                ymax = int(filtered_data['ydstogo'].max())
+                low = max(ymin, 0)
+                high = min(3, ymax)
+                if low > high:
+                    low, high = ymin, ymax
+                effective_ydstogo_range = (low, high)
+            except Exception:
+                effective_ydstogo_range = None
+        else:
+            effective_ydstogo_range = None
+
+    # Pass-only presets
+    if st.session_state.get('qp_pass_only'):
+        effective_pass_only = True
+
     if selected_offense:
         filtered_data = filtered_data[filtered_data['posteam'].isin(selected_offense)]
 
@@ -584,8 +746,8 @@ if 'game_date' in historical_data.columns:
     if selected_defense:
         filtered_data = filtered_data[filtered_data['defteam'].isin(selected_defense)]
     
-    if selected_downs:
-        filtered_data = filtered_data[filtered_data['down'].isin(selected_downs)]
+    if effective_selected_downs:
+        filtered_data = filtered_data[filtered_data['down'].isin(effective_selected_downs)]
     
     if selected_qtrs:
         filtered_data = filtered_data[filtered_data['qtr'].isin(selected_qtrs)]
@@ -593,14 +755,14 @@ if 'game_date' in historical_data.columns:
     if selected_play_types:
         filtered_data = filtered_data[filtered_data['play_type'].isin(selected_play_types)]
     
-    if pass_only:
+    if effective_pass_only:
         filtered_data = filtered_data[filtered_data['pass_attempt'] == 1]
     
-    if ydstogo_range:
-        filtered_data = filtered_data[(filtered_data['ydstogo'] >= ydstogo_range[0]) & (filtered_data['ydstogo'] <= ydstogo_range[1])]
+    if effective_ydstogo_range:
+        filtered_data = filtered_data[(filtered_data['ydstogo'] >= effective_ydstogo_range[0]) & (filtered_data['ydstogo'] <= effective_ydstogo_range[1])]
     
-    if yardline_range:
-        filtered_data = filtered_data[(filtered_data['yardline_100'] >= yardline_range[0]) & (filtered_data['yardline_100'] <= yardline_range[1])]
+    if effective_yardline_range:
+        filtered_data = filtered_data[(filtered_data['yardline_100'] >= effective_yardline_range[0]) & (filtered_data['yardline_100'] <= effective_yardline_range[1])]
     
     if score_diff_range:
         filtered_data = filtered_data[(filtered_data['score_differential'] >= score_diff_range[0]) & (filtered_data['score_differential'] <= score_diff_range[1])]
@@ -636,6 +798,7 @@ if 'game_date' in historical_data.columns:
 
         st.write(f"Showing rows {start_idx + 1:,} to {end_idx:,} of {total_rows:,}")
 
+        height = get_dataframe_height(filtered_data[display_cols].iloc[start_idx:end_idx])
         st.dataframe(
             filtered_data[display_cols].iloc[start_idx:end_idx],
             hide_index=True,

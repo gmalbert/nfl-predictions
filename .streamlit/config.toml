@@ -2,9 +2,12 @@
 [server]
 # Use the filesystem watcher only when developing locally; disable on Cloud
 fileWatcherType = "none"
+
 # Run in headless mode (no browser window on server)
+
 # Set to true for Streamlit Cloud deployment; locally you can override
 #headless = true
+
 # Enable websocket compression for large dataset transfers
 enableWebsocketCompression = true
 
