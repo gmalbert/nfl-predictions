@@ -2216,400 +2216,400 @@ except Exception as e:
     traceback.print_exc(file=sys.stderr)
     raise
 
-# TEMPORARILY SKIP: Create expander for data views (collapsed by default)
-# This section causes timeout issues with 196k rows - will fix later
-    # Historical Data & Filters (lazy-load play-by-play on demand)
-    with st.expander("📊 Historical Data & Filters", expanded=True):
-        # On-demand play-by-play load: avoid prompting on the main predictions page
-        if 'historical_data' not in st.session_state or st.session_state.get('historical_data') is None:
-            try:
-                st.info("Historical views need play-by-play data for deep analysis. Load it on demand.")
-            except Exception:
-                pass
+# # TEMPORARILY SKIP: Create expander for data views (collapsed by default)
+# # This section causes timeout issues with 196k rows - will fix later
+#     # Historical Data & Filters (lazy-load play-by-play on demand)
+#     with st.expander("📊 Historical Data & Filters", expanded=True):
+#         # On-demand play-by-play load: avoid prompting on the main predictions page
+#         if 'historical_data' not in st.session_state or st.session_state.get('historical_data') is None:
+#             try:
+#                 st.info("Historical views need play-by-play data for deep analysis. Load it on demand.")
+#             except Exception:
+#                 pass
 
-            if st.button("Load play-by-play for historical analysis"):
-                try:
-                    with st.spinner("Loading play-by-play (this may take several minutes)..."):
-                        df = load_play_by_play_chunked()
-                        st.session_state['historical_data'] = df
-                        try:
-                            st.success(f"Loaded {len(df):,} play-by-play rows")
-                        except Exception:
-                            pass
-                        try:
-                            st.experimental_rerun()
-                        except Exception:
-                            pass
-                except Exception as e:
-                    try:
-                        st.error(f"Failed to load play-by-play: {e}")
-                    except Exception:
-                        pass
-        else:
-            historical_data = st.session_state.get('historical_data')
+#             if st.button("Load play-by-play for historical analysis"):
+#                 try:
+#                     with st.spinner("Loading play-by-play (this may take several minutes)..."):
+#                         df = load_play_by_play_chunked()
+#                         st.session_state['historical_data'] = df
+#                         try:
+#                             st.success(f"Loaded {len(df):,} play-by-play rows")
+#                         except Exception:
+#                             pass
+#                         try:
+#                             st.experimental_rerun()
+#                         except Exception:
+#                             pass
+#                 except Exception as e:
+#                     try:
+#                         st.error(f"Failed to load play-by-play: {e}")
+#                     except Exception:
+#                         pass
+#         else:
+#             historical_data = st.session_state.get('historical_data')
     
-    # Create tabs for different data views
-    tab1, tab2, tab3, tab4 = st.tabs(["🏈 Play-by-Play Data", "📊 Game Summaries", "📅 Schedule", "🔍 Filters"])
+#     # Create tabs for different data views
+#     tab1, tab2, tab3, tab4 = st.tabs(["🏈 Play-by-Play Data", "📊 Game Summaries", "📅 Schedule", "🔍 Filters"])
 
-    with tab1:
-        st.write("### Historical Play-by-Play Data Sample for " + f"{current_year-4} to {current_year-1} Seasons")
-        if not historical_data.empty:
-            # Play-by-play data uses 'game_date' instead of 'gameday'  
-            if 'game_date' in historical_data.columns:
-                # Convert to datetime and filter for completed games
-                filtered_data = historical_data.copy()
-                if filtered_data['game_date'].dtype == 'object':
-                    filtered_data['game_date'] = pd.to_datetime(filtered_data['game_date'], errors='coerce')
-                current_date = pd.Timestamp(datetime.now().date())
-                filtered_data = filtered_data[filtered_data['game_date'] <= current_date]
-                filtered_data = filtered_data.sort_values(by='game_date', ascending=False)
+#     with tab1:
+#         st.write("### Historical Play-by-Play Data Sample for " + f"{current_year-4} to {current_year-1} Seasons")
+#         if not historical_data.empty:
+#             # Play-by-play data uses 'game_date' instead of 'gameday'  
+#             if 'game_date' in historical_data.columns:
+#                 # Convert to datetime and filter for completed games
+#                 filtered_data = historical_data.copy()
+#                 if filtered_data['game_date'].dtype == 'object':
+#                     filtered_data['game_date'] = pd.to_datetime(filtered_data['game_date'], errors='coerce')
+#                 current_date = pd.Timestamp(datetime.now().date())
+#                 filtered_data = filtered_data[filtered_data['game_date'] <= current_date]
+#                 filtered_data = filtered_data.sort_values(by='game_date', ascending=False)
             
-                # Select key play-by-play columns for display
-                display_cols = [
-                    'game_date', 'week', 'season', 'home_team', 'away_team', 'posteam', 'defteam',
-                    'game_seconds_remaining', 'qtr', 'down', 'ydstogo', 'yardline_100',
-                    'play_type', 'yards_gained', 'desc', 'epa', 'wp',
-                    'posteam_score', 'defteam_score', 'score_differential',
-                    'pass_attempt', 'rush_attempt', 'complete_pass', 'interception', 'fumble_lost',
-                    'td_prob', 'touchdown', 'field_goal_result'
-                ]
+#                 # Select key play-by-play columns for display
+#                 display_cols = [
+#                     'game_date', 'week', 'season', 'home_team', 'away_team', 'posteam', 'defteam',
+#                     'game_seconds_remaining', 'qtr', 'down', 'ydstogo', 'yardline_100',
+#                     'play_type', 'yards_gained', 'desc', 'epa', 'wp',
+#                     'posteam_score', 'defteam_score', 'score_differential',
+#                     'pass_attempt', 'rush_attempt', 'complete_pass', 'interception', 'fumble_lost',
+#                     'td_prob', 'touchdown', 'field_goal_result'
+#                 ]
             
-                # Only use columns that exist
-                display_cols = [col for col in display_cols if col in filtered_data.columns]
+#                 # Only use columns that exist
+#                 display_cols = [col for col in display_cols if col in filtered_data.columns]
             
-                st.dataframe(
-                    filtered_data[display_cols].head(50),
-                    hide_index=True,
-                    height=600,
-                    column_config={
-                        'game_date': st.column_config.DateColumn('Game Date', format='MM/DD/YYYY'),
-                        'week': st.column_config.NumberColumn('Week', format='%d'),
-                        'season': st.column_config.NumberColumn('Season', format='%d'),
-                        'home_team': st.column_config.TextColumn('Home Team', width='small'),
-                        'away_team': st.column_config.TextColumn('Away Team', width='small'),
-                        'posteam': st.column_config.TextColumn('Offense', width='small'),
-                        'defteam': st.column_config.TextColumn('Defense', width='small'),
-                        'game_seconds_remaining': st.column_config.NumberColumn('Time Left (s)', format='%d'),
-                        'qtr': st.column_config.NumberColumn('Qtr', format='%d'),
-                        'down': st.column_config.NumberColumn('Down', format='%d'),
-                        'ydstogo': st.column_config.NumberColumn('To Go', format='%d'),
-                        'yardline_100': st.column_config.NumberColumn('Yardline', format='%d', help='Distance from opponent endzone'),
-                        'play_type': st.column_config.TextColumn('Play Type', width='small'),
-                        'yards_gained': st.column_config.NumberColumn('Yards', format='%d'),
-                        'desc': st.column_config.TextColumn('Play Description', width='large'),
-                        'epa': st.column_config.NumberColumn('EPA', format='%.2f', help='Expected Points Added'),
-                        'wp': st.column_config.NumberColumn('Win Prob', format='%.1f%%', help='Win probability after play'),
-                        'posteam_score': st.column_config.NumberColumn('Off Score', format='%d'),
-                        'defteam_score': st.column_config.NumberColumn('Def Score', format='%d'),
-                        'score_differential': st.column_config.NumberColumn('Score Diff', format='%d'),
-                        'pass_attempt': st.column_config.CheckboxColumn('Pass?'),
-                        'rush_attempt': st.column_config.CheckboxColumn('Rush?'),
-                        'complete_pass': st.column_config.CheckboxColumn('Complete?'),
-                        'interception': st.column_config.CheckboxColumn('INT?'),
-                        'fumble_lost': st.column_config.CheckboxColumn('Fumble?'),
-                        'td_prob': st.column_config.NumberColumn('TD Prob', format='%.1f%%'),
-                        'touchdown': st.column_config.CheckboxColumn('TD?'),
-                        'field_goal_result': st.column_config.TextColumn('FG Result', width='small')
-                    }
-                )
+#                 st.dataframe(
+#                     filtered_data[display_cols].head(50),
+#                     hide_index=True,
+#                     height=600,
+#                     column_config={
+#                         'game_date': st.column_config.DateColumn('Game Date', format='MM/DD/YYYY'),
+#                         'week': st.column_config.NumberColumn('Week', format='%d'),
+#                         'season': st.column_config.NumberColumn('Season', format='%d'),
+#                         'home_team': st.column_config.TextColumn('Home Team', width='small'),
+#                         'away_team': st.column_config.TextColumn('Away Team', width='small'),
+#                         'posteam': st.column_config.TextColumn('Offense', width='small'),
+#                         'defteam': st.column_config.TextColumn('Defense', width='small'),
+#                         'game_seconds_remaining': st.column_config.NumberColumn('Time Left (s)', format='%d'),
+#                         'qtr': st.column_config.NumberColumn('Qtr', format='%d'),
+#                         'down': st.column_config.NumberColumn('Down', format='%d'),
+#                         'ydstogo': st.column_config.NumberColumn('To Go', format='%d'),
+#                         'yardline_100': st.column_config.NumberColumn('Yardline', format='%d', help='Distance from opponent endzone'),
+#                         'play_type': st.column_config.TextColumn('Play Type', width='small'),
+#                         'yards_gained': st.column_config.NumberColumn('Yards', format='%d'),
+#                         'desc': st.column_config.TextColumn('Play Description', width='large'),
+#                         'epa': st.column_config.NumberColumn('EPA', format='%.2f', help='Expected Points Added'),
+#                         'wp': st.column_config.NumberColumn('Win Prob', format='%.1f%%', help='Win probability after play'),
+#                         'posteam_score': st.column_config.NumberColumn('Off Score', format='%d'),
+#                         'defteam_score': st.column_config.NumberColumn('Def Score', format='%d'),
+#                         'score_differential': st.column_config.NumberColumn('Score Diff', format='%d'),
+#                         'pass_attempt': st.column_config.CheckboxColumn('Pass?'),
+#                         'rush_attempt': st.column_config.CheckboxColumn('Rush?'),
+#                         'complete_pass': st.column_config.CheckboxColumn('Complete?'),
+#                         'interception': st.column_config.CheckboxColumn('INT?'),
+#                         'fumble_lost': st.column_config.CheckboxColumn('Fumble?'),
+#                         'td_prob': st.column_config.NumberColumn('TD Prob', format='%.1f%%'),
+#                         'touchdown': st.column_config.CheckboxColumn('TD?'),
+#                         'field_goal_result': st.column_config.TextColumn('FG Result', width='small')
+#                     }
+#                 )
             
-            else:
-                # Fallback: show all data without date filtering
-                st.dataframe(historical_data.head(50), hide_index=True)
+#             else:
+#                 # Fallback: show all data without date filtering
+#                 st.dataframe(historical_data.head(50), hide_index=True)
             
-        else:
-            st.info("No historical play-by-play data available. The nfl_history_2020_2024.csv.gz file may be missing or empty.")
+#         else:
+#             st.info("No historical play-by-play data available. The nfl_history_2020_2024.csv.gz file may be missing or empty.")
 
-    with tab2:
-        st.write("### Historical Game Summaries")
-        historical_game_level_data_display = historical_game_level_data.copy()
+#     with tab2:
+#         st.write("### Historical Game Summaries")
+#         historical_game_level_data_display = historical_game_level_data.copy()
         
-        # Convert gameday to datetime and filter for completed games only (≤ today)
-        historical_game_level_data_display['gameday'] = pd.to_datetime(historical_game_level_data_display['gameday'], errors='coerce')
-        today = pd.to_datetime(datetime.now().date())
-        historical_game_level_data_display = historical_game_level_data_display[historical_game_level_data_display['gameday'] <= today]
+#         # Convert gameday to datetime and filter for completed games only (≤ today)
+#         historical_game_level_data_display['gameday'] = pd.to_datetime(historical_game_level_data_display['gameday'], errors='coerce')
+#         today = pd.to_datetime(datetime.now().date())
+#         historical_game_level_data_display = historical_game_level_data_display[historical_game_level_data_display['gameday'] <= today]
         
-        # Sort by most recent games first
-        historical_game_level_data_display = historical_game_level_data_display.sort_values(by='gameday', ascending=False)
+#         # Sort by most recent games first
+#         historical_game_level_data_display = historical_game_level_data_display.sort_values(by='gameday', ascending=False)
         
-        # Select key columns for display
-        display_cols = [
-            'gameday', 'week', 'season', 'home_team', 'away_team', 'home_qb_name', 'away_qb_name',
-            'home_score', 'away_score', 'spread_line', 'home_spread_odds', 'away_spread_odds',
-            'total_line', 'spreadCovered', 'overHit', 'underdogWon',
-            'homeTeamWinPct', 'awayTeamWinPct', 'home_moneyline', 'away_moneyline'
-        ]
-        # Only use columns that exist
-        display_cols = [col for col in display_cols if col in historical_game_level_data_display.columns]
+#         # Select key columns for display
+#         display_cols = [
+#             'gameday', 'week', 'season', 'home_team', 'away_team', 'home_qb_name', 'away_qb_name',
+#             'home_score', 'away_score', 'spread_line', 'home_spread_odds', 'away_spread_odds',
+#             'total_line', 'spreadCovered', 'overHit', 'underdogWon',
+#             'homeTeamWinPct', 'awayTeamWinPct', 'home_moneyline', 'away_moneyline'
+#         ]
+#         # Only use columns that exist
+#         display_cols = [col for col in display_cols if col in historical_game_level_data_display.columns]
         
-        st.dataframe(
-            historical_game_level_data_display[display_cols].head(50),
-            hide_index=True,
-            height=600,
-            column_config={
-                'gameday': st.column_config.DateColumn('Game Date', format='MM/DD/YYYY'),
-                'week': st.column_config.NumberColumn('Week', format='%d'),
-                'season': st.column_config.NumberColumn('Season', format='%d'),
-                'home_team': st.column_config.TextColumn('Home Team', width='medium'),
-                'away_team': st.column_config.TextColumn('Away Team', width='medium'),
-                'home_qb_name': st.column_config.TextColumn('Home QB', width='medium', help='Shows 0 for upcoming games'),
-                'away_qb_name': st.column_config.TextColumn('Away QB', width='medium', help='Shows 0 for upcoming games'),
-                'home_score': st.column_config.NumberColumn('Home Score', format='%d'),
-                'away_score': st.column_config.NumberColumn('Away Score', format='%d'),
-                'spread_line': st.column_config.NumberColumn('Spread', format='%.1f', help='Negative = away favored'),
-                'home_spread_odds': st.column_config.NumberColumn('Home Spread Odds', format='%d'),
-                'away_spread_odds': st.column_config.NumberColumn('Away Spread Odds', format='%d'),
-                'total_line': st.column_config.NumberColumn('O/U Line', format='%.1f'),
-                'spreadCovered': st.column_config.CheckboxColumn('Spread Covered?'),
-                'overHit': st.column_config.CheckboxColumn('Over Hit?'),
-                'underdogWon': st.column_config.CheckboxColumn('Underdog Won?'),
-                'homeTeamWinPct': st.column_config.NumberColumn('Home Win %', format='%.1f%%', help='Historical win percentage'),
-                'awayTeamWinPct': st.column_config.NumberColumn('Away Win %', format='%.1f%%', help='Historical win percentage'),
-                'home_moneyline': st.column_config.NumberColumn('Home ML', format='%d'),
-                'away_moneyline': st.column_config.NumberColumn('Away ML', format='%d')
-            }
-        )
+#         st.dataframe(
+#             historical_game_level_data_display[display_cols].head(50),
+#             hide_index=True,
+#             height=600,
+#             column_config={
+#                 'gameday': st.column_config.DateColumn('Game Date', format='MM/DD/YYYY'),
+#                 'week': st.column_config.NumberColumn('Week', format='%d'),
+#                 'season': st.column_config.NumberColumn('Season', format='%d'),
+#                 'home_team': st.column_config.TextColumn('Home Team', width='medium'),
+#                 'away_team': st.column_config.TextColumn('Away Team', width='medium'),
+#                 'home_qb_name': st.column_config.TextColumn('Home QB', width='medium', help='Shows 0 for upcoming games'),
+#                 'away_qb_name': st.column_config.TextColumn('Away QB', width='medium', help='Shows 0 for upcoming games'),
+#                 'home_score': st.column_config.NumberColumn('Home Score', format='%d'),
+#                 'away_score': st.column_config.NumberColumn('Away Score', format='%d'),
+#                 'spread_line': st.column_config.NumberColumn('Spread', format='%.1f', help='Negative = away favored'),
+#                 'home_spread_odds': st.column_config.NumberColumn('Home Spread Odds', format='%d'),
+#                 'away_spread_odds': st.column_config.NumberColumn('Away Spread Odds', format='%d'),
+#                 'total_line': st.column_config.NumberColumn('O/U Line', format='%.1f'),
+#                 'spreadCovered': st.column_config.CheckboxColumn('Spread Covered?'),
+#                 'overHit': st.column_config.CheckboxColumn('Over Hit?'),
+#                 'underdogWon': st.column_config.CheckboxColumn('Underdog Won?'),
+#                 'homeTeamWinPct': st.column_config.NumberColumn('Home Win %', format='%.1f%%', help='Historical win percentage'),
+#                 'awayTeamWinPct': st.column_config.NumberColumn('Away Win %', format='%.1f%%', help='Historical win percentage'),
+#                 'home_moneyline': st.column_config.NumberColumn('Home ML', format='%d'),
+#                 'away_moneyline': st.column_config.NumberColumn('Away ML', format='%d')
+#             }
+#         )
 
-    with tab3:
-        st.write(f"### {current_year} NFL Schedule")
-        if schedule is None:
-            schedule = load_schedule()
+#     with tab3:
+#         st.write(f"### {current_year} NFL Schedule")
+#         if schedule is None:
+#             schedule = load_schedule()
         
-        if not schedule.empty:
-            display_cols = ['week', 'date', 'home_team', 'away_team', 'venue']
-            # Convert UTC date string to local datetime
-            schedule_local = schedule.copy()
-            schedule_local['date'] = pd.to_datetime(schedule_local['date']).dt.tz_convert('America/New_York').dt.strftime('%m/%d/%Y %I:%M %p')
-            st.dataframe(schedule_local[display_cols], height=600, hide_index=True, column_config={'date': 'Date/Time (ET)', 'home_team': 'Home Team', 'away_team': 'Away Team', 'venue': 'Venue', 'week': 'Week'})
-        else:
-            st.warning(f"Schedule data for {current_year} is not available.")
+#         if not schedule.empty:
+#             display_cols = ['week', 'date', 'home_team', 'away_team', 'venue']
+#             # Convert UTC date string to local datetime
+#             schedule_local = schedule.copy()
+#             schedule_local['date'] = pd.to_datetime(schedule_local['date']).dt.tz_convert('America/New_York').dt.strftime('%m/%d/%Y %I:%M %p')
+#             st.dataframe(schedule_local[display_cols], height=600, hide_index=True, column_config={'date': 'Date/Time (ET)', 'home_team': 'Home Team', 'away_team': 'Away Team', 'venue': 'Venue', 'week': 'Week'})
+#         else:
+#             st.warning(f"Schedule data for {current_year} is not available.")
 
-    with tab4:
-            import math
+#     with tab4:
+#             import math
         
-            # Helpful message to open sidebar
-            st.info("👈 Open the sidebar (click arrow in top-left) to see filter controls")
-            # Insert the enhanced filter UI directly into the Historical Data page
-            try:
-                with st.expander("⚙️ Team Filters (Play-level)", expanded=True):
-                    team_options = []
-                    try:
-                        if 'historical_data' in st.session_state and st.session_state.get('historical_data') is not None:
-                            hist = st.session_state.get('historical_data')
-                            if 'posteam' in hist.columns and 'defteam' in hist.columns:
-                                team_options = sorted(set(hist['posteam'].dropna().unique().tolist() + hist['defteam'].dropna().unique().tolist()))
-                        elif predictions_df is not None:
-                            if 'home_team' in predictions_df.columns and 'away_team' in predictions_df.columns:
-                                team_options = sorted(set(predictions_df['home_team'].dropna().unique().tolist() + predictions_df['away_team'].dropna().unique().tolist()))
-                    except Exception:
-                        team_options = []
+#             # Helpful message to open sidebar
+#             st.info("👈 Open the sidebar (click arrow in top-left) to see filter controls")
+#             # Insert the enhanced filter UI directly into the Historical Data page
+#             try:
+#                 with st.expander("⚙️ Team Filters (Play-level)", expanded=True):
+#                     team_options = []
+#                     try:
+#                         if 'historical_data' in st.session_state and st.session_state.get('historical_data') is not None:
+#                             hist = st.session_state.get('historical_data')
+#                             if 'posteam' in hist.columns and 'defteam' in hist.columns:
+#                                 team_options = sorted(set(hist['posteam'].dropna().unique().tolist() + hist['defteam'].dropna().unique().tolist()))
+#                         elif predictions_df is not None:
+#                             if 'home_team' in predictions_df.columns and 'away_team' in predictions_df.columns:
+#                                 team_options = sorted(set(predictions_df['home_team'].dropna().unique().tolist() + predictions_df['away_team'].dropna().unique().tolist()))
+#                     except Exception:
+#                         team_options = []
 
-                    st.multiselect("Offense Team", options=team_options, key='filter_selected_offense')
-                    st.multiselect("Defense Team", options=team_options, key='filter_selected_defense')
+#                     st.multiselect("Offense Team", options=team_options, key='filter_selected_offense')
+#                     st.multiselect("Defense Team", options=team_options, key='filter_selected_defense')
 
-                with st.expander("📊 Game Situation Filters"):
-                    down_options = [1, 2, 3, 4]
-                    qtr_options = [1, 2, 3, 4]
-                    st.multiselect("Downs", options=down_options, format_func=lambda x: f"{x}rd" if x==3 else (f"{x}th" if x!=1 else "1st"), key='filter_selected_downs')
-                    st.multiselect("Quarters", options=qtr_options, key='filter_selected_qtrs')
+#                 with st.expander("📊 Game Situation Filters"):
+#                     down_options = [1, 2, 3, 4]
+#                     qtr_options = [1, 2, 3, 4]
+#                     st.multiselect("Downs", options=down_options, format_func=lambda x: f"{x}rd" if x==3 else (f"{x}th" if x!=1 else "1st"), key='filter_selected_downs')
+#                     st.multiselect("Quarters", options=qtr_options, key='filter_selected_qtrs')
 
-                with st.expander("📈 Advanced Metrics"):
-                    epa_min, epa_max = -10.0, 10.0
-                    wp_min, wp_max = 0.0, 1.0
-                    st.slider("EPA range", min_value=epa_min, max_value=epa_max, value=( -2.0, 2.0 ), step=0.1, key='filter_epa_range')
-                    st.slider("Win Prob range", min_value=wp_min, max_value=wp_max, value=(0.0, 1.0), step=0.01, key='filter_wp_range')
+#                 with st.expander("📈 Advanced Metrics"):
+#                     epa_min, epa_max = -10.0, 10.0
+#                     wp_min, wp_max = 0.0, 1.0
+#                     st.slider("EPA range", min_value=epa_min, max_value=epa_max, value=( -2.0, 2.0 ), step=0.1, key='filter_epa_range')
+#                     st.slider("Win Prob range", min_value=wp_min, max_value=wp_max, value=(0.0, 1.0), step=0.01, key='filter_wp_range')
 
-                st.write("**Quick Filters**")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Red Zone", key='quickfilter_redzone'):
-                        st.session_state['quickfilter_yardline_100'] = (0, 20)
-                        st.experimental_rerun()
-                with col2:
-                    if st.button("2-Minute Drill", key='quickfilter_2min'):
-                        st.session_state['quickfilter_game_seconds_remaining_lt'] = 120
-                        st.experimental_rerun()
+#                 st.write("**Quick Filters**")
+#                 col1, col2 = st.columns(2)
+#                 with col1:
+#                     if st.button("Red Zone", key='quickfilter_redzone'):
+#                         st.session_state['quickfilter_yardline_100'] = (0, 20)
+#                         st.experimental_rerun()
+#                 with col2:
+#                     if st.button("2-Minute Drill", key='quickfilter_2min'):
+#                         st.session_state['quickfilter_game_seconds_remaining_lt'] = 120
+#                         st.experimental_rerun()
 
-                with st.expander("🛠️ Dev Tools (dev only)", expanded=False):
-                    if st.button("Clear Quick Filters", key='dev_clear_quickfilters'):
-                        for k in [
-                            'quickfilter_yardline_100', 'quickfilter_game_seconds_remaining_lt',
-                            'filter_selected_offense', 'filter_selected_defense',
-                            'filter_selected_downs', 'filter_selected_qtrs',
-                            'filter_epa_range', 'filter_wp_range'
-                        ]:
-                            st.session_state.pop(k, None)
-                        st.success("Cleared quick filters and dev filter keys")
-                        st.experimental_rerun()
+#                 with st.expander("🛠️ Dev Tools (dev only)", expanded=False):
+#                     if st.button("Clear Quick Filters", key='dev_clear_quickfilters'):
+#                         for k in [
+#                             'quickfilter_yardline_100', 'quickfilter_game_seconds_remaining_lt',
+#                             'filter_selected_offense', 'filter_selected_defense',
+#                             'filter_selected_downs', 'filter_selected_qtrs',
+#                             'filter_epa_range', 'filter_wp_range'
+#                         ]:
+#                             st.session_state.pop(k, None)
+#                         st.success("Cleared quick filters and dev filter keys")
+#                         st.experimental_rerun()
 
-                    if st.button("Set Example Filters", key='dev_set_example_filters'):
-                        st.session_state['quickfilter_yardline_100'] = (0, 20)
-                        st.session_state['quickfilter_game_seconds_remaining_lt'] = 120
-                        st.session_state['filter_epa_range'] = (-1.5, 1.5)
-                        st.session_state['filter_wp_range'] = (0.25, 0.75)
-                        st.success("Applied example quick filters")
-                        st.experimental_rerun()
-            except Exception:
-                # Non-fatal: continue even if enhanced UI fails
-                pass
-                if 'reset' not in st.session_state:
-                    st.session_state['reset'] = False
-                # Initialize session state for filters
-                for key in filter_keys:
-                    if key not in st.session_state:
-                        if key in ['down', 'posteam', 'defteam', 'play_type', 'qtr']:
-                            st.session_state[key] = []
-                        elif key == 'pass_attempt':
-                            st.session_state[key] = False  # Checkbox default
-                        elif key == 'ydstogo':
-                            st.session_state[key] = (int(historical_data['ydstogo'].min()), int(historical_data['ydstogo'].max()))
-                        elif key == 'yardline_100':
-                            st.session_state[key] = (int(historical_data['yardline_100'].min()), int(historical_data['yardline_100'].max()))
-                        elif key == 'score_differential':
-                            st.session_state[key] = (int(historical_data['score_differential'].min()), int(historical_data['score_differential'].max()))
-                        elif key == 'posteam_score':
-                            st.session_state[key] = (int(historical_data['posteam_score'].min()), int(historical_data['posteam_score'].max()))
-                        elif key == 'defteam_score':
-                            st.session_state[key] = (int(historical_data['defteam_score'].min()), int(historical_data['defteam_score'].max()))
-                        elif key == 'epa':
-                            st.session_state[key] = (float(historical_data['epa'].min()), float(historical_data['epa'].max()))
+#                     if st.button("Set Example Filters", key='dev_set_example_filters'):
+#                         st.session_state['quickfilter_yardline_100'] = (0, 20)
+#                         st.session_state['quickfilter_game_seconds_remaining_lt'] = 120
+#                         st.session_state['filter_epa_range'] = (-1.5, 1.5)
+#                         st.session_state['filter_wp_range'] = (0.25, 0.75)
+#                         st.success("Applied example quick filters")
+#                         st.experimental_rerun()
+#             except Exception:
+#                 # Non-fatal: continue even if enhanced UI fails
+#                 pass
+#                 if 'reset' not in st.session_state:
+#                     st.session_state['reset'] = False
+#                 # Initialize session state for filters
+#                 for key in filter_keys:
+#                     if key not in st.session_state:
+#                         if key in ['down', 'posteam', 'defteam', 'play_type', 'qtr']:
+#                             st.session_state[key] = []
+#                         elif key == 'pass_attempt':
+#                             st.session_state[key] = False  # Checkbox default
+#                         elif key == 'ydstogo':
+#                             st.session_state[key] = (int(historical_data['ydstogo'].min()), int(historical_data['ydstogo'].max()))
+#                         elif key == 'yardline_100':
+#                             st.session_state[key] = (int(historical_data['yardline_100'].min()), int(historical_data['yardline_100'].max()))
+#                         elif key == 'score_differential':
+#                             st.session_state[key] = (int(historical_data['score_differential'].min()), int(historical_data['score_differential'].max()))
+#                         elif key == 'posteam_score':
+#                             st.session_state[key] = (int(historical_data['posteam_score'].min()), int(historical_data['posteam_score'].max()))
+#                         elif key == 'defteam_score':
+#                             st.session_state[key] = (int(historical_data['defteam_score'].min()), int(historical_data['defteam_score'].max()))
+#                         elif key == 'epa':
+#                             st.session_state[key] = (float(historical_data['epa'].min()), float(historical_data['epa'].max()))
 
-                if st.button("Reset Filters"):
-                    for key in filter_keys:
-                        if key in ['down', 'posteam', 'defteam', 'play_type', 'qtr']:
-                            st.session_state[key] = []
-                        elif key == 'pass_attempt':
-                            st.session_state[key] = False  # Reset checkbox
-                        else:
-                            st.session_state[key] = None
-                    st.session_state['reset'] = True
+#                 if st.button("Reset Filters"):
+#                     for key in filter_keys:
+#                         if key in ['down', 'posteam', 'defteam', 'play_type', 'qtr']:
+#                             st.session_state[key] = []
+#                         elif key == 'pass_attempt':
+#                             st.session_state[key] = False  # Reset checkbox
+#                         else:
+#                             st.session_state[key] = None
+#                     st.session_state['reset'] = True
 
-                # Default values
-                default_filters = {
-                    'posteam': historical_data['posteam'].unique().tolist(),
-                    'defteam': historical_data['defteam'].unique().tolist(),
-                    'down': [1, 2, 3, 4],
-                    'ydstogo': (int(historical_data['ydstogo'].min()), int(historical_data['ydstogo'].max())),
-                    'yardline_100': (int(historical_data['yardline_100'].min()), int(historical_data['yardline_100'].max())),
-                    'play_type': historical_data['play_type'].dropna().unique().tolist(),
-                    'qtr': sorted(historical_data['qtr'].dropna().unique()),
-                    'score_differential': (int(historical_data['score_differential'].min()), int(historical_data['score_differential'].max())),
-                    'posteam_score': (int(historical_data['posteam_score'].min()), int(historical_data['posteam_score'].max())),
-                    'defteam_score': (int(historical_data['defteam_score'].min()), int(historical_data['defteam_score'].max())),
-                    'epa': (float(historical_data['epa'].min()), float(historical_data['epa'].max())),
-                    'pass_attempt': False
-                }
+#                 # Default values
+#                 default_filters = {
+#                     'posteam': historical_data['posteam'].unique().tolist(),
+#                     'defteam': historical_data['defteam'].unique().tolist(),
+#                     'down': [1, 2, 3, 4],
+#                     'ydstogo': (int(historical_data['ydstogo'].min()), int(historical_data['ydstogo'].max())),
+#                     'yardline_100': (int(historical_data['yardline_100'].min()), int(historical_data['yardline_100'].max())),
+#                     'play_type': historical_data['play_type'].dropna().unique().tolist(),
+#                     'qtr': sorted(historical_data['qtr'].dropna().unique()),
+#                     'score_differential': (int(historical_data['score_differential'].min()), int(historical_data['score_differential'].max())),
+#                     'posteam_score': (int(historical_data['posteam_score'].min()), int(historical_data['posteam_score'].max())),
+#                     'defteam_score': (int(historical_data['defteam_score'].min()), int(historical_data['defteam_score'].max())),
+#                     'epa': (float(historical_data['epa'].min()), float(historical_data['epa'].max())),
+#                     'pass_attempt': False
+#                 }
 
-                # Filters
-                posteam_options = historical_data['posteam'].unique().tolist()
-                posteam = st.multiselect("Possession Team", posteam_options, key="posteam")
-                # Defense Team
-                defteam_options = historical_data['defteam'].unique().tolist()
-                defteam = st.multiselect("Defense Team", defteam_options, key="defteam")
-                # Down
-                down_options = [1,2,3,4]
-                down = st.multiselect("Down", down_options, key="down")
-                # Yards To Go
-                if st.session_state['ydstogo'] is None:
-                    st.session_state['ydstogo'] = (int(historical_data['ydstogo'].min()), int(historical_data['ydstogo'].max()))
-                ydstogo = st.slider("Yards To Go", int(historical_data['ydstogo'].min()), int(historical_data['ydstogo'].max()), value=st.session_state['ydstogo'], key="ydstogo")
-                # Yardline 100
-                if st.session_state['yardline_100'] is None:
-                    st.session_state['yardline_100'] = (int(historical_data['yardline_100'].min()), int(historical_data['yardline_100'].max()))
-                yardline_100 = st.slider("Yardline 100", int(historical_data['yardline_100'].min()), int(historical_data['yardline_100'].max()), value=st.session_state['yardline_100'], key="yardline_100")
-                # Play Type
-                play_type_options = historical_data['play_type'].dropna().unique().tolist()
-                play_type = st.multiselect("Play Type", play_type_options, key="play_type")
-                # Quarter
-                qtr_options = sorted([q for q in historical_data['qtr'].dropna().unique() if not (isinstance(q, float) and math.isnan(q))])
-                qtr = st.multiselect("Quarter", qtr_options, key="qtr")
-                # Score Differential
-                if st.session_state['score_differential'] is None:
-                    st.session_state['score_differential'] = (int(historical_data['score_differential'].min()), int(historical_data['score_differential'].max()))
-                score_differential = st.slider("Score Differential", int(historical_data['score_differential'].min()), int(historical_data['score_differential'].max()), value=st.session_state['score_differential'], key="score_differential")
-                # Possession Team Score
-                if st.session_state['posteam_score'] is None:
-                    st.session_state['posteam_score'] = (int(historical_data['posteam_score'].min()), int(historical_data['posteam_score'].max()))
-                posteam_score = st.slider(
-                    "Possession Team Score",
-                    int(historical_data['posteam_score'].min()),
-                    int(historical_data['posteam_score'].max()),
-                    value=default_filters['posteam_score'] if st.session_state['reset'] else (int(historical_data['posteam_score'].min()), int(historical_data['posteam_score'].max()))
-                )
-                defteam_score = st.slider(
-                    "Defense Team Score",
-                    int(historical_data['defteam_score'].min()),
-                    int(historical_data['defteam_score'].max()),
-                    value=default_filters['defteam_score'] if st.session_state['reset'] else (int(historical_data['defteam_score'].min()), int(historical_data['defteam_score'].max()))
-                )
-                epa = st.slider(
-                    "Expected Points Added (EPA)",
-                    float(historical_data['epa'].min()),
-                    float(historical_data['epa'].max()),
-                    value=default_filters['epa'] if st.session_state['reset'] else (float(historical_data['epa'].min()), float(historical_data['epa'].max()))
-                )
-                pass_attempt = st.checkbox("Pass Attempts Only", key="pass_attempt")
+#                 # Filters
+#                 posteam_options = historical_data['posteam'].unique().tolist()
+#                 posteam = st.multiselect("Possession Team", posteam_options, key="posteam")
+#                 # Defense Team
+#                 defteam_options = historical_data['defteam'].unique().tolist()
+#                 defteam = st.multiselect("Defense Team", defteam_options, key="defteam")
+#                 # Down
+#                 down_options = [1,2,3,4]
+#                 down = st.multiselect("Down", down_options, key="down")
+#                 # Yards To Go
+#                 if st.session_state['ydstogo'] is None:
+#                     st.session_state['ydstogo'] = (int(historical_data['ydstogo'].min()), int(historical_data['ydstogo'].max()))
+#                 ydstogo = st.slider("Yards To Go", int(historical_data['ydstogo'].min()), int(historical_data['ydstogo'].max()), value=st.session_state['ydstogo'], key="ydstogo")
+#                 # Yardline 100
+#                 if st.session_state['yardline_100'] is None:
+#                     st.session_state['yardline_100'] = (int(historical_data['yardline_100'].min()), int(historical_data['yardline_100'].max()))
+#                 yardline_100 = st.slider("Yardline 100", int(historical_data['yardline_100'].min()), int(historical_data['yardline_100'].max()), value=st.session_state['yardline_100'], key="yardline_100")
+#                 # Play Type
+#                 play_type_options = historical_data['play_type'].dropna().unique().tolist()
+#                 play_type = st.multiselect("Play Type", play_type_options, key="play_type")
+#                 # Quarter
+#                 qtr_options = sorted([q for q in historical_data['qtr'].dropna().unique() if not (isinstance(q, float) and math.isnan(q))])
+#                 qtr = st.multiselect("Quarter", qtr_options, key="qtr")
+#                 # Score Differential
+#                 if st.session_state['score_differential'] is None:
+#                     st.session_state['score_differential'] = (int(historical_data['score_differential'].min()), int(historical_data['score_differential'].max()))
+#                 score_differential = st.slider("Score Differential", int(historical_data['score_differential'].min()), int(historical_data['score_differential'].max()), value=st.session_state['score_differential'], key="score_differential")
+#                 # Possession Team Score
+#                 if st.session_state['posteam_score'] is None:
+#                     st.session_state['posteam_score'] = (int(historical_data['posteam_score'].min()), int(historical_data['posteam_score'].max()))
+#                 posteam_score = st.slider(
+#                     "Possession Team Score",
+#                     int(historical_data['posteam_score'].min()),
+#                     int(historical_data['posteam_score'].max()),
+#                     value=default_filters['posteam_score'] if st.session_state['reset'] else (int(historical_data['posteam_score'].min()), int(historical_data['posteam_score'].max()))
+#                 )
+#                 defteam_score = st.slider(
+#                     "Defense Team Score",
+#                     int(historical_data['defteam_score'].min()),
+#                     int(historical_data['defteam_score'].max()),
+#                     value=default_filters['defteam_score'] if st.session_state['reset'] else (int(historical_data['defteam_score'].min()), int(historical_data['defteam_score'].max()))
+#                 )
+#                 epa = st.slider(
+#                     "Expected Points Added (EPA)",
+#                     float(historical_data['epa'].min()),
+#                     float(historical_data['epa'].max()),
+#                     value=default_filters['epa'] if st.session_state['reset'] else (float(historical_data['epa'].min()), float(historical_data['epa'].max()))
+#                 )
+#                 pass_attempt = st.checkbox("Pass Attempts Only", key="pass_attempt")
 
-                # Reset session state after applying
-                if st.session_state['reset']:
-                    st.session_state['reset'] = False
-                # End sidebar
+#                 # Reset session state after applying
+#                 if st.session_state['reset']:
+#                     st.session_state['reset'] = False
+#                 # End sidebar
 
-            # Apply filters to the dataframe
-            filtered_data = historical_data.copy()
-            if posteam:
-                filtered_data = filtered_data[filtered_data['posteam'].isin(posteam)]
-            if defteam:
-                filtered_data = filtered_data[filtered_data['defteam'].isin(defteam)]
-            if down:
-                filtered_data = filtered_data[filtered_data['down'].isin(down)]
-            if ydstogo:
-                filtered_data = filtered_data[(filtered_data['ydstogo'] >= ydstogo[0]) & (filtered_data['ydstogo'] <= ydstogo[1])]
-            if yardline_100:
-                filtered_data = filtered_data[(filtered_data['yardline_100'] >= yardline_100[0]) & (filtered_data['yardline_100'] <= yardline_100[1])]
-            if play_type:
-                filtered_data = filtered_data[filtered_data['play_type'].isin(play_type)]
-            if qtr:
-                filtered_data = filtered_data[filtered_data['qtr'].isin(qtr)]
-            if score_differential:
-                filtered_data = filtered_data[(filtered_data['score_differential'] >= score_differential[0]) & (filtered_data['score_differential'] <= score_differential[1])]
-            if posteam_score:
-                filtered_data = filtered_data[(filtered_data['posteam_score'] >= posteam_score[0]) & (filtered_data['posteam_score'] <= posteam_score[1])]
-            if defteam_score:
-                filtered_data = filtered_data[(filtered_data['defteam_score'] >= defteam_score[0]) & (filtered_data['defteam_score'] <= defteam_score[1])]
-            if epa:
-                filtered_data = filtered_data[(filtered_data['epa'] >= epa[0]) & (filtered_data['epa'] <= epa[1])]
-            if pass_attempt:
-                filtered_data = filtered_data[filtered_data['pass_attempt'] == 1]
+#             # Apply filters to the dataframe
+#             filtered_data = historical_data.copy()
+#             if posteam:
+#                 filtered_data = filtered_data[filtered_data['posteam'].isin(posteam)]
+#             if defteam:
+#                 filtered_data = filtered_data[filtered_data['defteam'].isin(defteam)]
+#             if down:
+#                 filtered_data = filtered_data[filtered_data['down'].isin(down)]
+#             if ydstogo:
+#                 filtered_data = filtered_data[(filtered_data['ydstogo'] >= ydstogo[0]) & (filtered_data['ydstogo'] <= ydstogo[1])]
+#             if yardline_100:
+#                 filtered_data = filtered_data[(filtered_data['yardline_100'] >= yardline_100[0]) & (filtered_data['yardline_100'] <= yardline_100[1])]
+#             if play_type:
+#                 filtered_data = filtered_data[filtered_data['play_type'].isin(play_type)]
+#             if qtr:
+#                 filtered_data = filtered_data[filtered_data['qtr'].isin(qtr)]
+#             if score_differential:
+#                 filtered_data = filtered_data[(filtered_data['score_differential'] >= score_differential[0]) & (filtered_data['score_differential'] <= score_differential[1])]
+#             if posteam_score:
+#                 filtered_data = filtered_data[(filtered_data['posteam_score'] >= posteam_score[0]) & (filtered_data['posteam_score'] <= posteam_score[1])]
+#             if defteam_score:
+#                 filtered_data = filtered_data[(filtered_data['defteam_score'] >= defteam_score[0]) & (filtered_data['defteam_score'] <= defteam_score[1])]
+#             if epa:
+#                 filtered_data = filtered_data[(filtered_data['epa'] >= epa[0]) & (filtered_data['epa'] <= epa[1])]
+#             if pass_attempt:
+#                 filtered_data = filtered_data[filtered_data['pass_attempt'] == 1]
 
-            st.write("### Filtered Historical Data")
+#             st.write("### Filtered Historical Data")
 
-            # Create display copy and convert probability columns to percentages
-            display_data = filtered_data.head(50).copy()
+#             # Create display copy and convert probability columns to percentages
+#             display_data = filtered_data.head(50).copy()
 
-            # Identify probability columns (typically range 0-1) and convert to percentages
-            prob_columns = ['wp', 'def_wp', 'home_wp', 'away_wp', 'vegas_wp', 'vegas_home_wp', 
-                            'cp', 'cpoe', 'success', 'pass_oe', 'qb_epa', 'xyac_epa']
+#             # Identify probability columns (typically range 0-1) and convert to percentages
+#             prob_columns = ['wp', 'def_wp', 'home_wp', 'away_wp', 'vegas_wp', 'vegas_home_wp', 
+#                             'cp', 'cpoe', 'success', 'pass_oe', 'qb_epa', 'xyac_epa']
 
-            for col in prob_columns:
-                if col in display_data.columns:
-                    # Check if values are in 0-1 range (probabilities)
-                    if display_data[col].notna().any() and display_data[col].between(0, 1).all():
-                        display_data[col] = display_data[col] * 100
+#             for col in prob_columns:
+#                 if col in display_data.columns:
+#                     # Check if values are in 0-1 range (probabilities)
+#                     if display_data[col].notna().any() and display_data[col].between(0, 1).all():
+#                         display_data[col] = display_data[col] * 100
 
-            # Configure columns with appropriate formatting
-            column_config = {}
-            for col in display_data.columns:
-                if col in prob_columns and col in display_data.columns:
-                    column_config[col] = st.column_config.NumberColumn(col, format='%.1f%%')
-                elif col in ['epa', 'wpa', 'air_epa', 'yac_epa', 'comp_air_epa', 'comp_yac_epa',
-                             'air_wpa', 'yac_wpa', 'comp_air_wpa', 'comp_yac_wpa', 'ep', 'vegas_wpa']:
-                    column_config[col] = st.column_config.NumberColumn(col, format='%.3f')
-                elif col in ['yards_gained', 'air_yards', 'yards_after_catch', 'ydstogo', 
-                             'yardline_100', 'score_differential', 'posteam_score', 'defteam_score']:
-                    column_config[col] = st.column_config.NumberColumn(col, format='%d')
+#             # Configure columns with appropriate formatting
+#             column_config = {}
+#             for col in display_data.columns:
+#                 if col in prob_columns and col in display_data.columns:
+#                     column_config[col] = st.column_config.NumberColumn(col, format='%.1f%%')
+#                 elif col in ['epa', 'wpa', 'air_epa', 'yac_epa', 'comp_air_epa', 'comp_yac_epa',
+#                              'air_wpa', 'yac_wpa', 'comp_air_wpa', 'comp_yac_wpa', 'ep', 'vegas_wpa']:
+#                     column_config[col] = st.column_config.NumberColumn(col, format='%.3f')
+#                 elif col in ['yards_gained', 'air_yards', 'yards_after_catch', 'ydstogo', 
+#                              'yardline_100', 'score_differential', 'posteam_score', 'defteam_score']:
+#                     column_config[col] = st.column_config.NumberColumn(col, format='%d')
 
-            st.dataframe(display_data, hide_index=True, column_config=column_config if column_config else None)
+#             st.dataframe(display_data, hide_index=True, column_config=column_config if column_config else None)
 
 print("🎨 Starting main UI rendering...", file=sys.stderr, flush=True)
 
