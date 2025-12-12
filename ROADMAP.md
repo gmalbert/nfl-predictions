@@ -106,10 +106,11 @@ st.download_button(
 **Status: ✅ COMPLETED** (Nov 27, 2025)
 
 Notes:
-- Added a PDF export generator in the sidebar that builds a compact, print-friendly PDF of upcoming games (today or later) and exposes a `⬇️ Download Predictions (PDF)` button. The PDF uses a compact layout and short headers to fit more columns.
+- Added a PDF export generator in the sidebar that builds a compact, print-friendly PDF of upcoming games (today or later) and exposes a download button with embedded PDF icon. The PDF uses a compact layout and short headers to fit more columns.
 - Exported PDFs are saved under `data_files/exports/` for auditability. The app no longer attempts to spawn a local static server to open the PDF link — the download button is the canonical retrieval method.
 - The generator filters predictions to include only upcoming games and will write a short message to the PDF if no upcoming games are found.
-- A tiny placeholder `favicon.ico` was added to `data_files/exports/` to avoid 404 noise from browser favicon requests when a static server was temporarily used during development.
+- PDF generate button uses HTML with embedded PDF icon for consistency with download buttons.
+- All download buttons use embedded icons (`csv_icon.png`, `pdf_icon.png`) with proper fallback to `favicon.ico`.
 
 ---
 

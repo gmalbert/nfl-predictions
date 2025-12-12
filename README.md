@@ -648,13 +648,15 @@ This project welcomes contributions! Areas for improvement:
 
 **Built with**: Python • Streamlit • XGBoost • Scikit-learn • NFLverse Data
 
-## 📥 Export Downloads & Sidebar (Nov 23, 2025)
+## 📥 Export Downloads & Sidebar (Dec 11, 2025)
 
 - **Where to find exports**: The app exposes always-visible download controls in the sidebar for:
-  - `Predictions CSV` — current predictions shown in the app
-  - `Betting Log` — the `betting_recommendations_log.csv` file
+  - `Predictions CSV` — current predictions shown in the app (with embedded CSV icon)
+  - `Betting Log` — the `betting_recommendations_log.csv` file (with embedded CSV icon)
+  - `Generate Predictions PDF` — on-demand PDF generation with embedded PDF icon
 - **Why you might not see them**: The Streamlit sidebar can be collapsed by default. If you do not see the download buttons, click the small chevron in the top-left of the page to expand the sidebar.
-- **Behavior**: Download buttons are rendered after the app finishes loading data (the app reserves lightweight placeholders while data loads and populates the real `st.download_button` once `predictions_df` and the betting log are available).
+- **Behavior**: Download buttons are rendered after the app finishes loading data (the app reserves lightweight placeholders while data loads and populates the real download controls once `predictions_df` and the betting log are available).
+- **Icon consistency**: All download buttons and the PDF generate button use embedded icons (`csv_icon.png`, `pdf_icon.png`) with fallback to `favicon.ico` for a professional appearance.
 
 ## ✉️ Emailing Predictions (Nov 26, 2025)
 
@@ -697,6 +699,12 @@ This prints basic progress and a final `SMOKE OK` line when successful. For full
 python build_and_train_pipeline.py   # builds predictions/data if needed (single-step)
 streamlit run predictions.py
 ```
+
+## 📅 Recent Changes (Dec 11, 2025)
+
+- **Icon Consistency**: All download buttons and PDF generate button now use embedded icons (`csv_icon.png`, `pdf_icon.png`) with proper fallback to `favicon.ico` for professional appearance. Fixed incorrect fallback icon path from `favicon.png` to `favicon.ico`.
+- **PDF Generate Button**: Updated to use HTML with embedded PDF icon instead of emoji, matching the visual style of download buttons.
+- **Download UX**: Sidebar download controls are rendered from placeholders and populated only after `predictions_df` and the betting log finish loading to avoid rendering heavy widgets during initial load.
 
 ## 📅 Recent Changes (Nov 25, 2025)
 
