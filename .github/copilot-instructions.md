@@ -46,9 +46,26 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
  - **PDF Export pattern**: Generate PDFs on-demand (do not build at module load). Keep PDF generation deterministic, compact, and leak-free. Use ReportLab or an equivalent library to render a landscape letter PDF. Important rules:
    - Filter source DataFrame to include only upcoming games (today or later) before rendering the PDF table.
    - Keep headers short (e.g., `Pr Cover`, `Pr Win`, `Pr Over`) and use reduced font sizes/padding for compact layout.
-   - Save generated PDFs to `data_files/exports/` with a timestamped filename and expose a `st.download_button` for download. Do not rely on spawning local HTTP servers for preview links in production.
+   - Save generated PDFs to `data_files/exports/` with a timestamped filename and expose an HTML-based download button with embedded PDF icon for download. Do not rely on spawning local HTTP servers for preview links in production.
    - Provide a concise sidebar success message and the saved path after generation. If no upcoming games exist, write a short message into the PDF ("No upcoming games found...").
    - Use `BytesIO` for in-memory generation and return bytes to the UI helper so the UI code can save and create the download button.
+   - **HTML Download Buttons**: Use HTML `<a>` tags with embedded base64-encoded icons for professional styling. Icons are stored in `data_files/` (csv_icon.png, pdf_icon.png) with fallback to favicon.ico. Example:
+     ```python
+     # Choose icon with proper fallback
+     if os.path.exists(pdf_icon):
+         chosen_icon_path = pdf_icon
+     elif os.path.exists(fallback_icon):
+         chosen_icon_path = fallback_icon
+     
+     # Create base64 embedded icon
+     with open(chosen_icon_path, 'rb') as f:
+         img_b64 = base64.b64encode(f.read()).decode('ascii')
+     img_tag = f'<img src="data:image/png;base64,{img_b64}" style="width:36px;height:36px;margin-right:10px;vertical-align:middle;border-radius:6px;">'
+     
+     # HTML button with embedded icon
+     html = f'<a download="{filename}" href="{file_data_uri}" style="display:flex;align-items:center;padding:6px 12px;background:#1976d2;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">{img_tag}<span>Download</span></a>'
+     st.markdown(html, unsafe_allow_html=True)
+     ```
 - **Cache management**: Provide users control over cached data with sidebar settings. Example:
   ```python
   # Add to sidebar
@@ -167,10 +184,11 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 - See `ROADMAP.md` for planned features
 - See `data_files/` for all model/data artifacts
 
-## Recent Changes (Nov 23, 2025)
+## Recent Changes (Dec 11, 2025)
 
-- **Data Export**: Added download helpers and sidebar download controls for `predictions_df` and `betting_recommendations_log.csv`. Downloads are created from lightweight placeholders so the sidebar renders immediately and the buttons appear once data is loaded.
-- **Sidebar behavior**: The app now reserves sidebar placeholders early in execution and populates the actual `st.download_button` controls after the data-loading progress completes. If users cannot find the downloads, advise them to expand the sidebar (chevron in top-left).
+- **Icon Consistency**: All download buttons and PDF generate button now use embedded icons (`csv_icon.png`, `pdf_icon.png`) with proper fallback to `favicon.ico` for professional appearance. Fixed incorrect fallback icon path from `favicon.png` to `favicon.ico`.
+- **PDF Generate Button**: Updated to use HTML with embedded PDF icon instead of emoji, matching the visual style of download buttons.
+- **Download UX**: Sidebar download controls are rendered from placeholders and populated only after `predictions_df` and the betting log finish loading to avoid rendering heavy widgets during initial load.
 - **Smoke Test**: Added `smoke_test.py` to validate imports and lazy data loading without requiring `streamlit run`. Encourage CI to run this script on PRs.
 - **Memory & Stability**: Reiterated memory optimizations (float32/Int8, views vs copies, lazy loading, pagination) to avoid Streamlit Cloud resource limit issues.
 

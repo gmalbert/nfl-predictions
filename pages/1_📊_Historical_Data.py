@@ -841,12 +841,57 @@ if 'game_date' in historical_data.columns:
             to_download = filtered_data[display_cols].iloc[start_idx:end_idx]
             if not to_download.empty:
                 csv_bytes = convert_df_to_csv(to_download)
-                st.download_button(
-                    label="📥 Export Filtered Data",
-                    data=csv_bytes,
-                    file_name=f'nfl_historical_data_{datetime.now().strftime("%Y%m%d")}.csv',
-                    mime='text/csv'
-                )
+                filename = f'nfl_historical_data_{datetime.now().strftime("%Y%m%d")}.csv'
+
+                # CSV download button (show small icon from `data_files/` if available)
+                icons_dir = path.join(DATA_DIR)
+                csv_icon = path.join(icons_dir, 'csv_icon.png')
+                fallback_icon = path.join(icons_dir, 'favicon.ico')
+
+                # Render HTML-based download button with embedded icon (base64 data-URI).
+                # Fallback to the existing Streamlit download button if something goes wrong.
+                import base64
+                try:
+                    # Prepare data URI for download link
+                    b64_file = base64.b64encode(csv_bytes).decode('ascii')
+                    file_data_uri = f"data:text/csv;base64,{b64_file}"
+
+                    # Choose icon (csv_icon preferred, fallback to favicon)
+                    chosen_icon_path = None
+                    if os.path.exists(csv_icon):
+                        chosen_icon_path = csv_icon
+                    elif os.path.exists(fallback_icon):
+                        chosen_icon_path = fallback_icon
+
+                    img_tag = ''
+                    if chosen_icon_path is not None:
+                        try:
+                            with open(chosen_icon_path, 'rb') as ifh:
+                                img_b64 = base64.b64encode(ifh.read()).decode('ascii')
+                            # Larger icon and rounded corners for nicer appearance
+                            img_tag = f'<img src="data:image/png;base64,{img_b64}" style="width:36px;height:36px;margin-right:10px;vertical-align:middle;border-radius:6px;">'
+                        except Exception:
+                            img_tag = ''
+
+                    # HTML for a compact icon + button-like link; wrap the image inside the anchor so it's clickable
+                    html = (
+                        f'<div style="display:flex;align-items:center;margin:6px 0;">'
+                        f'<a download="{filename}" href="{file_data_uri}" '
+                        f'style="display:flex;align-items:center;padding:6px 12px;background:#1976d2;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">'
+                        f'{img_tag}'
+                        f'<span style="color:#fff;">Export Filtered Data</span>'
+                        f'</a></div>'
+                    )
+
+                    st.markdown(html, unsafe_allow_html=True)
+                except Exception:
+                    # fallback to Streamlit native button
+                    st.download_button(
+                        label="📥 Export Filtered Data",
+                        data=csv_bytes,
+                        file_name=filename,
+                        mime='text/csv'
+                    )
     except Exception:
         # If export fails, don't break the page
         pass
