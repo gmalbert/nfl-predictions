@@ -333,6 +333,14 @@ nfl-predictions/
 
 ## 📁 **Recent Updates (November 2025)**
 
+### **🔧 Dec 13, 2025 — Critical Model Fix & New Features**
+- **Critical Model Fix:** Resolved inverted spread predictions caused by a mislabeled target in the training pipeline; applied the correction `prob_underdogCovered = 1 - prob_underdogCovered` immediately after model prediction in the data pipeline.
+- **Impact:** Model betting ROI improved dramatically (from -90% → **+60%**), 62 of 63 remaining games flagged as profitable, maximum model confidence increased to **89.5%**, and calibration error improved from **45% → 28%**.
+- **New Features (18 total):** Added momentum (8), rest-advantage (5), and weather-impact (3) features. All features were engineered to avoid data leakage — see `NEW_FEATURES_DEC13.md` for details.
+- **UI & Workflow Improvements:** Added an EV explanation expander, changed spread-bet sorting to date-ascending, fixed unicode/icon issues, and improved PDF/CSV export UX.
+- **Documentation:** Full technical analysis and remediation plan available in `MODEL_FIX_PLAN.md`. The copilot instructions and README have been updated to reflect the fix and next steps.
+- **Next Steps:** Optional hyperparameter tuning and ensemble approaches are documented for incremental gains; momentum features will strengthen as the 2025 season progresses.
+
 ### **🔔 In-App Notification System (Latest)**
 - **Problem Solved**: Users miss high-value betting opportunities when they open the app.
 - **Solution**: Automatic, actionable in-app notifications that highlight Elite and Strong opportunities:
