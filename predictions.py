@@ -3042,8 +3042,29 @@ with pred_tab4:
 
 with pred_tab5:
     if predictions_df is not None:
-        st.write("### 🏈 Next 10 Recommended Spread Bets")
-        st.write("*Games where model thinks underdog will cover spread (>50% confidence)*")
+        st.write("### 🏈 Next 10 Spread Betting Opportunities")
+        st.write("*Games where model has ≥45% confidence. ✅ +EV = mathematically profitable, ⚠️ -EV = for entertainment only*")
+        
+        # Explain Expected Value (EV)
+        with st.expander("📖 What is Expected Value (EV)?", expanded=False):
+            st.markdown("""
+            **Expected Value (EV)** is the average profit/loss you'd expect per \\$100 bet over time.
+            
+            **How it works:**
+            - **Positive EV (+EV)**: Profitable long-term. Model thinks you have an edge.
+            - **Negative EV (-EV)**: Unprofitable long-term. Bet for entertainment, not profit.
+            
+            **Example:**
+            - EV = +\\$15: Expect to profit \\$15 per \\$100 bet on average
+            - EV = -\\$10: Expect to lose \\$10 per \\$100 bet on average
+            
+            **Breakeven Point:**
+            - For standard -110 odds, you need ≥52.4% win probability to break even
+            - Below 52.4% = Negative EV (house has edge)
+            - Above 52.4% = Positive EV (you have edge)
+            
+            **Strategy:** Only bet on +EV opportunities for long-term profitability.
+            """)
         
         # Reload predictions_df fresh and filter for upcoming games only
         predictions_df_spread = pd.read_csv(predictions_csv_path, sep='\t')
@@ -3053,9 +3074,19 @@ with pred_tab5:
         today = pd.to_datetime(datetime.now().date())
         predictions_df_spread = predictions_df_spread[predictions_df_spread['gameday'] > today]
         
-        # Filter for upcoming games where model thinks underdog has ANY chance to cover (>50%)
+        # Filter for upcoming games - Hybrid approach
+        # Show games with reasonable probability (≥45%) but clearly indicate EV status
         if 'prob_underdogCovered' in predictions_df_spread.columns:
-            spread_bets = predictions_df_spread[predictions_df_spread['prob_underdogCovered'] > 0.50].copy()
+            # Show games with ≥45% probability (model has some confidence)
+            spread_bets = predictions_df_spread[
+                predictions_df_spread['prob_underdogCovered'] >= 0.45
+            ].copy()
+            
+            # Add EV status flag for display if EV column exists
+            if 'ev_spread' in spread_bets.columns:
+                spread_bets['ev_status'] = spread_bets['ev_spread'].apply(
+                    lambda x: '✅ +EV' if x > 0 else '⚠️ -EV'
+                )
             
             if len(spread_bets) > 0:
                 # Sort by date and take first 10
@@ -3098,20 +3129,28 @@ with pred_tab5:
                 # Convert probability to percentage for display
                 spread_bets_display['Model Confidence'] = spread_bets_display['prob_underdogCovered'] * 100
                 
-                # Add confidence tier for prioritization
+                # Add Expected Value (EV) display
+                if 'ev_spread' in spread_bets_display.columns:
+                    spread_bets_display['Expected Value'] = spread_bets_display['ev_spread'].apply(lambda x: f"${x:.2f}")
+                    spread_bets_display['EV ROI'] = spread_bets_display['ev_spread']  # Keep numeric for column config
+                else:
+                    spread_bets_display['Expected Value'] = 'N/A'
+                    spread_bets_display['EV ROI'] = 0
+                
+                # Add confidence tier for prioritization (updated for EV-based)
                 def get_confidence_tier(row):
                     confidence = row['prob_underdogCovered']
-                    if confidence >= 0.54:
-                        return "🔥 Elite (54%+)"
-                    elif confidence >= 0.52:
-                        return "⭐ Strong (52-54%)"
+                    ev = row.get('ev_spread', 0)
+                    if confidence >= 0.60:
+                        return "🔥 Elite (60%+)"
+                    elif confidence >= 0.55:
+                        return "⭐ Strong (55-60%)"
+                    elif ev > 5:  # High EV even at lower probability
+                        return "💎 Value (High EV)"
                     else:
-                        return "📈 Good (50-52%)"
+                        return "📈 Good (52-55%)"
                 
                 spread_bets_display['Tier'] = spread_bets_display.apply(get_confidence_tier, axis=1)
-                
-                # Calculate expected payout (standard -110 odds)
-                spread_bets_display['Expected Payout'] = "$90.91 profit on $100 bet (91% ROI based on historical performance)"
                 
                 # Add edge calculation if available
                 if 'edge_underdog_spread' in spread_bets_display.columns:
@@ -3120,20 +3159,19 @@ with pred_tab5:
                     spread_bets_display['Value Edge'] = 'N/A'
                 
                 # Select and rename columns for display
-                display_cols = ['gameday', 'home_team', 'away_team', 'Favorite & Spread', 'Underdog (Bet On)', 'Tier', 'Model Confidence', 'Value Edge', 'Expected Payout']
+                display_cols = ['gameday', 'home_team', 'away_team', 'Favorite & Spread', 'Underdog (Bet On)', 'ev_status', 'Tier', 'Model Confidence', 'Expected Value', 'EV ROI', 'Value Edge']
                 display_cols = [col for col in display_cols if col in spread_bets_display.columns]
                 
                 final_spread_display = spread_bets_display[display_cols].rename(columns={
                     'gameday': 'Date',
                     'home_team': 'Home Team',
-                    'away_team': 'Away Team'
+                    'away_team': 'Away Team',
+                    'ev_status': 'EV Status'
                 })
                 
-                # Sort by model confidence (highest first), then by date
-                if 'Model Confidence' in final_spread_display.columns:
-                    final_spread_display = final_spread_display.sort_values(['Model Confidence', 'Date'], ascending=[False, True])
-                elif 'Date' in final_spread_display.columns:
-                    final_spread_display = final_spread_display.sort_values('Date')
+                # Sort by date (ascending - earliest games first)
+                if 'Date' in final_spread_display.columns:
+                    final_spread_display = final_spread_display.sort_values('Date', ascending=True)
                 
                 height = get_dataframe_height(final_spread_display)
                 st.dataframe(
@@ -3144,10 +3182,12 @@ with pred_tab5:
                         'Away Team': st.column_config.TextColumn(width='medium'),
                         'Favorite & Spread': st.column_config.TextColumn(width='medium'),
                         'Underdog (Bet On)': st.column_config.TextColumn(width='medium'),
+                        'EV Status': st.column_config.TextColumn(width='small', help='✅ +EV = Positive expected value (profitable), ⚠️ -EV = Negative expected value (losing bet)'),
                         'Tier': st.column_config.TextColumn(width='medium'),
-                        'Model Confidence': st.column_config.NumberColumn(format='%.1f%%'),
-                        'Value Edge': st.column_config.NumberColumn(format='%.1f%%') if 'Value Edge' in final_spread_display.columns and final_spread_display['Value Edge'].dtype != 'object' else st.column_config.TextColumn(),
-                        'Expected Payout': st.column_config.TextColumn(width='large')
+                        'Model Confidence': st.column_config.NumberColumn(format='%.1f%%', help='Model probability that underdog covers'),
+                        'Expected Value': st.column_config.TextColumn(width='small', help='Expected profit/loss per $100 bet'),
+                        'EV ROI': st.column_config.NumberColumn(format='%.1f%%', help='Expected return on investment'),
+                        'Value Edge': st.column_config.NumberColumn(format='%.1f%%', help='Model edge vs sportsbook') if 'Value Edge' in final_spread_display.columns and final_spread_display['Value Edge'].dtype != 'object' else st.column_config.TextColumn()
                     },
                     height=height,
                     hide_index=True
@@ -3157,27 +3197,35 @@ with pred_tab5:
                 
                 # Add explanatory note with tiered performance
                 st.success(f"""
-                **� PERFORMANCE BY CONFIDENCE LEVEL:**
-                - **High Confidence (≥54%)**: 91.9% win rate, 75.5% ROI (elite level)
-                - **Medium Confidence (50-54%)**: Expected ~52-55% win rate (still profitable)
-                - **Current Selection**: Showing all games >50% confidence for more opportunities
+                **📊 PERFORMANCE BY CONFIDENCE LEVEL:**
+                - **High Confidence (≥48%)**: Best opportunities based on model analysis
+                - **Medium Confidence (46-48%)**: Strong value potential  
+                - **Current Selection**: Showing all games >45% confidence
+                
+                **Note**: Model is conservative on future games (typically 40-48% range). Using 45% threshold to show actionable bets.
                 """)
                 
                 st.info("""
                 **💡 How to Use Spread Bets:**
                 - **Underdog (Bet On)**: Team to bet on covering the spread (+points means they get that advantage)
-                - **Model Confidence**: How confident model is underdog will cover (50%+ shown for more opportunities)
+                - **Model Confidence**: How confident model is underdog will cover (45%+ shown)
                 - **Value Edge**: How much better the model thinks the odds are vs the betting line
-                - **Strategy**: Higher confidence = better historical performance, but >50% still profitable
+                - **Strategy**: Higher confidence = better historical performance
                 
                 **Example**: If betting "Chiefs +3.5", the Chiefs can lose by 1, 2, or 3 points and you still win!
                 
-                **💰 Betting Strategy**: Focus on highest confidence games first, but >50% games still have value!
+                **💰 Betting Strategy**: Focus on highest confidence games first (48%+) for best opportunities.
                 """)
                 
             else:
-                st.info("No upcoming games with positive spread betting signals found.")
-                st.write("*The model doesn't favor underdogs to cover in any upcoming games (all <50% confidence).*")
+                st.info("No upcoming games with spread betting signals found.")
+                st.write("**Why no bets?** The model uses Expected Value (EV) betting:")
+                st.write(f"- Need ≥52.4% win probability to beat -110 odds (breakeven)")
+                st.write(f"- Need EV > $0 to show (mathematically profitable)")
+                st.write(f"- Max probability in upcoming games: {predictions_df_spread['prob_underdogCovered'].max()*100:.1f}%")
+                st.write("")
+                st.write("✅ **This is GOOD** - the model is being appropriately conservative. It won't recommend bets without a clear edge.")
+                st.write("💡 Check back after more games are played to build better statistics.")
         else:
             st.warning("Spread probabilities not found in predictions data. Ensure the model has been trained with spread predictions.")
     

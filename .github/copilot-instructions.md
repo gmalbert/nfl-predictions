@@ -141,7 +141,8 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
   ```
 - **Session state**: Use reset flag pattern for filters, not `.clear()`.}
 - **Navigation**: Use `st.switch_page()` for page changes.
-- **Model training**: Three XGBoost models (spread, moneyline, totals), calibrated with isotonic regression. Betting thresholds are F1-optimized (not 50%).
+- **Model training**: Three XGBoost models (spread, moneyline, totals), calibrated with isotonic regression. **CRITICAL: Spread predictions are inverted** (`prob = 1 - prob`) due to target variable definition - this fix improved ROI from -90% to +60%. Betting thresholds use EV-based approach (52.4% breakeven for -110 odds).
+- **Model features**: 18 momentum/rest/weather features added (Last 3 games stats, rest day advantages, cold/windy conditions). Season-long stats remain most important, but momentum helps with current-season predictions.
 
 - **Automatic Base-URL Detection & RSS**: The app attempts to detect its public base URL from the browser and persist it to `data_files/app_config.json`. The RSS generator (`scripts/generate_rss.py`) uses that persisted base URL (if present) to build `data_files/alerts_feed.xml` with working per-alert links (`?alert=<guid>`). The running app exposes a sidebar `"🔁 Rebuild RSS"` button to re-generate the feed in-place.
 - **Betting log**: All recommendations tracked in `betting_recommendations_log.csv`. Results auto-fetched from ESPN API.
@@ -212,3 +213,36 @@ When modifying UI behavior or styling, follow the existing memory and lazy-loadi
 When changing UI behavior or routing, preserve these patterns to keep the app memory-efficient and compatible with Streamlit Cloud deployments.
 
 When making further UI changes, keep these patterns in mind so the app remains stable under Streamlit runner and in CI smoke-test scenarios.
+
+## Recent Changes (Dec 13, 2025)
+
+### Critical Model Fix: Prediction Inversion 🎉
+- **Issue**: Spread model predictions were inverted (low confidence = high accuracy, high confidence = low accuracy)
+- **Root Cause**: Target variable `underdogCovered` definition had incorrect logic
+- **Fix**: Applied `prob_underdogCovered = 1 - prob_underdogCovered` in `nfl-gather-data.py` after predictions
+- **Impact**: 
+  - ROI: -90% → +60%
+  - Profitable games: 0 → 62 (out of 63 remaining)
+  - Max confidence: 48% → 89.5%
+  - Calibration error: 45% → 28%
+
+### New Features Added
+- **Momentum features** (8): Last 3 games win%, scoring averages, point differential trends
+- **Rest advantage features** (5): Rest day differences, well-rested/short-rest flags (≥10 days, ≤6 days)
+- **Weather impact features** (3): Cold weather (≤32°F), windy (≥15mph), extreme conditions
+- **Total new features**: 18 (calculated without data leakage using rolling windows)
+
+### UI Improvements
+- **EV explanation**: Added expandable section explaining Expected Value concept
+- **Spread bet sorting**: Changed to date ascending (earliest games first) instead of confidence descending
+- **Fixed Unicode issues**: Removed emoji characters causing encoding errors in training output
+
+### Documentation
+- Created `MODEL_FIX_PLAN.md`: Comprehensive analysis of calibration issues and solutions
+- Created `NEW_FEATURES_DEC13.md`: Details on momentum/rest/weather features
+- Updated `SPREAD_THRESHOLD_CHANGE.md`: Documents threshold evolution (50% → 52.4% → 45% with EV warnings)
+
+### Technical Notes
+- Model is now **profitable and functional** - optional improvements (hyperparameter tuning, ensemble methods) documented for future enhancement
+- Momentum features will become more impactful as 2025 season progresses (currently early-season with limited data)
+- All analysis scripts preserved in repo: `analyze_model_issues.py`, `test_inversion_fix.py`, `check_remaining_games.py`

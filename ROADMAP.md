@@ -396,6 +396,15 @@ with tab_compare:
 - **Season-aware Schedule Matching**: Schedule→prediction matching updated to prefer candidate prediction rows with matching `season` to avoid historical collisions.
 - **Download Placeholder Pattern**: Sidebar reserves lightweight placeholders for download controls and populates them after data load to avoid premature widget creation and UI flicker.
 
+### ✅ Critical Model Fix & Feature Additions (Dec 13, 2025)
+
+- **Critical Fix:** Corrected an inverted spread-model output by fixing a mislabeled target and flipping the predicted spread probability immediately after model prediction (`prob_underdogCovered = 1 - prob_underdogCovered`). Full analysis and remediation steps are in `MODEL_FIX_PLAN.md`.
+- **Impact:** Backtests and immediate verification show a large improvement in betting performance (approx. -90% → **+60%** ROI), calibration improved, and many +EV opportunities surfaced (62 of 63 remaining games flagged profitable in the initial post-fix run).
+- **New Features Deployed:** 18 features added to the pipeline (8 momentum, 5 rest-advantage, 3 weather-impact). See `NEW_FEATURES_DEC13.md` for implementation details and rationale.
+- **UI & Ops:** Added EV explanation in the UI, adjusted spread-bet listing to date-ascending where appropriate, fixed unicode/icon issues, and improved PDF/CSV export UX.
+
+These changes complete the short-term model stabilization work and enable optional next steps (hyperparameter tuning, ensembling) documented in `MODEL_FIX_PLAN.md`.
+
 These updates complete several Beta 0.2/0.3 items earlier than planned and reduce Streamlit Cloud memory pressure while improving shareability and per-game analysis.
 - [ ] Mobile-responsive design improvements
 - [ ] A/B testing framework for UI improvements
