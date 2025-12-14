@@ -157,6 +157,12 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 - **Deployment**: Streamlit Cloud, all data files committed
 - **Performance**: `.streamlit/config.toml` increases timeouts/message size for large data
 
+### Developer Scripts & Checks
+- When creating new helper or check scripts (for model diagnostics, calibration checks, or data validation), create them as Python files and place them in the `scripts/` folder (e.g., `scripts/check_moneyline_calibration.py`, `scripts/analyze_underdog_impact.py`).
+- All new scripts must follow the project's lazy-loading and dtype guidelines and be import-safe (should not perform heavy data loads at module import time).
+- Add a one-line description at the top of each script and include a simple `if __name__ == '__main__':` runner so they can be executed directly by CI or from the command line.
+
+
 ## Patterns & Examples
 - **Adding features**: Update feature lists in both `nfl-gather-data.py` and `predictions.py`, validate no leakage, retrain models, update best features files
 - **Adding tabs**:
