@@ -122,6 +122,11 @@ python nfl-gather-data.py
 streamlit run predictions.py
 ```
 
+### Developer scripts and checks
+- Place any new helper or diagnostic Python scripts in the `scripts/` folder. Examples: `scripts/check_moneyline_calibration.py`, `scripts/analyze_underdog_impact.py`.
+- Scripts should be import-safe (no heavy data loads at module import time), include a short header comment describing purpose, and provide a `if __name__ == '__main__':` entrypoint so they can be run from CI or manually.
+
+
 ### **Environment variables & .env (local development)**
 
 - The app reads environment variables for optional features such as emailing and RSS feed URL. For local development you can create a `.env` file in the project root and the app will load it automatically.

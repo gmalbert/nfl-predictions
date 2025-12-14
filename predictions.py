@@ -2923,7 +2923,7 @@ with pred_tab3:
 with pred_tab4:
     if predictions_df is not None:
         st.write("### 🎯 Next 10 Recommended Underdog Bets")
-        st.write("*Games where model recommends betting on underdog to win (≥28% confidence)*")
+        st.write("*Games where model has ≥28% confidence. ✅ +EV = mathematically profitable, ⚠️ -EV = for entertainment only*")
         
         # Reload predictions_df fresh and filter for upcoming games only
         predictions_df_upcoming = pd.read_csv(predictions_csv_path, sep='\t')
@@ -2933,8 +2933,13 @@ with pred_tab4:
         today = pd.to_datetime(datetime.now().date())
         predictions_df_upcoming = predictions_df_upcoming[predictions_df_upcoming['gameday'] > today]
         
-        # Filter for upcoming games where we should bet on underdog, sort by date, take first 10
-        upcoming_bets = predictions_df_upcoming[predictions_df_upcoming['pred_underdogWon_optimal'] == 1].copy()
+        # Filter for upcoming games with >= 28% underdog win probability
+        upcoming_bets = predictions_df_upcoming[predictions_df_upcoming['prob_underdogWon'] >= 0.28].copy()
+        
+        # Add EV status flag
+        upcoming_bets['ev_status'] = upcoming_bets['ev_moneyline'].apply(
+            lambda x: '✅ +EV' if x > 0 else '⚠️ -EV'
+        )
         
         if len(upcoming_bets) > 0:
             # Sort by date and take first 10
@@ -2991,14 +2996,16 @@ with pred_tab4:
             upcoming_bets_display['Expected Payout'] = upcoming_bets_display.apply(get_underdog_odds_payout, axis=1)
             
             # Select and rename columns for display
-            display_cols = ['gameday', 'home_team', 'away_team', 'Favored', 'Underdog', 'spread_line', 'Model %', 'Expected Payout']
+            display_cols = ['gameday', 'home_team', 'away_team', 'Favored', 'Underdog', 'spread_line', 'Model %', 'ev_status', 'ev_moneyline', 'Expected Payout']
             display_cols = [col for col in display_cols if col in upcoming_bets_display.columns]
             
             final_display = upcoming_bets_display[display_cols].rename(columns={
                 'gameday': 'Date',
                 'home_team': 'Home',
                 'away_team': 'Away',
-                'spread_line': 'Spread'
+                'spread_line': 'Spread',
+                'ev_status': 'EV Status',
+                'ev_moneyline': 'Expected Value'
             })
             
             # Sort by date
@@ -3016,6 +3023,8 @@ with pred_tab4:
                     'Underdog': st.column_config.TextColumn(width='medium'),
                     'Spread': st.column_config.NumberColumn(format='%.1f'),
                     'Model %': st.column_config.NumberColumn(format='%.1f%%'),
+                    'EV Status': st.column_config.TextColumn(width='small'),
+                    'Expected Value': st.column_config.NumberColumn(format='$%.2f', help='Expected profit/loss per $100 bet'),
                     'Expected Payout': st.column_config.TextColumn(width='large')
                 },
                 height=height,
@@ -3028,14 +3037,18 @@ with pred_tab4:
             st.info("""
             **💡 How to Use This:**
             - **Underdog**: Team recommended to bet on (model gives them ≥28% chance to win outright)
+            - **EV Status**: ✅ +EV = Bet this! | ⚠️ -EV = Avoid (will lose money long-term)
+            - **Expected Value**: Predicted profit/loss per $100 bet
             - **Expected Payout**: Amount you'd win on a $100 bet if underdog wins
             - **Model %**: Model's confidence the underdog will win (higher = more confident)
-            - **Strategy**: These are value bets where the model thinks the underdog is undervalued
+            - **Strategy**: Only bet on ✅ +EV games for long-term profitability
+            
+            ⚠️ **Important**: -EV bets are shown for reference but are NOT recommended.
             """)
             
         else:
-            st.info("No upcoming games with underdog betting signals found in current predictions.")
-            st.write("*The model may not have enough confidence (≥28%) in any upcoming underdog victories.*")
+            st.info("No upcoming games with ≥28% underdog win probability found.")
+            st.write("*Check back after more games are played or as the schedule updates.*")
     
     else:
         st.warning("Predictions CSV not found. Run the model script to generate betting opportunities.")
