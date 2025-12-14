@@ -31,7 +31,7 @@ A sophisticated NFL analytics platform that uses advanced machine learning to id
   - [Machine Learning Pipeline](#machine-learning-pipeline)
   - [Data Engineering](#data-engineering)
   - [Betting Strategy Architecture](#betting-strategy-architecture)
-- [📁 Recent Updates](#-recent-updates-october-2025)
+- [📁 Recent Updates](#-recent-updates)
 - [🎯 Getting Started](#-getting-started)
 - [🔧 Troubleshooting](#-troubleshooting)
 - [⚠️ Responsible Gambling Notice](#️-responsible-gambling-notice)
@@ -336,7 +336,7 @@ nfl-predictions/
 
 [⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
-## 📁 **Recent Updates (November 2025)**
+## 📁 Recent Updates
 
 ### **🔧 Dec 13, 2025 — Critical Model Fix & New Features**
 - **Critical Model Fix:** Resolved inverted spread predictions caused by a mislabeled target in the training pipeline; applied the correction `prob_underdogCovered = 1 - prob_underdogCovered` immediately after model prediction in the data pipeline.
