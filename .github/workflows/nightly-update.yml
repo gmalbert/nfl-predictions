@@ -1,0 +1,123 @@
+name: Nightly NFL Data Update
+
+# Grant the workflow write access so the checkout/GITHUB_TOKEN can push commits
+permissions:
+  contents: write
+
+on:
+  schedule:
+    # Run at 3:00 AM UTC daily during football season (Sept 1 - Feb 15)
+    - cron: '0 3 * 9-12,1-2 *'  # Sept-Dec and Jan-Feb
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-predictions:
+    runs-on: ubuntu-latest
+    
+    # Only run during football season (Sept 1 - Feb 15)
+    if: |
+      (github.event_name == 'workflow_dispatch') || 
+      ((github.event.schedule == '0 3 * 9-12,1-2 *') && 
+       ((github.event_name == 'schedule' && 
+         ((startsWith(github.run_number, '9') || 
+           startsWith(github.run_number, '10') || 
+           startsWith(github.run_number, '11') || 
+           startsWith(github.run_number, '12') || 
+           startsWith(github.run_number, '1') || 
+           startsWith(github.run_number, '2')) || 
+          true))))
+    
+    steps:
+      - name: Check if in football season
+        id: season_check
+        run: |
+          CURRENT_MONTH=$(date +%-m)
+          CURRENT_DAY=$(date +%-d)
+          
+          # Football season: Sept 1 (month 9) through Feb 15 (month 2, day 15)
+          if [ $CURRENT_MONTH -ge 9 ] || [ $CURRENT_MONTH -le 2 ]; then
+            if [ $CURRENT_MONTH -eq 2 ] && [ $CURRENT_DAY -gt 15 ]; then
+              echo "Outside football season (after Feb 15)"
+              echo "in_season=false" >> $GITHUB_OUTPUT
+            else
+              echo "In football season"
+              echo "in_season=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Outside football season (March-August)"
+            echo "in_season=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Checkout repository
+        if: steps.season_check.outputs.in_season == 'true'
+        uses: actions/checkout@v4
+        with:
+          lfs: true  # Pull Git LFS files
+      
+      - name: Set up Python 3.12
+        if: steps.season_check.outputs.in_season == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        if: steps.season_check.outputs.in_season == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Fetch latest ESPN scores and odds
+        if: steps.season_check.outputs.in_season == 'true'
+        run: |
+          echo "Fetching ESPN weekly scores..."
+          python fetch_espn_weekly_scores.py
+        continue-on-error: true  # Don't fail if ESPN API is temporarily down
+      
+      - name: Run prediction pipeline
+        if: steps.season_check.outputs.in_season == 'true'
+        run: |
+          echo "Running build and train pipeline..."
+          python build_and_train_pipeline.py
+        timeout-minutes: 30  # Pipeline takes ~5 min but allow buffer
+      
+      - name: Upload updated predictions
+        if: steps.season_check.outputs.in_season == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nfl-predictions-${{ github.run_number }}
+          path: |
+            data_files/nfl_games_historical_with_predictions.csv
+            data_files/model_metrics.json
+            data_files/model_feature_importances.csv
+            data_files/betting_recommendations_log.csv
+          retention-days: 7
+      
+      - name: Commit and push changes (optional)
+        if: steps.season_check.outputs.in_season == 'true' && github.ref == 'refs/heads/main'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Check if there are changes to commit
+          git add data_files/*.csv data_files/*.json
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Automated nightly update: predictions and ESPN data [skip ci]"
+            git push
+          fi
+        continue-on-error: true  # Don't fail if nothing to commit
+      
+      - name: Summary
+        if: steps.season_check.outputs.in_season == 'true'
+        run: |
+          echo "✅ Nightly update completed successfully"
+          echo "📊 Updated predictions available as artifact: nfl-predictions-${{ github.run_number }}"
+          
+          # Show some stats
+          if [ -f data_files/nfl_games_historical_with_predictions.csv ]; then
+            LINES=$(wc -l < data_files/nfl_games_historical_with_predictions.csv)
+            echo "📈 Total games in predictions file: $((LINES - 1))"
+          fi
