@@ -126,6 +126,33 @@ streamlit run predictions.py
 - Place any new helper or diagnostic Python scripts in the `scripts/` folder. Examples: `scripts/check_moneyline_calibration.py`, `scripts/analyze_underdog_impact.py`.
 - Scripts should be import-safe (no heavy data loads at module import time), include a short header comment describing purpose, and provide a `if __name__ == '__main__':` entrypoint so they can be run from CI or manually.
 
+### **Automated Data Updates (GitHub Actions)**
+
+The repository includes a GitHub Actions workflow (`.github/workflows/nightly-update.yml`) that automatically updates predictions during football season:
+
+- **Schedule**: Runs nightly at 3:00 AM UTC (Sept 1 - Feb 15)
+- **Season Detection**: Automatically skips runs outside football season (March-August)
+- **Update Process**:
+  1. Fetches latest ESPN scores and betting lines
+  2. Runs the complete prediction pipeline (`build_and_train_pipeline.py`)
+  3. Uploads updated predictions as artifacts
+  4. Optionally commits changes back to the repository
+
+**Manual Trigger**: You can manually run the workflow from the Actions tab in GitHub.
+
+**Data Sources Update Cadence**:
+- **ESPN API** (scores/odds): Real-time, polled nightly at 3 AM
+- **NFLverse/nflfastR** (play-by-play): Updated nightly after games complete
+- **Predictions CSV**: Regenerated after each pipeline run (~5 minutes)
+
+**Local Alternative**: For local development, run the update manually:
+```bash
+# Fetch latest ESPN data
+python fetch_espn_weekly_scores.py
+
+# Rebuild predictions
+python build_and_train_pipeline.py
+```
 
 ### **Environment variables & .env (local development)**
 
