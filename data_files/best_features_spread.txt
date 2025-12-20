@@ -1,9 +1,9 @@
-awayTeamSpreadCoveredPct
 homeTeamBlowoutPct
-homeTeamWinPct
 awayTeamBlowoutPct
+awayTeamSpreadCoveredPct
 spread_line
 awayTeamWinPct
-homeTeamSpreadCoveredPct
 homeTeamAvgPointDiff
-Best mean CV accuracy: 0.5439
+homeTeamSpreadCoveredPct
+homeTeamWinPct
+Best mean CV accuracy: 0.5432
