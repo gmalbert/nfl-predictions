@@ -698,9 +698,18 @@ This project welcomes contributions! Areas for improvement:
 - **Behavior**: Download buttons are rendered after the app finishes loading data (the app reserves lightweight placeholders while data loads and populates the real download controls once `predictions_df` and the betting log are available).
 - **Icon consistency**: All download buttons and the PDF generate button use embedded icons (`csv_icon.png`, `pdf_icon.png`) with fallback to `favicon.ico` for a professional appearance.
 
-## ✉️ Emailing Predictions (Nov 26, 2025)
+## ✉️ Emailing Predictions (Updated Dec 29, 2025)
 
-You can now send predictions via email directly from the app using a Gmail SMTP account and an App Password. The sidebar contains an "Email Predictions" section where you can configure recipients and trigger a send.
+Automated HTML email notifications with clear, actionable betting recommendations. Emails show:
+
+**Enhanced Format Features:**
+- **Clear bet recommendations**: "**TEN +2.5** to cover (69.1%)" instead of cryptic "SP: 69.06%"
+- **Individual confidence badges**: Each bet shows its tier (🔥 ELITE ≥65%, ⭐ STRONG 60-65%, 📈 GOOD 55-60%)
+- **Full bet names**: "Money Line" instead of "ML" for clarity
+- **Smart filtering**: Only shows bets above thresholds (Spread ≥50%, Moneyline ≥28%, Totals ≥50%)
+- **Team colors**: Visual team markers for quick identification
+
+**Setup:**
 
 Environment variables (recommended):
 
@@ -709,6 +718,16 @@ Environment variables (recommended):
 - `EMAIL_PASSWORD` — Gmail App Password (create in your Google Account's security settings)
 - `SMTP_SERVER` — SMTP server (default `smtp.gmail.com`)
 - `SMTP_PORT` — SMTP port (default `587`)
+
+**Testing:**
+
+```bash
+# Preview email format in browser without sending
+python scripts/preview_email.py
+
+# Send test email
+python scripts/send_rich_email_now.py
+```
 
 Example PowerShell export (set for current session):
 
