@@ -13,30 +13,6 @@ st.set_page_config(
 
 DATA_DIR = 'data_files/'
 
-def get_dataframe_height(df, row_height=35, header_height=38, padding=2, max_height=600):
-    """
-    Calculate the optimal height for a Streamlit dataframe based on number of rows.
-    
-    Args:
-        df (pd.DataFrame): The dataframe to display
-        row_height (int): Height per row in pixels. Default: 35
-        header_height (int): Height of header row in pixels. Default: 38
-        padding (int): Extra padding in pixels. Default: 2
-        max_height (int): Maximum height cap in pixels. Default: 600 (None for no limit)
-    
-    Returns:
-        int: Calculated height in pixels
-    
-    Example:
-        height = get_dataframe_height(my_df)
-        st.dataframe(my_df, height=height)
-    """
-    num_rows = len(df)
-    calculated_height = (num_rows * row_height) + header_height + padding
-    
-    if max_height is not None:
-        return min(calculated_height, max_height)
-    return calculated_height
 
 def convert_df_to_csv(df: pd.DataFrame) -> bytes:
     """Convert DataFrame to CSV bytes for Streamlit download_button."""
@@ -407,64 +383,33 @@ current_year = datetime.now().year
 with st.sidebar:
     st.subheader("Quick Presets")
     try:
-        # Small targeted reset button that only unchecks the three preset boxes
-        if st.button("Reset Presets"):
-            # Uncheck the preset checkboxes by setting their keys to False,
-            # then immediately rerun so the UI reflects the change.
-            st.session_state['qp_redzone'] = False
-            st.session_state['qp_3rd_short'] = False
-            st.session_state['qp_pass_only'] = False
-            st.rerun()
-
-        # Track previous preset states to detect changes
-        prev_redzone = st.session_state.get('_prev_qp_redzone', False)
-        prev_3rd_short = st.session_state.get('_prev_qp_3rd_short', False)
-        prev_pass_only = st.session_state.get('_prev_qp_pass_only', False)
-
         # Persistent checkboxes used as quick-presets so they remain visible
         qp_redzone = st.checkbox("Red Zone", value=st.session_state.get('qp_redzone', False), key='qp_redzone')
         qp_3rd_short = st.checkbox("3rd & Short", value=st.session_state.get('qp_3rd_short', False), key='qp_3rd_short')
         qp_pass_only = st.checkbox("Pass Attempts Only", value=st.session_state.get('qp_pass_only', False), key='qp_pass_only')
-        
-        # Detect if any preset was just checked (changed from False to True)
-        preset_changed = False
-        
-        # Red Zone preset: set yardline_range to 0-20
-        if qp_redzone and not prev_redzone and 'yardline_100' in historical_data.columns:
+
+        # Small targeted reset button that only unchecks the three preset boxes
+        if st.button("Reset Presets"):
+            # Uncheck the preset checkboxes by setting their keys to False,
+            # then immediately rerun so the UI reflects the change.
             try:
-                ymin = int(historical_data['yardline_100'].min())
-                ymax = int(historical_data['yardline_100'].max())
-                st.session_state['yardline_range'] = (max(ymin, 0), min(20, ymax))
-                preset_changed = True
+                st.session_state['qp_redzone'] = False
+                st.session_state['qp_3rd_short'] = False
+                st.session_state['qp_pass_only'] = False
             except Exception:
+                # If assignment fails for any reason, remove the keys as a fallback.
+                for k in ['qp_redzone', 'qp_3rd_short', 'qp_pass_only']:
+                    if k in st.session_state:
+                        try:
+                            del st.session_state[k]
+                        except Exception:
+                            pass
+            # Use stable rerun API used elsewhere in the app
+            try:
+                st.rerun()
+            except Exception:
+                # If rerun isn't available, allow the page to refresh on next interaction
                 pass
-        
-        # 3rd & Short preset: set down to [3] and ydstogo to 0-3
-        if qp_3rd_short and not prev_3rd_short:
-            st.session_state['down'] = [3]
-            if 'ydstogo' in historical_data.columns:
-                try:
-                    ymin = int(historical_data['ydstogo'].min())
-                    ymax = int(historical_data['ydstogo'].max())
-                    st.session_state['ydstogo_range'] = (max(ymin, 0), min(3, ymax))
-                except Exception:
-                    pass
-            preset_changed = True
-        
-        # Pass Only preset: set pass_only checkbox to True
-        if qp_pass_only and not prev_pass_only:
-            st.session_state['pass_only'] = True
-            preset_changed = True
-        
-        # Update previous states for next run
-        st.session_state['_prev_qp_redzone'] = qp_redzone
-        st.session_state['_prev_qp_3rd_short'] = qp_3rd_short
-        st.session_state['_prev_qp_pass_only'] = qp_pass_only
-        
-        # Rerun if any preset was just activated to update filter widgets
-        if preset_changed:
-            st.rerun()
-            
     except Exception:
         pass
 
@@ -498,21 +443,6 @@ if 'game_date' in historical_data.columns:
     # Initialize reset flag
     if 'reset' not in st.session_state:
         st.session_state['reset'] = False
-    
-    # Initialize session state for preset-affected filters if they don't exist
-    # This prevents widget conflicts when presets modify these values
-    if 'down' not in st.session_state:
-        st.session_state['down'] = []
-    if 'pass_only' not in st.session_state:
-        st.session_state['pass_only'] = False
-    if 'ydstogo_range' not in st.session_state and 'ydstogo' in filtered_data.columns:
-        ydstogo_min = int(filtered_data['ydstogo'].min())
-        ydstogo_max = int(filtered_data['ydstogo'].max())
-        st.session_state['ydstogo_range'] = (ydstogo_min, ydstogo_max)
-    if 'yardline_range' not in st.session_state and 'yardline_100' in filtered_data.columns:
-        yardline_min = int(filtered_data['yardline_100'].min())
-        yardline_max = int(filtered_data['yardline_100'].max())
-        st.session_state['yardline_range'] = (yardline_min, yardline_max)
     
     # Filters live in the left sidebar (restore original behavior per user request)
     with st.sidebar:
@@ -588,12 +518,10 @@ if 'game_date' in historical_data.columns:
         # Game Context Filters
         st.subheader("Game Context")
         down_options = sorted([int(d) for d in filtered_data['down'].dropna().unique() if d > 0])
-        # Reset down filter if reset flag is set
-        if st.session_state['reset']:
-            st.session_state['down'] = default_filters['down']
         selected_downs = st.multiselect(
             "Down", 
             down_options,
+            default=default_filters['down'] if st.session_state['reset'] else st.session_state.get('down', []),
             key='down'
         )
         
@@ -617,11 +545,9 @@ if 'game_date' in historical_data.columns:
             key='play_type'
         )
         
-        # Reset pass_only filter if reset flag is set
-        if st.session_state['reset']:
-            st.session_state['pass_only'] = default_filters['pass_only']
         pass_only = st.checkbox(
             "Pass Attempts Only",
+            value=default_filters['pass_only'] if st.session_state['reset'] else st.session_state.get('pass_only', False),
             key='pass_only'
         )
         
@@ -637,20 +563,14 @@ if 'game_date' in historical_data.columns:
         if 'ydstogo' in filtered_data.columns:
             ydstogo_min = int(filtered_data['ydstogo'].min())
             ydstogo_max = int(filtered_data['ydstogo'].max())
-            # Reset ydstogo_range if reset flag is set
-            if st.session_state['reset']:
-                st.session_state['ydstogo_range'] = (ydstogo_min, ydstogo_max)
-            ydstogo_range = st.slider("Yards To Go", ydstogo_min, ydstogo_max, key='ydstogo_range')
+            ydstogo_range = st.slider("Yards To Go", ydstogo_min, ydstogo_max, (ydstogo_min, ydstogo_max), key='ydstogo_range')
         else:
             ydstogo_range = None
         
         if 'yardline_100' in filtered_data.columns:
             yardline_min = int(filtered_data['yardline_100'].min())
             yardline_max = int(filtered_data['yardline_100'].max())
-            # Reset yardline_range if reset flag is set
-            if st.session_state['reset']:
-                st.session_state['yardline_range'] = (yardline_min, yardline_max)
-            yardline_range = st.slider("Yardline (distance from opponent endzone)", yardline_min, yardline_max, key='yardline_range')
+            yardline_range = st.slider("Yardline (distance from opponent endzone)", yardline_min, yardline_max, (yardline_min, yardline_max), key='yardline_range')
         else:
             yardline_range = None
         
@@ -798,7 +718,6 @@ if 'game_date' in historical_data.columns:
 
         st.write(f"Showing rows {start_idx + 1:,} to {end_idx:,} of {total_rows:,}")
 
-        height = get_dataframe_height(filtered_data[display_cols].iloc[start_idx:end_idx])
         st.dataframe(
             filtered_data[display_cols].iloc[start_idx:end_idx],
             hide_index=True,
@@ -841,57 +760,12 @@ if 'game_date' in historical_data.columns:
             to_download = filtered_data[display_cols].iloc[start_idx:end_idx]
             if not to_download.empty:
                 csv_bytes = convert_df_to_csv(to_download)
-                filename = f'nfl_historical_data_{datetime.now().strftime("%Y%m%d")}.csv'
-
-                # CSV download button (show small icon from `data_files/` if available)
-                icons_dir = path.join(DATA_DIR)
-                csv_icon = path.join(icons_dir, 'csv_icon.png')
-                fallback_icon = path.join(icons_dir, 'favicon.ico')
-
-                # Render HTML-based download button with embedded icon (base64 data-URI).
-                # Fallback to the existing Streamlit download button if something goes wrong.
-                import base64
-                try:
-                    # Prepare data URI for download link
-                    b64_file = base64.b64encode(csv_bytes).decode('ascii')
-                    file_data_uri = f"data:text/csv;base64,{b64_file}"
-
-                    # Choose icon (csv_icon preferred, fallback to favicon)
-                    chosen_icon_path = None
-                    if os.path.exists(csv_icon):
-                        chosen_icon_path = csv_icon
-                    elif os.path.exists(fallback_icon):
-                        chosen_icon_path = fallback_icon
-
-                    img_tag = ''
-                    if chosen_icon_path is not None:
-                        try:
-                            with open(chosen_icon_path, 'rb') as ifh:
-                                img_b64 = base64.b64encode(ifh.read()).decode('ascii')
-                            # Larger icon and rounded corners for nicer appearance
-                            img_tag = f'<img src="data:image/png;base64,{img_b64}" style="width:36px;height:36px;margin-right:10px;vertical-align:middle;border-radius:6px;">'
-                        except Exception:
-                            img_tag = ''
-
-                    # HTML for a compact icon + button-like link; wrap the image inside the anchor so it's clickable
-                    html = (
-                        f'<div style="display:flex;align-items:center;margin:6px 0;">'
-                        f'<a download="{filename}" href="{file_data_uri}" '
-                        f'style="display:flex;align-items:center;padding:6px 12px;background:#1976d2;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">'
-                        f'{img_tag}'
-                        f'<span style="color:#fff;">Export Filtered Data</span>'
-                        f'</a></div>'
-                    )
-
-                    st.markdown(html, unsafe_allow_html=True)
-                except Exception:
-                    # fallback to Streamlit native button
-                    st.download_button(
-                        label="📥 Export Filtered Data",
-                        data=csv_bytes,
-                        file_name=filename,
-                        mime='text/csv'
-                    )
+                st.download_button(
+                    label="📥 Export Filtered Data",
+                    data=csv_bytes,
+                    file_name=f'nfl_historical_data_{datetime.now().strftime("%Y%m%d")}.csv',
+                    mime='text/csv'
+                )
     except Exception:
         # If export fails, don't break the page
         pass

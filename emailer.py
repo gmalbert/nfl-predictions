@@ -158,18 +158,56 @@ def build_rich_html_email(df, logos_dir=None, max_rows: int = 20) -> str:
         prob_sp_s = f"{prob_sp:.2%}" if pd.notna(prob_sp) and isinstance(prob_sp, (int, float)) else ''
         prob_ov_s = f"{prob_ov:.2%}" if pd.notna(prob_ov) and isinstance(prob_ov, (int, float)) else ''
 
-        # Choose a confidence metric (use max of the three probabilities if present)
-        conf_val = None
-        for candidate in (prob_ml, prob_sp, prob_ov):
-            try:
-                if candidate is not None:
-                    v = float(candidate)
-                    if conf_val is None or v > conf_val:
-                        conf_val = v
-            except Exception:
-                continue
+        # Determine underdog and betting recommendation
+        try:
+            spread_val = float(spread) if pd.notna(spread) else 0
+            # Positive spread = home favored, negative = away favored
+            if spread_val > 0:
+                underdog_team = away
+                favorite_team = home
+                underdog_spread = f"+{abs(spread_val):.1f}"
+            else:
+                underdog_team = home
+                favorite_team = away
+                underdog_spread = f"+{abs(spread_val):.1f}"
+        except Exception:
+            underdog_team = "?"
+            underdog_spread = "?"
 
-        badge = badge_html(conf_val if conf_val is not None else 0)
+        # Helper function to get tier badge for individual bet
+        def get_tier_badge(prob):
+            try:
+                p = float(prob)
+            except Exception:
+                return ''
+            
+            if p >= 0.65:
+                return ' <span style="background:#ff6b00;color:#fff;padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px">🔥 ELITE</span>'
+            elif p >= 0.60:
+                return ' <span style="background:#9b59b6;color:#fff;padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px">⭐ STRONG</span>'
+            elif p >= 0.55:
+                return ' <span style="background:#3498db;color:#fff;padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px">📈 GOOD</span>'
+            else:
+                return ''
+
+        # Build recommendation text with individual tier badges
+        recommendations = []
+        if pd.notna(prob_sp) and isinstance(prob_sp, (int, float)) and prob_sp >= 0.50:
+            tier = get_tier_badge(prob_sp)
+            recommendations.append(f"<strong>{underdog_team} {underdog_spread}</strong> to cover ({prob_sp:.1%}){tier}")
+        if pd.notna(prob_ml) and isinstance(prob_ml, (int, float)) and prob_ml >= 0.28:
+            tier = get_tier_badge(prob_ml)
+            recommendations.append(f"<strong>{underdog_team} Money Line</strong> ({prob_ml:.1%}){tier}")
+        if pd.notna(prob_ov) and isinstance(prob_ov, (int, float)) and prob_ov >= 0.50:
+            tier = get_tier_badge(prob_ov)
+            recommendations.append(f"<strong>Over {total}</strong> ({prob_ov:.1%}){tier}")
+        elif pd.notna(prob_ov) and isinstance(prob_ov, (int, float)) and prob_ov < 0.50:
+            # For under bets, use inverted probability
+            under_prob = 1 - prob_ov
+            tier = get_tier_badge(under_prob)
+            recommendations.append(f"<strong>Under {total}</strong> ({under_prob:.1%}){tier}")
+        
+        recommendation_text = "<br>".join(recommendations) if recommendations else '<span style="color:#999">No strong bets</span>'
 
         # Small colored marker spans for home/away (keep logos disabled)
         team_colors = {
@@ -199,18 +237,15 @@ def build_rich_html_email(df, logos_dir=None, max_rows: int = 20) -> str:
         <tr style="border-bottom:1px solid #eee;">
           <td style="padding:8px 6px;vertical-align:middle;white-space:nowrap">{gameday}</td>
           <td style="padding:8px 6px;vertical-align:middle;text-align:left">
-            {home_marker}
-            <strong>{home}</strong>
-          </td>
-          <td style="padding:8px 6px;vertical-align:middle;text-align:center">@</td>
-          <td style="padding:8px 6px;vertical-align:middle;text-align:left">
             {away_marker}
             <strong>{away}</strong>
           </td>
-          <td style="padding:8px 6px;vertical-align:middle;text-align:right">Spread: {spread}</td>
-          <td style="padding:8px 6px;vertical-align:middle;text-align:right">Total: {total}</td>
-          <td style="padding:8px 6px;vertical-align:middle;text-align:right">ML: {prob_ml_s}<br>SP: {prob_sp_s}<br>OV: {prob_ov_s}</td>
-          <td style="padding:8px 6px;vertical-align:middle;text-align:right">{badge}</td>
+          <td style="padding:8px 6px;vertical-align:middle;text-align:center">@</td>
+          <td style="padding:8px 6px;vertical-align:middle;text-align:left">
+            {home_marker}
+            <strong>{home}</strong>
+          </td>
+          <td style="padding:8px 6px;vertical-align:middle;text-align:left;font-size:13px;line-height:1.6">{recommendation_text}</td>
         </tr>
         """
 
