@@ -145,6 +145,10 @@ The repository includes a GitHub Actions workflow (`.github/workflows/nightly-up
 - **NFLverse/nflfastR** (play-by-play): Updated nightly after games complete
 - **Predictions CSV**: Regenerated after each pipeline run (~5 minutes)
 
+### On-UI Pipeline Run
+
+- The dashboard now includes a "🔄 Generate Predictions" button in the "Upcoming Games Schedule" expander when the app detects scheduled games without model outputs. Clicking this button runs `python build_and_train_pipeline.py` locally (shows a spinner and displays success/error output) and refreshes the page when finished. This is intended as a convenient local fallback to the nightly GitHub Actions workflow.
+
 **Local Alternative**: For local development, run the update manually:
 ```bash
 # Fetch latest ESPN data

@@ -217,13 +217,21 @@ def load_predictions_csv():
             print(f"[DEBUG] load_predictions_csv() loaded rows={len(df)}")
         except Exception:
             pass
-        # Prefer returning the latest-season predictions for the UI (avoids showing only 2020).
-        # If a current season is present, use it; otherwise use the newest season available.
+        # For early-year crossover (Jan-Feb), include both current and prior season
+        # Otherwise just show current season to avoid clutter
         try:
             if 'season' in df.columns:
                 seasons = pd.to_numeric(df['season'], errors='coerce').dropna().astype(int)
                 if len(seasons) > 0:
                     cur_year = datetime.now().year
+                    cur_month = datetime.now().month
+                    
+                    # Jan-Feb: show both current year and prior year (for playoff/late-season games)
+                    if cur_month <= 2:
+                        mask = df['season'].isin([cur_year, cur_year - 1])
+                        return df[mask].reset_index(drop=True)
+                    
+                    # Rest of year: prefer current season if available, else most recent
                     if cur_year in seasons.values:
                         return df[df['season'] == cur_year].reset_index(drop=True)
                     # Fallback: use the most recent season in the file
@@ -875,10 +883,37 @@ historical_data = None
 
 @st.cache_data
 def load_schedule():
+    import glob
     try:
-        schedule_data = pd.read_csv(path.join(DATA_DIR, f'nfl_schedule_{current_year}.csv'), low_memory=False)
-        return schedule_data
-    except FileNotFoundError:
+        target_path = path.join(DATA_DIR, f'nfl_schedule_{current_year}.csv')
+        if os.path.exists(target_path):
+            schedule_data = pd.read_csv(target_path, low_memory=False)
+            return schedule_data
+
+        # Fallback: pick the most-recent nfl_schedule_YYYY.csv in DATA_DIR
+        pattern = path.join(DATA_DIR, 'nfl_schedule_*.csv')
+        candidates = glob.glob(pattern)
+        if candidates:
+            # Extract year from filename and sort descending
+            def _year(pth):
+                m = re.search(r"nfl_schedule_(\d{4})\.csv", pth)
+                return int(m.group(1)) if m else 0
+
+            candidates.sort(key=_year, reverse=True)
+            for cand in candidates:
+                try:
+                    schedule_data = pd.read_csv(cand, low_memory=False)
+                    # Inform the UI that we're using a fallback schedule
+                    try:
+                        m = re.search(r"nfl_schedule_(\d{4})\.csv", path.basename(cand))
+                        year_used = m.group(1) if m else path.basename(cand)
+                        st.warning(f"Schedule for {current_year} not found. Using {year_used} schedule.")
+                    except Exception:
+                        pass
+                    return schedule_data
+                except Exception:
+                    continue
+
         st.warning(f"Schedule file for {current_year} not found. Schedule data will be unavailable.")
         return pd.DataFrame()  # Return empty DataFrame as fallback
     except Exception as e:
@@ -926,6 +961,15 @@ with col2:
     st.write("")
     st.write("")
     st.header('NFL Game Outcome Predictor')
+
+# Display when predictions CSV was last generated
+try:
+    preds_file = path.join(DATA_DIR, 'nfl_games_historical_with_predictions.csv')
+    if os.path.exists(preds_file):
+        mtime = datetime.fromtimestamp(os.path.getmtime(preds_file)).astimezone().strftime('%Y-%m-%d %H:%M %Z')
+        st.caption(f"Predictions last generated: {mtime}")
+except Exception:
+    pass
 
 
 # If the app was opened with an alert query param, render the per-item alert page
@@ -2621,9 +2665,19 @@ st.write("## 📈 Model Performance & Betting Analysis")
 if schedule is None:
     schedule = load_schedule()
 
-if not schedule.empty and predictions_df is not None:
+if not schedule.empty:
     with st.expander("📅 Upcoming Games Schedule (Click to expand)", expanded=False):
         st.write("### This Week's Games with Model Predictions")
+        
+        # Load predictions if not already loaded
+        predictions_for_schedule = load_predictions_csv()
+        # Normalize known abbreviation aliases so matching is robust (LA -> LAR)
+        if predictions_for_schedule is not None:
+            try:
+                predictions_for_schedule['home_team'] = predictions_for_schedule['home_team'].replace({'LA': 'LAR'})
+                predictions_for_schedule['away_team'] = predictions_for_schedule['away_team'].replace({'LA': 'LAR'})
+            except Exception:
+                pass
         
         # Team name mapping from full names to abbreviations
         team_abbrev_map = {
@@ -2633,24 +2687,46 @@ if not schedule.empty and predictions_df is not None:
             'Denver Broncos': 'DEN', 'Detroit Lions': 'DET', 'Green Bay Packers': 'GB',
             'Houston Texans': 'HOU', 'Indianapolis Colts': 'IND', 'Jacksonville Jaguars': 'JAX',
             'Kansas City Chiefs': 'KC', 'Las Vegas Raiders': 'LV', 'Los Angeles Chargers': 'LAC',
-            'Los Angeles Rams': 'LAR', 'Miami Dolphins': 'MIA', 'Minnesota Vikings': 'MIN',
+            'Los Angeles Rams': 'LAR', 'Los Angeles Rams': 'LA', 'Miami Dolphins': 'MIA', 'Minnesota Vikings': 'MIN',
             'New England Patriots': 'NE', 'New Orleans Saints': 'NO', 'New York Giants': 'NYG',
             'New York Jets': 'NYJ', 'Philadelphia Eagles': 'PHI', 'Pittsburgh Steelers': 'PIT',
             'San Francisco 49ers': 'SF', 'Seattle Seahawks': 'SEA', 'Tampa Bay Buccaneers': 'TB',
             'Tennessee Titans': 'TEN', 'Washington Commanders': 'WAS'
         }
         
-        # Filter for upcoming games (not STATUS_FINAL and future dates)
-        current_time = pd.Timestamp.now(tz='UTC')
+        # Filter for upcoming games (not STATUS_FINAL). Include same-day scheduled games
         upcoming_schedule = schedule.copy()
         upcoming_schedule['date'] = pd.to_datetime(upcoming_schedule['date'], utc=True)
-        upcoming_mask = (upcoming_schedule['status'] != 'STATUS_FINAL') & (upcoming_schedule['date'] > current_time)
+        # Consider a game 'upcoming' if it's not final and its calendar date is today or later (UTC)
+        today_utc = pd.Timestamp.now(tz='UTC').date()
+        try:
+            game_dates = upcoming_schedule['date'].dt.date
+            upcoming_mask = (upcoming_schedule['status'] != 'STATUS_FINAL') & (game_dates >= today_utc)
+        except Exception:
+            # Fallback to original time-based filter if date parsing fails
+            current_time = pd.Timestamp.now(tz='UTC')
+            upcoming_mask = (upcoming_schedule['status'] != 'STATUS_FINAL') & (upcoming_schedule['date'] > current_time)
+
         upcoming_games = upcoming_schedule[upcoming_mask].copy()
         
         if not upcoming_games.empty:
             # Convert to local time for display
             upcoming_games['date'] = upcoming_games['date'].dt.tz_convert('America/New_York')
-            upcoming_games['date_display'] = upcoming_games['date'].dt.strftime('%m/%d/%Y %I:%M %p ET')
+            # Format display: hide time when it's exactly midnight in local time
+            def _fmt_local(dt):
+                try:
+                    if pd.isna(dt):
+                        return ''
+                    if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+                        return dt.strftime('%m/%d/%Y')
+                    return dt.strftime('%m/%d/%Y %I:%M %p ET')
+                except Exception:
+                    try:
+                        return str(dt)
+                    except Exception:
+                        return ''
+
+            upcoming_games['date_display'] = upcoming_games['date'].apply(_fmt_local)
             
             # Sort by date
             upcoming_games = upcoming_games.sort_values('date').head(15)  # Show next 15 games
@@ -2662,50 +2738,75 @@ if not schedule.empty and predictions_df is not None:
                 # Convert team names to abbreviations for matching
                 home_abbrev = team_abbrev_map.get(game['home_team'], game['home_team'])
                 away_abbrev = team_abbrev_map.get(game['away_team'], game['away_team'])
-                
-                # Find matching prediction (if available). Prefer same-season matches to avoid older game_id collisions.
-                pred_match = predictions_df[
-                    ((predictions_df['home_team'] == home_abbrev) & (predictions_df['away_team'] == away_abbrev)) |
-                    ((predictions_df['home_team'] == away_abbrev) & (predictions_df['away_team'] == home_abbrev))
-                ]
-
-                # Narrow to the same season/year as the scheduled game when possible
+                # Normalize common abbrev aliases (e.g. LA -> LAR)
                 try:
-                    game_season = int(pd.to_datetime(game['date']).year)
-                    season_vals = pd.to_numeric(pred_match['season'], errors='coerce').fillna(current_year).astype(int)
-                    pred_match = pred_match[season_vals == game_season]
+                    if home_abbrev == 'LA':
+                        home_abbrev = 'LAR'
+                    if away_abbrev == 'LA':
+                        away_abbrev = 'LAR'
                 except Exception:
-                    # If anything fails, fall back to the broader match (best-effort)
                     pass
                 
-                if not pred_match.empty:
-                    pred = pred_match.iloc[0]
-                    
+                # Find matching prediction (if available). Prefer same-season matches to avoid older game_id collisions.
+                pred = None
+                if predictions_for_schedule is not None:
+                    try:
+                        pred_match = predictions_for_schedule[
+                            ((predictions_for_schedule['home_team'] == home_abbrev) & (predictions_for_schedule['away_team'] == away_abbrev)) |
+                            ((predictions_for_schedule['home_team'] == away_abbrev) & (predictions_for_schedule['away_team'] == home_abbrev))
+                        ]
+
+                        # Narrow to the same season as the scheduled game
+                        # NFL seasons extend into Jan-Feb of the following calendar year
+                        try:
+                            game_date = pd.to_datetime(game['date'])
+                            game_year = game_date.year
+                            game_month = game_date.month
+                            # Jan-Feb games belong to previous year's NFL season
+                            if game_month <= 2:
+                                nfl_season = game_year - 1
+                            else:
+                                nfl_season = game_year
+                            season_vals = pd.to_numeric(pred_match['season'], errors='coerce').fillna(current_year).astype(int)
+                            pred_match = pred_match[season_vals == nfl_season]
+                        except Exception:
+                            pass
+
+                        if not pred_match.empty:
+                            pred = pred_match.iloc[0]
+                    except Exception:
+                        pred = None
+
+                if pred is not None:
                     # Determine underdog and favorite
-                    if pred.get('spread_line', 0) < 0:
-                        favorite = pred['away_team']
-                        underdog = pred['home_team']
-                        spread = abs(pred['spread_line'])
-                    else:
-                        favorite = pred['home_team']
-                        underdog = pred['away_team']
-                        spread = pred['spread_line']
-                    
+                    try:
+                        if pred.get('spread_line', 0) < 0:
+                            favorite = pred['away_team']
+                            underdog = pred['home_team']
+                            spread = abs(pred['spread_line'])
+                        else:
+                            favorite = pred['home_team']
+                            underdog = pred['away_team']
+                            spread = pred['spread_line']
+                    except Exception:
+                        favorite = ''
+                        spread = ''
+
                     schedule_display.append({
                         'Date': game['date_display'],
                         'Matchup': f"{game['away_team']} @ {game['home_team']}",
-                        'Spread': f"{favorite} -{spread}" if spread > 0 else "Pick'em",
-                        'Total': f"{pred.get('total_line', 'N/A')}",
-                        'Underdog Win %': f"{pred.get('prob_underdogWon', 0):.1%}",
-                        'Spread Cover %': f"{pred.get('prob_underdogCovered', 0):.1%}",
-                        'Over Hit %': f"{pred.get('prob_overHit', 0):.1%}",
-                        'ML Edge': f"{pred.get('edge_underdog_ml', 0):.1f}",
-                        'Spread Edge': f"{pred.get('edge_underdog_spread', 0):.1f}",
-                        'Total Edge': f"{pred.get('edge_over', 0):.1f}",
-                        'game_id': pred.get('game_id', '')
+                        'Spread': f"{favorite} -{spread}" if spread not in (None, '') else "TBD",
+                        'Total': f"{pred.get('total_line', 'N/A')}" if 'total_line' in pred.index else 'N/A',
+                        'Underdog Win %': f"{pred.get('prob_underdogWon', 0):.1%}" if 'prob_underdogWon' in pred.index else 'N/A',
+                        'Spread Cover %': f"{pred.get('prob_underdogCovered', 0):.1%}" if 'prob_underdogCovered' in pred.index else 'N/A',
+                        'Over Hit %': f"{pred.get('prob_overHit', 0):.1%}" if 'prob_overHit' in pred.index else 'N/A',
+                        'ML Edge': f"{pred.get('edge_underdog_ml', 0):.1f}" if 'edge_underdog_ml' in pred.index else 'N/A',
+                        'Spread Edge': f"{pred.get('edge_underdog_spread', 0):.1f}" if 'edge_underdog_spread' in pred.index else 'N/A',
+                        'Total Edge': f"{pred.get('edge_over', 0):.1f}" if 'edge_over' in pred.index else 'N/A',
+                        'game_id': pred.get('game_id', '') if 'game_id' in pred.index else ''
                     })
                 else:
-                    # No prediction available
+                    # No prediction available (predictions not loaded or no match)
                     schedule_display.append({
                         'Date': game['date_display'],
                         'Matchup': f"{game['away_team']} @ {game['home_team']}",
@@ -2768,6 +2869,34 @@ if not schedule.empty and predictions_df is not None:
                         height=height
                     )
                 st.caption(f"Showing next {len(schedule_display)} upcoming games • Green edges indicate positive expected value bets")
+                
+                # Check if predictions are missing for upcoming games
+                if predictions_for_schedule is not None:
+                    tbd_count = sum(1 for item in schedule_display if item.get('Spread') == 'TBD')
+                    if tbd_count > 0:
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.warning(f"⚠️ {tbd_count} game(s) don't have predictions yet.")
+                        with col2:
+                            if st.button("🔄 Generate Predictions", type="primary", use_container_width=True):
+                                with st.spinner("Running prediction pipeline... This may take 3-5 minutes."):
+                                    import subprocess
+                                    try:
+                                        result = subprocess.run(
+                                            ["python", "build_and_train_pipeline.py"],
+                                            capture_output=True,
+                                            text=True,
+                                            timeout=600
+                                        )
+                                        if result.returncode == 0:
+                                            st.success("✅ Predictions generated successfully! Refreshing page...")
+                                            st.rerun()
+                                        else:
+                                            st.error(f"❌ Pipeline failed:\n```\n{result.stderr}\n```")
+                                    except subprocess.TimeoutExpired:
+                                        st.error("⏱️ Pipeline timed out after 10 minutes.")
+                                    except Exception as e:
+                                        st.error(f"❌ Error running pipeline: {str(e)}")
             else:
                 st.info("No upcoming games found in schedule data.")
         else:

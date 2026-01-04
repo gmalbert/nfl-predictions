@@ -255,19 +255,19 @@ week,date,home_team,away_team,venue,status
 17,2025-12-28T21:25Z,Buffalo Bills,Philadelphia Eagles,Highmark Stadium,STATUS_SCHEDULED
 17,2025-12-29T01:20Z,San Francisco 49ers,Chicago Bears,Levi's Stadium,STATUS_SCHEDULED
 17,2025-12-30T01:15Z,Atlanta Falcons,Los Angeles Rams,Mercedes-Benz Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Atlanta Falcons,New Orleans Saints,Mercedes-Benz Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Buffalo Bills,New York Jets,Highmark Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Chicago Bears,Detroit Lions,Soldier Field,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Cincinnati Bengals,Cleveland Browns,Paycor Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Denver Broncos,Los Angeles Chargers,Empower Field at Mile High,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Las Vegas Raiders,Kansas City Chiefs,Allegiant Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Los Angeles Rams,Arizona Cardinals,SoFi Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Minnesota Vikings,Green Bay Packers,U.S. Bank Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,New England Patriots,Miami Dolphins,Gillette Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,New York Giants,Dallas Cowboys,MetLife Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Philadelphia Eagles,Washington Commanders,Lincoln Financial Field,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Pittsburgh Steelers,Baltimore Ravens,Acrisure Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,San Francisco 49ers,Seattle Seahawks,Levi's Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Tampa Bay Buccaneers,Carolina Panthers,Raymond James Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Jacksonville Jaguars,Tennessee Titans,EverBank Stadium,STATUS_SCHEDULED
-18,2026-01-04T05:00Z,Houston Texans,Indianapolis Colts,NRG Stadium,STATUS_SCHEDULED
+18,2026-01-04T18:00Z,Atlanta Falcons,New Orleans Saints,Mercedes-Benz Stadium,STATUS_SCHEDULED
+18,2026-01-04T21:25Z,Buffalo Bills,New York Jets,Highmark Stadium,STATUS_SCHEDULED
+18,2026-01-04T21:25Z,Chicago Bears,Detroit Lions,Soldier Field,STATUS_SCHEDULED
+18,2026-01-04T18:00Z,Cincinnati Bengals,Cleveland Browns,Paycor Stadium,STATUS_SCHEDULED
+18,2026-01-04T21:25Z,Denver Broncos,Los Angeles Chargers,Empower Field at Mile High,STATUS_SCHEDULED
+18,2026-01-04T21:25Z,Las Vegas Raiders,Kansas City Chiefs,Allegiant Stadium,STATUS_SCHEDULED
+18,2026-01-04T21:25Z,Los Angeles Rams,Arizona Cardinals,SoFi Stadium,STATUS_SCHEDULED
+18,2026-01-04T18:00Z,Minnesota Vikings,Green Bay Packers,U.S. Bank Stadium,STATUS_SCHEDULED
+18,2026-01-04T21:25Z,New England Patriots,Miami Dolphins,Gillette Stadium,STATUS_SCHEDULED
+18,2026-01-04T18:00Z,New York Giants,Dallas Cowboys,MetLife Stadium,STATUS_SCHEDULED
+18,2026-01-04T21:25Z,Philadelphia Eagles,Washington Commanders,Lincoln Financial Field,STATUS_SCHEDULED
+18,2026-01-05T01:20Z,Pittsburgh Steelers,Baltimore Ravens,Acrisure Stadium,STATUS_SCHEDULED
+18,2026-01-04T01:00Z,San Francisco 49ers,Seattle Seahawks,Levi's Stadium,STATUS_FINAL
+18,2026-01-03T21:30Z,Tampa Bay Buccaneers,Carolina Panthers,Raymond James Stadium,STATUS_FINAL
+18,2026-01-04T18:00Z,Jacksonville Jaguars,Tennessee Titans,EverBank Stadium,STATUS_SCHEDULED
+18,2026-01-04T18:00Z,Houston Texans,Indianapolis Colts,NRG Stadium,STATUS_SCHEDULED

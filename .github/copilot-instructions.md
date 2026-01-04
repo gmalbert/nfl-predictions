@@ -77,6 +77,16 @@ tab1, tab2 = st.tabs(["Spread Bets", "Moneyline Bets"])
 with tab1:
     if predictions_df is not None:
         st.dataframe(predictions_df, use_container_width=True)
+
+# In-app pipeline trigger
+```python
+# The Upcoming Games expander shows a "🔄 Generate Predictions" button
+# when scheduled games lack model outputs. The button runs the local
+# pipeline (`build_and_train_pipeline.py`) and refreshes the UI on success.
+if tbd_count > 0:
+  if st.button("🔄 Generate Predictions"):
+    subprocess.run(["python", "build_and_train_pipeline.py"])  # run locally
+```
 ```
 
 ### PDF Export Pattern
