@@ -729,12 +729,28 @@ def update_completed_games():
         week = int(bet['week']) if pd.notna(bet['week']) else 1
         
         try:
-            # Fetch ESPN data for that week
-            espn_url = f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&year={season}&week={week}"
-            response = requests.get(espn_url, timeout=5)
-            
-            if response.status_code == 200:
-                data = response.json()
+            # Fetch ESPN data for that week. Try regular season first (seasontype=2),
+            # then postseason (seasontype=3) so playoff games are captured.
+            data = None
+            for seasontype in (2, 3):
+                espn_url = (
+                    f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype={seasontype}&year={season}&week={week}"
+                )
+                try:
+                    response = requests.get(espn_url, timeout=5)
+                except Exception:
+                    response = None
+
+                if response is not None and response.status_code == 200:
+                    payload = response.json()
+                    # If ESPN returns events for this request, use them; otherwise try next seasontype
+                    if payload.get('events'):
+                        data = payload
+                        break
+
+            if data is None:
+                # No data found for either regular or postseason for this week
+                continue
                 
                 # Convert our team abbreviations to full names for matching
                 bet_home_full = team_abbrev_to_full.get(str(bet['home_team']).upper(), str(bet['home_team']))
@@ -978,6 +994,40 @@ try:
     params = dict(st.query_params) if hasattr(st, 'query_params') else {}
 except Exception:
     params = {}
+
+# If `?run_pipeline=1` is present in the URL, run the local pipeline automatically.
+try:
+    rp = params.get('run_pipeline') if isinstance(params, dict) else None
+    if rp:
+        # Accept boolean-like strings and single-value lists
+        run_flag = False
+        if isinstance(rp, list) and len(rp) > 0:
+            run_flag = str(rp[0]).lower() in ('1', 'true', 'yes')
+        else:
+            run_flag = str(rp).lower() in ('1', 'true', 'yes')
+
+        if run_flag:
+            with st.spinner('Running prediction pipeline from URL trigger...'):
+                try:
+                    import subprocess
+                    result = subprocess.run(["python", "build_and_train_pipeline.py"], capture_output=True, text=True, timeout=1200)
+                    if result.returncode == 0:
+                        try:
+                            st.success("✅ Predictions generated successfully via URL trigger. Refreshing page...")
+                        except Exception:
+                            pass
+                        try:
+                            st.experimental_rerun()
+                        except Exception:
+                            pass
+                    else:
+                        st.error(f"❌ Pipeline failed:\n{result.stderr}")
+                except subprocess.TimeoutExpired:
+                    st.error("⏱️ Pipeline timed out after 20 minutes.")
+                except Exception as e:
+                    st.error(f"❌ Error running pipeline: {e}")
+except Exception:
+    pass
 
 # If a base URL was injected by the browser (via the helper), capture it and
 # store it in session state then remove the transient query param.
@@ -2054,42 +2104,83 @@ if 'progress_bar' in locals():
 
 # Populate sidebar download placeholders (created earlier) now that data is loaded
 try:
-    # Only populate if placeholders were created successfully
+    icons_dir = DATA_DIR
+    csv_icon = path.join(icons_dir, 'csv_icon.png')
+    pdf_icon = path.join(icons_dir, 'pdf_icon.png')
+    fallback_icon = path.join(icons_dir, 'favicon.png')
+
+    # Helper to render an HTML download button with embedded icon, fallback to st.download_button
+    def _render_download(placeholder, filename, data_bytes, mime='application/octet-stream', display_text=None):
+        try:
+            b64_file = base64.b64encode(data_bytes).decode('ascii')
+            if mime == 'text/csv':
+                file_data_uri = f"data:text/csv;base64,{b64_file}"
+            elif mime == 'application/pdf':
+                file_data_uri = f"data:application/pdf;base64,{b64_file}"
+            else:
+                file_data_uri = f"data:application/octet-stream;base64,{b64_file}"
+
+            # Choose icon based on mime
+            chosen_icon_path = None
+            if mime == 'text/csv' and os.path.exists(csv_icon):
+                chosen_icon_path = csv_icon
+            elif mime == 'application/pdf' and os.path.exists(pdf_icon):
+                chosen_icon_path = pdf_icon
+            elif os.path.exists(fallback_icon):
+                chosen_icon_path = fallback_icon
+
+            img_tag = ''
+            if chosen_icon_path is not None:
+                try:
+                    with open(chosen_icon_path, 'rb') as ifh:
+                        img_b64 = base64.b64encode(ifh.read()).decode('ascii')
+                    img_tag = f'<img src="data:image/png;base64,{img_b64}" style="width:36px;height:36px;margin-right:10px;vertical-align:middle;border-radius:6px;">'
+                except Exception:
+                    img_tag = ''
+
+            if display_text is None:
+                display_text = filename
+            html = (
+                f'<div style="display:flex;align-items:center;margin:6px 0;">'
+                f'<a download="{filename}" href="{file_data_uri}" '
+                f'style="display:flex;align-items:center;padding:6px 12px;background:#1976d2;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">'
+                f'{img_tag}'
+                f'<span style="color:#fff;">{display_text}</span>'
+                f'</a></div>'
+            )
+            placeholder.markdown(html, unsafe_allow_html=True)
+        except Exception:
+            try:
+                placeholder.download_button(label=f"Download {filename}", data=data_bytes, file_name=filename, mime=mime)
+            except Exception:
+                placeholder.write(f'Could not prepare download for {filename}')
+
+    # Predictions CSV
     if 'predictions_dl_placeholder' in globals() and predictions_dl_placeholder is not None:
         if predictions_df is not None:
             try:
                 csv_bytes = convert_df_to_csv(predictions_df)
-                predictions_dl_placeholder.download_button(
-                    label="📥 Download Predictions",
-                    data=csv_bytes,
-                    file_name=f'nfl_predictions_{datetime.now().strftime("%Y%m%d")}.csv',
-                    mime='text/csv'
-                )
+                filename = f'nfl_predictions_{datetime.now().strftime("%Y%m%d")}.csv'
+                _render_download(predictions_dl_placeholder, filename, csv_bytes, mime='text/csv', display_text='Download Predictions')
             except Exception:
-                # If conversion fails, silently skip the download button
                 pass
 
-    # Betting log download when present
+    # Betting log CSV
     log_path = path.join(DATA_DIR, 'betting_recommendations_log.csv')
     if 'betting_log_dl_placeholder' in globals() and betting_log_dl_placeholder is not None:
         if os.path.exists(log_path):
             try:
                 with open(log_path, 'rb') as _f:
                     log_bytes = _f.read()
-                betting_log_dl_placeholder.download_button(
-                    label="📥 Download Betting Log",
-                    data=log_bytes,
-                    file_name=f'betting_recommendations_log_{datetime.now().strftime("%Y%m%d")}.csv',
-                    mime='text/csv'
-                )
+                filename = f'betting_recommendations_log_{datetime.now().strftime("%Y%m%d")}.csv'
+                _render_download(betting_log_dl_placeholder, filename, log_bytes, mime='text/csv', display_text='Download Betting Log')
             except Exception:
-                # If reading the file fails, skip the button
                 pass
+
     # PDF export: generate on demand to avoid pre-building large binary at load time
     if 'pdf_dl_placeholder' in globals() and pdf_dl_placeholder is not None:
         if predictions_df is not None:
             try:
-                # Provide a small button to generate the PDF; after generation expose a download button
                 if pdf_dl_placeholder.button("📄 Generate Predictions PDF"):
                     try:
                         pdf_bytes = generate_predictions_pdf(predictions_df)
@@ -2099,7 +2190,6 @@ try:
                         pdf_bytes = b''
 
                     if pdf_bytes:
-                        # Save the generated PDF to the exports folder and expose a link
                         try:
                             exports_dir = path.join(DATA_DIR, 'exports')
                             os.makedirs(exports_dir, exist_ok=True)
@@ -2108,45 +2198,20 @@ try:
                             with open(file_path, 'wb') as f:
                                 f.write(pdf_bytes)
 
-                            # Provide a link to the saved file and a download button as a fallback
-                            # Use a relative path with forward slashes so links render correctly in the browser
-                            rel_path = f"data_files/exports/{filename}"
-                            # Provide a relative link that works from the app's current URL and
-                            # also show the absolute path so users can open the file locally.
-                            rel_link = f"./{rel_path}"
-                            abs_path = os.path.abspath(file_path)
-                            # Inform the user the PDF was saved; the download button is the primary way
-                            # to retrieve the file so we no longer render an 'Open PDF' link.
-                            # st.sidebar.success("PDF generated and saved to exports folder.")
-                            try:
-                                st.sidebar.write(f"PDF saved.")
-                            except Exception:
-                                pass
-
-                            # Also expose a download button so users can download immediately
-                            try:
-                                with open(file_path, 'rb') as _f:
-                                    file_bytes = _f.read()
-                                pdf_dl_placeholder.download_button(
-                                    label="⬇️ Download Predictions (PDF)",
-                                    data=file_bytes,
-                                    file_name=filename,
-                                    mime='application/pdf'
-                                )
-                            except Exception as e:
-                                st.sidebar.error(f"Saved PDF but failed to create download button: {e}")
-
+                                try:
+                                    _render_download(pdf_dl_placeholder, filename, pdf_bytes, mime='application/pdf', display_text='Download Predictions (PDF)')
+                                except Exception as e:
+                                    st.sidebar.error(f"Saved PDF but failed to create download button: {e}")
                         except Exception as e:
                             st.sidebar.error(f"Failed to save generated PDF: {e}")
                     else:
                         st.sidebar.error("Failed to generate PDF.")
             except Exception as e:
-                # Surface any unexpected errors to the user to aid debugging
                 st.sidebar.error(f"PDF export handler error: {e}")
-                st.sidebar.text(traceback.format_exc())
 except Exception:
-    # Do not fail the app if sidebar population fails
+    # Non-fatal: download UI should not block the app
     pass
+
 
 
 # In-App Notifications for Elite and Strong Bets
@@ -2697,15 +2762,31 @@ if not schedule.empty:
         # Filter for upcoming games (not STATUS_FINAL). Include same-day scheduled games
         upcoming_schedule = schedule.copy()
         upcoming_schedule['date'] = pd.to_datetime(upcoming_schedule['date'], utc=True)
-        # Consider a game 'upcoming' if it's not final and its calendar date is today or later (UTC)
+        # Consider a game 'upcoming' if it's not final and either:
+        # - its calendar date is today or later (UTC) [regular season future games],
+        # - OR it's a postseason game (week >= 19). This preserves regular-season rows and
+        #   surfaces playoff rows when they exist in the schedule file.
         today_utc = pd.Timestamp.now(tz='UTC').date()
         try:
             game_dates = upcoming_schedule['date'].dt.date
-            upcoming_mask = (upcoming_schedule['status'] != 'STATUS_FINAL') & (game_dates >= today_utc)
+            week_numeric = pd.to_numeric(upcoming_schedule.get('week', pd.Series(dtype='float')), errors='coerce')
+            upcoming_mask = (
+                (upcoming_schedule['status'] != 'STATUS_FINAL') & (
+                    (game_dates >= today_utc) | (week_numeric >= 19)
+                )
+            )
         except Exception:
-            # Fallback to original time-based filter if date parsing fails
+            # Fallback to original time-based filter if date parsing fails; still include postseason by week when possible
             current_time = pd.Timestamp.now(tz='UTC')
-            upcoming_mask = (upcoming_schedule['status'] != 'STATUS_FINAL') & (upcoming_schedule['date'] > current_time)
+            try:
+                week_numeric = pd.to_numeric(upcoming_schedule.get('week', pd.Series(dtype='float')), errors='coerce')
+                upcoming_mask = (
+                    (upcoming_schedule['status'] != 'STATUS_FINAL') & (
+                        (upcoming_schedule['date'] > current_time) | (week_numeric >= 19)
+                    )
+                )
+            except Exception:
+                upcoming_mask = (upcoming_schedule['status'] != 'STATUS_FINAL') & (upcoming_schedule['date'] > current_time)
 
         upcoming_games = upcoming_schedule[upcoming_mask].copy()
         
@@ -2868,7 +2949,7 @@ if not schedule.empty:
                         hide_index=True,
                         height=height
                     )
-                st.caption(f"Showing next {len(schedule_display)} upcoming games • Green edges indicate positive expected value bets")
+                st.caption(f"Showing next {len(schedule_display)} upcoming game(s) • Green edges indicate positive expected value bets")
                 
                 # Check if predictions are missing for upcoming games
                 if predictions_for_schedule is not None:
@@ -2878,25 +2959,34 @@ if not schedule.empty:
                         with col1:
                             st.warning(f"⚠️ {tbd_count} game(s) don't have predictions yet.")
                         with col2:
-                            if st.button("🔄 Generate Predictions", type="primary", use_container_width=True):
-                                with st.spinner("Running prediction pipeline... This may take 3-5 minutes."):
-                                    import subprocess
-                                    try:
-                                        result = subprocess.run(
-                                            ["python", "build_and_train_pipeline.py"],
-                                            capture_output=True,
-                                            text=True,
-                                            timeout=600
-                                        )
-                                        if result.returncode == 0:
-                                            st.success("✅ Predictions generated successfully! Refreshing page...")
-                                            st.rerun()
-                                        else:
-                                            st.error(f"❌ Pipeline failed:\n```\n{result.stderr}\n```")
-                                    except subprocess.TimeoutExpired:
-                                        st.error("⏱️ Pipeline timed out after 10 minutes.")
-                                    except Exception as e:
-                                        st.error(f"❌ Error running pipeline: {str(e)}")
+                            # Render a styled HTML trigger that appends ?run_pipeline=1 to the URL
+                            try:
+                                with open(path.join(DATA_DIR, 'pdf_icon.png'), 'rb') as _f:
+                                    icon_b64 = base64.b64encode(_f.read()).decode('ascii')
+                                img_tag = f'<img src="data:image/png;base64,{icon_b64}" style="width:20px;height:20px;margin-right:6px;vertical-align:middle;"/>'
+                                html = f'<a href="?run_pipeline=1" style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:6px;background:#f0f0f0;border:1px solid #ddd;text-decoration:none;color:inherit;font-weight:600;">{img_tag}<span>Generate Predictions</span></a>'
+                                st.markdown(html, unsafe_allow_html=True)
+                            except Exception:
+                                # Fallback to plain button if assets not available
+                                if st.button("🔄 Generate Predictions", type="primary", use_container_width=True):
+                                    with st.spinner("Running prediction pipeline... This may take 3-5 minutes."):
+                                        import subprocess
+                                        try:
+                                            result = subprocess.run(
+                                                ["python", "build_and_train_pipeline.py"],
+                                                capture_output=True,
+                                                text=True,
+                                                timeout=600
+                                            )
+                                            if result.returncode == 0:
+                                                st.success("✅ Predictions generated successfully! Refreshing page...")
+                                                st.rerun()
+                                            else:
+                                                st.error(f"❌ Pipeline failed:\n```\n{result.stderr}\n```")
+                                        except subprocess.TimeoutExpired:
+                                            st.error("⏱️ Pipeline timed out after 10 minutes.")
+                                        except Exception as e:
+                                            st.error(f"❌ Error running pipeline: {str(e)}")
             else:
                 st.info("No upcoming games found in schedule data.")
         else:
