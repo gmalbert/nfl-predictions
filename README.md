@@ -10,6 +10,8 @@ A sophisticated NFL analytics platform that uses advanced machine learning to id
 
 **Now featuring a multi-page Streamlit app** with dedicated Historical Data page for advanced filtering and analysis of 196k+ play-by-play records.
 
+**🆕 PLAYER PROPS SYSTEM**: Individual player performance predictions (Passing Yards, Rushing Yards, Receiving Yards, TDs) for DraftKings Pick 6 and similar prop betting markets. See [Player Props Roadmap](docs/PLAYER_PROPS_ROADMAP.md) for details.
+
 ## 📋 Table of Contents
 
 - [🎯 Key Features](#-key-features)
