@@ -2968,7 +2968,7 @@ if not schedule.empty:
                                 st.markdown(html, unsafe_allow_html=True)
                             except Exception:
                                 # Fallback to plain button if assets not available
-                                if st.button("🔄 Generate Predictions", type="primary", use_container_width=True):
+                                if st.button("🔄 Generate Predictions", type="primary", width='stretch'):
                                     with st.spinner("Running prediction pipeline... This may take 3-5 minutes."):
                                         import subprocess
                                         try:
