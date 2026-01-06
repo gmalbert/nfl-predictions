@@ -15,7 +15,7 @@ seasons = list(range(2020, current_year + 1))
 games = nfl.import_schedules(seasons)
 
 # Show a sample
-print(games.head())
+print(games.tail(15))
 
 # Save to CSV
 out_path = "nfl_games_historical.csv"
