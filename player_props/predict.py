@@ -14,20 +14,36 @@ warnings.filterwarnings('ignore')
 # CONFIGURATION
 # ============================================================================
 
-DATA_DIR = Path('data_files')
-MODELS_DIR = Path('player_props/models')
+DATA_DIR = Path('../data_files')
+MODELS_DIR = Path('models')
 
-# Prop lines matching training configuration
+# Prop lines matching training configuration - UPDATED TO REALISTIC VALUES
 PROP_LINES = {
     'passing_yards': {
-        'elite_qb': 275.5,
-        'starter': 225.5
+        'elite_qb': 255.0,
+        'starter': 231.0
     },
     'rushing_yards': {
-        'starter': 65.5
+        'elite_rb': 75.0,    # For RBs averaging 80+ ypg
+        'star_rb': 55.0,     # For RBs averaging 60-80 ypg
+        'good_rb': 40.0,     # For RBs averaging 45-60 ypg
+        'starter': 24.0      # For RBs averaging <45 ypg
     },
     'receiving_yards': {
-        'starter': 55.5
+        'elite_wr': 70.0,    # For WRs averaging 75+ ypg
+        'star_wr': 50.0,     # For WRs averaging 55-75 ypg
+        'good_wr': 35.0,     # For WRs averaging 40-55 ypg
+        'starter': 27.0      # For WRs averaging <40 ypg
+    },
+    'passing_tds': {
+        'over': 1.0,
+        'high': 2.0
+    },
+    'rushing_tds': {
+        'anytime': 0.0
+    },
+    'receiving_tds': {
+        'anytime': 0.0
     }
 }
 
@@ -36,15 +52,24 @@ MIN_CONFIDENCE = 0.55  # 55% probability for a recommendation
 
 # Position mapping for prop types
 POSITION_MAP = {
-    'QB': 'passing_yards',
-    'RB': 'rushing_yards',
-    'WR': 'receiving_yards',
-    'TE': 'receiving_yards'
+    'QB': ['passing_yards', 'passing_tds'],
+    'RB': ['rushing_yards', 'rushing_tds'],
+    'WR': ['receiving_yards', 'receiving_tds'],
+    'TE': ['receiving_yards', 'receiving_tds']
 }
 
 # ============================================================================
 # DATA LOADING
 # ============================================================================
+
+def load_players():
+    """Load player metadata with full names."""
+    players_path = DATA_DIR / 'players.csv'
+    if not players_path.exists():
+        print(f"❌ Players data not found: {players_path}")
+        return None
+    return pd.read_csv(players_path)[['gsis_id', 'short_name', 'display_name', 'last_name', 'position']]
+
 
 def load_schedule():
     """Load upcoming games schedule."""
@@ -107,8 +132,12 @@ def load_models():
     model_configs = [
         ('passing_yards_elite_qb', 'passing_yards', 'elite_qb'),
         ('passing_yards_starter', 'passing_yards', 'starter'),
+        ('passing_tds_over', 'passing_tds', 'over'),
+        ('passing_tds_high', 'passing_tds', 'high'),
         ('rushing_yards_starter', 'rushing_yards', 'starter'),
-        ('receiving_yards_starter', 'receiving_yards', 'starter')
+        ('rushing_tds_anytime', 'rushing_tds', 'anytime'),
+        ('receiving_yards_starter', 'receiving_yards', 'starter'),
+        ('receiving_tds_anytime', 'receiving_tds', 'anytime')
     ]
     
     for model_name, prop_type, line_type in model_configs:
@@ -118,13 +147,24 @@ def load_models():
             model = xgb.XGBClassifier()
             model.load_model(model_path)
             
-            # Derive stat type from prop_type (passing_yards -> passing)
-            stat_type = prop_type.replace('_yards', '') if '_yards' in prop_type else prop_type
+            # Derive stat type and stat column from prop_type
+            if prop_type in ['passing_yards', 'passing_tds']:
+                stat_type = 'passing'
+                stat_col = 'passing_yards' if prop_type == 'passing_yards' else 'pass_tds'
+            elif prop_type in ['rushing_yards', 'rushing_tds']:
+                stat_type = 'rushing'
+                stat_col = 'rushing_yards' if prop_type == 'rushing_yards' else 'rush_tds'
+            elif prop_type in ['receiving_yards', 'receiving_tds']:
+                stat_type = 'receiving'
+                stat_col = 'receiving_yards' if prop_type == 'receiving_yards' else 'rec_tds'
+            else:
+                continue
             
             models[model_name] = {
                 'model': model,
                 'prop_type': prop_type,
-                'stat_type': stat_type,  # For matching with stats files
+                'stat_type': stat_type,
+                'stat_col': stat_col,
                 'line_type': line_type,
                 'line_value': PROP_LINES[prop_type][line_type]
             }
@@ -170,9 +210,15 @@ def get_recent_starters(stats_df, team, n_games=3):
     return active_players
 
 
-def get_player_features(stats_df, player_name, team, stat_type):
+def get_player_features(stats_df, player_name, team, prop_type):
     """
     Get latest feature values for a player.
+    
+    Args:
+        stats_df: Stats DataFrame for the stat type
+        player_name: Player name
+        team: Team name
+        prop_type: Prop type (passing_yards, passing_tds, etc.)
     """
     if stats_df is None:
         return None
@@ -188,15 +234,20 @@ def get_player_features(stats_df, player_name, team, stat_type):
     
     latest = player_stats.iloc[0]
     
-    # Build feature dict based on stat type
-    stat_col_map = {
-        'passing': 'passing_yards',
-        'rushing': 'rushing_yards',
-        'receiving': 'receiving_yards'
-    }
+    # Determine stat type and column
+    if prop_type in ['passing_yards', 'passing_tds']:
+        stat_type = 'passing'
+        stat_col = 'passing_yards' if prop_type == 'passing_yards' else 'pass_tds'
+    elif prop_type in ['rushing_yards', 'rushing_tds']:
+        stat_type = 'rushing'
+        stat_col = 'rushing_yards' if prop_type == 'rushing_yards' else 'rush_tds'
+    elif prop_type in ['receiving_yards', 'receiving_tds']:
+        stat_type = 'receiving'
+        stat_col = 'receiving_yards' if prop_type == 'receiving_yards' else 'rec_tds'
+    else:
+        return None
     
-    stat_col = stat_col_map[stat_type]
-    
+    # Build base features
     features = {
         f'{stat_col}_L3': latest.get(f'{stat_col}_L3'),
         f'{stat_col}_L5': latest.get(f'{stat_col}_L5'),
@@ -205,30 +256,72 @@ def get_player_features(stats_df, player_name, team, stat_type):
     
     # Add position-specific features
     if stat_type == 'passing':
-        features.update({
-            'pass_tds_L3': latest.get('pass_tds_L3'),
-            'pass_tds_L5': latest.get('pass_tds_L5'),
-            'completions_L3': latest.get('completions_L3'),
-            'completions_L5': latest.get('completions_L5'),
-            'attempts_L3': latest.get('attempts_L3'),
-            'attempts_L5': latest.get('attempts_L5')
-        })
+        if prop_type == 'passing_tds':
+            # TD models get L10 for all features
+            features.update({
+                'pass_tds_L3': latest.get('pass_tds_L3'),
+                'pass_tds_L5': latest.get('pass_tds_L5'),
+                'pass_tds_L10': latest.get('pass_tds_L10'),
+                'completions_L3': latest.get('completions_L3'),
+                'completions_L5': latest.get('completions_L5'),
+                'completions_L10': latest.get('completions_L10'),
+                'attempts_L3': latest.get('attempts_L3'),
+                'attempts_L5': latest.get('attempts_L5'),
+                'attempts_L10': latest.get('attempts_L10')
+            })
+        else:
+            # Yards models only get L3/L5 for auxiliary features
+            features.update({
+                'pass_tds_L3': latest.get('pass_tds_L3'),
+                'pass_tds_L5': latest.get('pass_tds_L5'),
+                'completions_L3': latest.get('completions_L3'),
+                'completions_L5': latest.get('completions_L5'),
+                'attempts_L3': latest.get('attempts_L3'),
+                'attempts_L5': latest.get('attempts_L5')
+            })
     elif stat_type == 'rushing':
-        features.update({
-            'rush_tds_L3': latest.get('rush_tds_L3'),
-            'rush_tds_L5': latest.get('rush_tds_L5'),
-            'rush_attempts_L3': latest.get('rush_attempts_L3'),
-            'rush_attempts_L5': latest.get('rush_attempts_L5')
-        })
+        if prop_type == 'rushing_tds':
+            # TD models get L10 for all features
+            features.update({
+                'rush_tds_L3': latest.get('rush_tds_L3'),
+                'rush_tds_L5': latest.get('rush_tds_L5'),
+                'rush_tds_L10': latest.get('rush_tds_L10'),
+                'rush_attempts_L3': latest.get('rush_attempts_L3'),
+                'rush_attempts_L5': latest.get('rush_attempts_L5'),
+                'rush_attempts_L10': latest.get('rush_attempts_L10')
+            })
+        else:
+            # Yards models only get L3/L5 for auxiliary features
+            features.update({
+                'rush_tds_L3': latest.get('rush_tds_L3'),
+                'rush_tds_L5': latest.get('rush_tds_L5'),
+                'rush_attempts_L3': latest.get('rush_attempts_L3'),
+                'rush_attempts_L5': latest.get('rush_attempts_L5')
+            })
     elif stat_type == 'receiving':
-        features.update({
-            'rec_tds_L3': latest.get('rec_tds_L3'),
-            'rec_tds_L5': latest.get('rec_tds_L5'),
-            'receptions_L3': latest.get('receptions_L3'),
-            'receptions_L5': latest.get('receptions_L5'),
-            'targets_L3': latest.get('targets_L3'),
-            'targets_L5': latest.get('targets_L5')
-        })
+        if prop_type == 'receiving_tds':
+            # TD models get L10 for all features
+            features.update({
+                'rec_tds_L3': latest.get('rec_tds_L3'),
+                'rec_tds_L5': latest.get('rec_tds_L5'),
+                'rec_tds_L10': latest.get('rec_tds_L10'),
+                'receptions_L3': latest.get('receptions_L3'),
+                'receptions_L5': latest.get('receptions_L5'),
+                'receptions_L10': latest.get('receptions_L10'),
+                'targets_L3': latest.get('targets_L3'),
+                'targets_L5': latest.get('targets_L5'),
+                'targets_L10': latest.get('targets_L10')
+            })
+        else:
+            # Yards models only get L3/L5 for auxiliary features
+            features.update({
+                'rec_tds_L3': latest.get('rec_tds_L3'),
+                'rec_tds_L5': latest.get('rec_tds_L5'),
+                'receptions_L3': latest.get('receptions_L3'),
+                'receptions_L5': latest.get('receptions_L5'),
+                'targets_L3': latest.get('targets_L3'),
+                'targets_L5': latest.get('targets_L5')
+            })
     
     # Check if we have required features (L3 stats at minimum)
     if pd.isna(features[f'{stat_col}_L3']):
@@ -240,6 +333,100 @@ def get_player_features(stats_df, player_name, team, stat_type):
 # ============================================================================
 # PREDICTION GENERATION
 # ============================================================================
+
+def get_player_position(player_name):
+    """Get player position from players database."""
+    players_df = load_players()
+    if players_df is not None:
+        player_record = players_df[players_df['short_name'] == player_name]
+        if not player_record.empty:
+            # If multiple players with same short_name, prefer QB for passing props, etc.
+            # For now, just return the first match
+            record = player_record.iloc[0]
+            return record['position'], record['display_name']
+    return None, None
+
+
+def get_player_performance_tier(player_name, prop_type, all_stats):
+    """
+    Determine player's performance tier based on recent stats.
+    Returns appropriate line_type for prop betting.
+    """
+    if prop_type == 'passing_yards':
+        # For QB passing yards, check if they're an elite QB
+        passing_stats = all_stats.get('passing')
+        if passing_stats is not None:
+            qb_stats = passing_stats[passing_stats['player_name'] == player_name]
+            if len(qb_stats) >= 3:
+                recent_avg = qb_stats.sort_values('game_date', ascending=False).head(5)['passing_yards'].mean()
+                if recent_avg >= 250:  # Elite QB threshold
+                    return 'elite_qb'
+        return 'starter'
+    
+    elif prop_type == 'passing_tds':
+        return 'over'  # Default for passing TDs
+    
+    elif prop_type == 'rushing_yards':
+        # Get relevant stats DataFrame
+        stats_df = all_stats.get('rushing')
+        if stats_df is None or stats_df.empty:
+            return 'starter'
+        
+        # Get player's recent performance (last 8 games)
+        player_stats = stats_df[stats_df['player_name'] == player_name].copy()
+        if player_stats.empty:
+            return 'starter'
+        
+        player_stats = player_stats.sort_values('game_date', ascending=False)
+        recent_stats = player_stats.head(8)  # Last 8 games
+        
+        if len(recent_stats) < 3:  # Need at least 3 games
+            return 'starter'
+        
+        # Calculate average performance
+        avg_performance = recent_stats['rushing_yards'].mean()
+        
+        if avg_performance >= 80:
+            return 'elite_rb'
+        elif avg_performance >= 60:
+            return 'star_rb'
+        elif avg_performance >= 45:
+            return 'good_rb'
+        else:
+            return 'starter'
+    
+    elif prop_type == 'receiving_yards':
+        # Get relevant stats DataFrame
+        stats_df = all_stats.get('receiving')
+        if stats_df is None or stats_df.empty:
+            return 'starter'
+        
+        # Get player's recent performance (last 8 games)
+        player_stats = stats_df[stats_df['player_name'] == player_name].copy()
+        if player_stats.empty:
+            return 'starter'
+        
+        player_stats = player_stats.sort_values('game_date', ascending=False)
+        recent_stats = player_stats.head(8)  # Last 8 games
+        
+        if len(recent_stats) < 3:  # Need at least 3 games
+            return 'starter'
+        
+        # Calculate average performance
+        avg_performance = recent_stats['receiving_yards'].mean()
+        
+        if avg_performance >= 75:
+            return 'elite_wr'
+        elif avg_performance >= 55:
+            return 'star_wr'
+        elif avg_performance >= 40:
+            return 'good_wr'
+        else:
+            return 'starter'
+    
+    # Default for TD props
+    return 'anytime'
+
 
 def predict_props_for_game(game_row, all_stats, models):
     """
@@ -255,60 +442,93 @@ def predict_props_for_game(game_row, all_stats, models):
         opponent = game_row['away_team'] if team == game_row['home_team'] else game_row['home_team']
         is_home = team == game_row['home_team']
         
-        # Process each stat type
+        # Get recent starters for this team (from any stat type)
+        all_starters = set()
         for stat_type, stats_df in all_stats.items():
-            if stats_df is None:
-                continue
+            if stats_df is not None:
+                team_starters = get_recent_starters(stats_df, team)
+                all_starters.update(team_starters)
+        
+        for player_name in all_starters:
+            # Get player position and display name
+            player_position, player_display_name = get_player_position(player_name)
             
-            # Get recent starters for this team
-            starters = get_recent_starters(stats_df, team)
-            
-            for player_name in starters:
-                # Get player's latest features
-                result = get_player_features(stats_df, player_name, team, stat_type)
+            # Try each relevant model for this player
+            for model_name, model_info in models.items():
+                stat_type = model_info['stat_type']
+                prop_type = model_info['prop_type']
+                
+                # Check if player's position is eligible for this prop type
+                if player_position and player_position not in POSITION_MAP:
+                    continue  # Unknown position
+                if player_position and prop_type not in POSITION_MAP.get(player_position, []):
+                    continue  # Position not eligible for this prop type
+                
+                # Get stats DataFrame for this stat type
+                stats_df = all_stats.get(stat_type)
+                if stats_df is None:
+                    continue
+                
+                # Get player's latest features for this prop type
+                result = get_player_features(stats_df, player_name, team, prop_type)
                 if result is None:
                     continue
                 
                 features, player_latest = result
                 
-                # Try each relevant model
-                for model_name, model_info in models.items():
-                    # Match model's stat_type with current stat_type
-                    if model_info['stat_type'] != stat_type:
-                        continue
+                # Get player's performance tier for appropriate line selection
+                player_tier = get_player_performance_tier(player_name, prop_type, all_stats)
+                line_value = PROP_LINES[prop_type][player_tier]
+                
+                # Use the model's trained line_type for prediction, but display the tier-appropriate line
+                model_line_value = model_info['line_value']
+                
+                try:
+                    # Prepare features as DataFrame
+                    feature_df = pd.DataFrame([features])
                     
-                    try:
-                        # Prepare features as DataFrame
-                        feature_df = pd.DataFrame([features])
-                        
-                        # Make prediction
-                        prob_over = model_info['model'].predict_proba(feature_df)[0, 1]
-                        
-                        # Only include if meets minimum confidence
-                        if prob_over >= MIN_CONFIDENCE or prob_over <= (1 - MIN_CONFIDENCE):
-                            prediction = {
-                                'week': week,
-                                'game_date': game_date,
-                                'player_name': player_name,
-                                'team': team,
-                                'opponent': opponent,
-                                'is_home': is_home,
-                                'prop_type': stat_type,
-                                'line_type': model_info['line_type'],
-                                'line_value': model_info['line_value'],
-                                'prob_over': prob_over,
-                                'prob_under': 1 - prob_over,
-                                'recommendation': 'OVER' if prob_over >= MIN_CONFIDENCE else 'UNDER',
-                                'confidence': max(prob_over, 1 - prob_over),
-                                'avg_L3': features.get(f"{model_info['prop_type']}_L3"),
-                                'avg_L5': features.get(f"{model_info['prop_type']}_L5"),
-                                'avg_L10': features.get(f"{model_info['prop_type']}_L10")
-                            }
-                            predictions.append(prediction)
+                    # Make prediction using model's trained threshold
+                    prob_over = model_info['model'].predict_proba(feature_df)[0, 1]
                     
-                    except Exception as e:
-                        # Skip if prediction fails (missing features, etc.)
-                        continue
+                    # For star players with tier-appropriate lines, adjust recommendations
+                    stat_col = model_info['stat_col']
+                    recent_avg = features.get(f"{stat_col}_L5", 0)  # Last 5 games average
+                    
+                    # If player is a star (averages much more than the line), force OVER
+                    if player_tier in ['elite_rb', 'star_rb', 'elite_wr', 'star_wr'] and recent_avg > line_value * 1.3:
+                        prob_over = max(prob_over, 0.75)  # Ensure high confidence OVER for stars
+                    # If player averages much less than the line, force UNDER
+                    elif recent_avg < line_value * 0.6:
+                        prob_over = min(prob_over, 0.25)  # Ensure high confidence UNDER
+                    
+                    # Only include if meets minimum confidence
+                    if prob_over >= MIN_CONFIDENCE or prob_over <= (1 - MIN_CONFIDENCE):
+                        prediction = {
+                            'week': week,
+                            'game_date': game_date,
+                            'player_name': player_name,
+                            'display_name': player_display_name or player_name,  # Use display_name if available, fallback to short_name
+                            'position': player_position or 'Unknown',
+                            'team': team,
+                            'opponent': opponent,
+                            'is_home': is_home,
+                            'prop_type': prop_type,
+                            'line_type': player_tier,  # Use performance-based tier
+                            'line_value': line_value,  # Use tier-appropriate line
+                            'prob_over': prob_over,
+                            'prob_under': 1 - prob_over,
+                            'recommendation': 'OVER' if prob_over >= MIN_CONFIDENCE else 'UNDER',
+                            'confidence': max(prob_over, 1 - prob_over),
+                            'avg_L3': features.get(f"{model_info['stat_col']}_L3"),
+                            'avg_L5': features.get(f"{model_info['stat_col']}_L5"),
+                            'avg_L10': features.get(f"{model_info['stat_col']}_L10")
+                        }
+                        predictions.append(prediction)
+                    
+                except Exception as e:
+                    # Skip if prediction fails (missing features, etc.)
+                    print(f"⚠️  Prediction failed for {player_name} {prop_type}: {e}")
+                    continue
     
     return predictions
 

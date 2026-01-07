@@ -92,7 +92,7 @@ def load_players():
     file_path = Path('data_files/players.csv')
     if not file_path.exists():
         return None
-    return pd.read_csv(file_path)[['gsis_id', 'short_name', 'display_name', 'last_name']]
+    return pd.read_csv(file_path)[['gsis_id', 'short_name', 'display_name', 'last_name', 'position']]
 
 
 @st.cache_data(ttl=3600)
@@ -111,6 +111,21 @@ def load_player_props_predictions():
     # Parse game_date
     if 'game_date' in df.columns:
         df['game_date'] = pd.to_datetime(df['game_date'])
+    
+    # Add position and display_name information by joining with players data (only if not already present)
+    if 'display_name' not in df.columns or 'position' not in df.columns:
+        players_df = load_players()
+        if players_df is not None:
+            df = df.merge(
+                players_df[['short_name', 'display_name', 'position']], 
+                left_on='player_name', 
+                right_on='short_name', 
+                how='left'
+            )
+            # Use display_name for display, keep short_name for data operations
+            if 'display_name' in df.columns:
+                df['display_name'] = df['display_name'].fillna(df['player_name'])  # Fallback to short_name if no display_name
+            df = df.drop('short_name', axis=1, errors='ignore')
     
     return df
 
@@ -208,7 +223,7 @@ def main():
             - `player_rushing_stats.csv` (~8,000 RB games)
             - `player_receiving_stats.csv` (~12,000 WR/TE games)
             
-            Each file includes rolling averages (L3, L5, L10 games) for trend analysis.
+            Each file includes rolling averages (Last 3, Last 5, L10 games) for trend analysis.
             """)
         
         return
@@ -283,7 +298,7 @@ def main():
             if sort_option == "Confidence":
                 filtered = filtered.sort_values('confidence', ascending=False)
             elif sort_option == "Player Name":
-                filtered = filtered.sort_values('player_name')
+                filtered = filtered.sort_values('display_name')
             else:
                 filtered = filtered.sort_values('avg_L3', ascending=False)
             
@@ -298,18 +313,19 @@ def main():
                 display_df['Tier'] = display_df['confidence'].apply(
                     lambda x: '🔥 Elite' if x >= 0.65 else ('💪 Strong' if x >= 0.60 else '✅ Good')
                 )
-                display_df['L3 Avg'] = display_df['avg_L3'].apply(lambda x: f"{x:.1f}")
-                display_df['L5 Avg'] = display_df['avg_L5'].apply(lambda x: f"{x:.1f}")
+                display_df['Last 3 Avg'] = display_df['avg_L3'].apply(lambda x: f"{x:.1f}")
+                display_df['Last 5 Avg'] = display_df['avg_L5'].apply(lambda x: f"{x:.1f}")
                 
                 # Select columns to show
                 show_cols = [
-                    'player_name', 'team', 'opponent', 'prop_type', 
-                    'Recommendation', 'Confidence', 'Tier', 'L3 Avg', 'L5 Avg'
+                    'display_name', 'position', 'team', 'opponent', 'prop_type', 
+                    'Recommendation', 'Confidence', 'Tier', 'Last 3 Avg', 'Last 5 Avg'
                 ]
                 
                 st.dataframe(
                     display_df[show_cols].rename(columns={
-                        'player_name': 'Player',
+                        'display_name': 'Player',
+                        'position': 'Pos',
                         'team': 'Team',
                         'opponent': 'Opp',
                         'prop_type': 'Prop Type'
@@ -334,7 +350,7 @@ def main():
                     - `UNDER 65.5` means the model predicts the player will go UNDER this yardage line
                     
                     **Recent Averages:**
-                    - **L3/L5 Avg**: Player's average performance over Last 3/5 games
+                    - **Last 3/Last 5 Avg**: Player's average performance over Last 3/5 games
                     - Compare to the line value to gauge difficulty
                     
                     **Model Info:**
@@ -358,7 +374,7 @@ def main():
                 
                 This will:
                 1. Load upcoming games from the schedule
-                2. Get each player's recent performance (L3, L5, L10 games)
+                2. Get each player's recent performance (Last 3, Last 5, L10 games)
                 3. Run XGBoost models to predict Over/Under probabilities
                 4. Save predictions to `player_props_predictions.csv`
                 
@@ -392,18 +408,29 @@ def main():
                 season_totals['yards_per_game'] = season_totals['passing_yards'] / season_totals['games_played']
                 season_totals['completion_pct'] = (season_totals['completions'] / season_totals['attempts'] * 100).round(1)
                 
+                # Add position information
+                players_df = load_players()
+                if players_df is not None:
+                    season_totals = season_totals.merge(
+                        players_df[['short_name', 'position']], 
+                        left_on='player_name', 
+                        right_on='short_name', 
+                        how='left'
+                    )
+                    season_totals = season_totals.drop('short_name', axis=1)
+                
                 # Sort by total yards
                 season_totals = season_totals.sort_values('passing_yards', ascending=False).head(30)
                 
                 # Create display dataframe
                 display_df = season_totals[[
-                    'player_name', 'team', 'games_played', 'passing_yards', 'yards_per_game',
+                    'player_name', 'position', 'team', 'games_played', 'passing_yards', 'yards_per_game',
                     'pass_tds', 'interceptions', 'completions', 'attempts', 'completion_pct'
                 ]].copy()
                 
                 # Rename columns
                 display_df.columns = [
-                    'Player', 'Team', 'GP', 'Total Yds', 'Yds/G', 
+                    'Player', 'Pos', 'Team', 'GP', 'Total Yds', 'Yds/G', 
                     'TDs', 'INT', 'Comp', 'Att', 'Comp%'
                 ]
                 
@@ -450,18 +477,29 @@ def main():
                 season_totals['yards_per_carry'] = (season_totals['rushing_yards'] / season_totals['rush_attempts']).round(1)
                 season_totals['att_per_game'] = (season_totals['rush_attempts'] / season_totals['games_played']).round(1)
                 
+                # Add position information
+                players_df = load_players()
+                if players_df is not None:
+                    season_totals = season_totals.merge(
+                        players_df[['short_name', 'position']], 
+                        left_on='player_name', 
+                        right_on='short_name', 
+                        how='left'
+                    )
+                    season_totals = season_totals.drop('short_name', axis=1)
+                
                 # Sort by total yards
                 season_totals = season_totals.sort_values('rushing_yards', ascending=False).head(30)
                 
                 # Create display dataframe
                 display_df = season_totals[[
-                    'player_name', 'team', 'games_played', 'rushing_yards', 'yards_per_game',
+                    'player_name', 'position', 'team', 'games_played', 'rushing_yards', 'yards_per_game',
                     'rush_tds', 'rush_attempts', 'yards_per_carry', 'att_per_game'
                 ]].copy()
                 
                 # Rename columns
                 display_df.columns = [
-                    'Player', 'Team', 'GP', 'Total Yds', 'Yds/G',
+                    'Player', 'Pos', 'Team', 'GP', 'Total Yds', 'Yds/G',
                     'TDs', 'Attempts', 'YPC', 'Att/G'
                 ]
                 
@@ -510,19 +548,30 @@ def main():
                 season_totals['yards_per_rec'] = (season_totals['receiving_yards'] / season_totals['receptions']).round(1)
                 season_totals['catch_rate'] = (season_totals['receptions'] / season_totals['targets'] * 100).round(1)
                 
+                # Add position information
+                players_df = load_players()
+                if players_df is not None:
+                    season_totals = season_totals.merge(
+                        players_df[['short_name', 'position']], 
+                        left_on='player_name', 
+                        right_on='short_name', 
+                        how='left'
+                    )
+                    season_totals = season_totals.drop('short_name', axis=1)
+                
                 # Sort by total yards
                 season_totals = season_totals.sort_values('receiving_yards', ascending=False).head(40)
                 
                 # Create display dataframe
                 display_df = season_totals[[
-                    'player_name', 'team', 'games_played', 'receiving_yards', 'yards_per_game',
+                    'player_name', 'position', 'team', 'games_played', 'receiving_yards', 'yards_per_game',
                     'receptions', 'rec_tds', 'targets', 'yards_per_rec', 'catch_rate'
                 ]].copy()
                 
                 # Rename columns
                 display_df.columns = [
-                    'Player', 'Team', 'GP', 'Total Yds', 'Yds/G',
-                    'Rec', 'TDs', 'Tgts', 'YPR', 'Catch%'
+                    'Player', 'Pos', 'Team', 'GP', 'Total Yds', 'Yds/G',
+                    'Rec', 'TDs', 'Targets', 'YPR', 'Catch%'
                 ]
                 
                 # Format numbers
@@ -604,6 +653,12 @@ def main():
                 selected_player_id = None
             
             if selected_player_id:
+                # Get player position
+                player_info = players[players['gsis_id'] == selected_player_id]
+                if not player_info.empty:
+                    player_position = player_info.iloc[0]['position']
+                    st.markdown(f"**Position:** {player_position}")
+                
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
@@ -611,18 +666,22 @@ def main():
                     if passing_stats is not None:
                         player_pass = passing_stats[passing_stats['player_id'] == selected_player_id]
                         if not player_pass.empty:
-                            display_cols = ['team', 'passing_yards', 'pass_tds', 'completions', 'attempts', 'interceptions']
+                            # Filter to 2025 season only
+                            if 'season' in player_pass.columns:
+                                player_pass = player_pass[player_pass['season'] == 2025]
+                            display_cols = ['week', 'opponent', 'passing_yards', 'pass_tds', 'completions', 'attempts', 'interceptions']
                             available = [c for c in display_cols if c in player_pass.columns]
                             st.dataframe(
-                                player_pass[available].tail(10).rename(columns={
-                                    'team': 'Team',
+                                player_pass[available].rename(columns={
+                                    'week': 'Wk',
+                                    'opponent': 'Opp',
                                     'passing_yards': 'Yds',
                                     'pass_tds': 'TDs',
                                     'completions': 'Comp',
                                     'attempts': 'Att',
                                     'interceptions': 'INT'
                                 }),
-                                use_container_width=True,
+                                width='stretch',
                                 hide_index=True
                             )
                         else:
@@ -635,16 +694,20 @@ def main():
                     if rushing_stats is not None:
                         player_rush = rushing_stats[rushing_stats['player_id'] == selected_player_id]
                         if not player_rush.empty:
-                            display_cols = ['team', 'rushing_yards', 'rush_tds', 'rush_attempts']
+                            # Filter to 2025 season only
+                            if 'season' in player_rush.columns:
+                                player_rush = player_rush[player_rush['season'] == 2025]
+                            display_cols = ['week', 'opponent', 'rushing_yards', 'rush_tds', 'rush_attempts']
                             available = [c for c in display_cols if c in player_rush.columns]
                             st.dataframe(
-                                player_rush[available].tail(10).rename(columns={
-                                    'team': 'Team',
+                                player_rush[available].rename(columns={
+                                    'week': 'Wk',
+                                    'opponent': 'Opp',
                                     'rushing_yards': 'Yds',
                                     'rush_tds': 'TDs',
                                     'rush_attempts': 'Att'
                                 }),
-                                use_container_width=True,
+                                width='stretch',
                                 hide_index=True
                             )
                         else:
@@ -657,25 +720,115 @@ def main():
                     if receiving_stats is not None:
                         player_rec = receiving_stats[receiving_stats['player_id'] == selected_player_id]
                         if not player_rec.empty:
-                            display_cols = ['team', 'receiving_yards', 'receptions', 'rec_tds', 'targets']
+                            # Filter to 2025 season only
+                            if 'season' in player_rec.columns:
+                                player_rec = player_rec[player_rec['season'] == 2025]
+                            display_cols = ['week', 'opponent', 'receiving_yards', 'receptions', 'rec_tds', 'targets']
                             available = [c for c in display_cols if c in player_rec.columns]
                             st.dataframe(
-                                player_rec[available].tail(10).rename(columns={
-                                    'team': 'Team',
+                                player_rec[available].rename(columns={
+                                    'week': 'Wk',
+                                    'opponent': 'Opp',
                                     'receiving_yards': 'Yds',
                                     'receptions': 'Rec',
                                     'rec_tds': 'TDs',
-                                    'targets': 'Tgts'
+                                    'targets': 'Targets'
                                 }),
-                                use_container_width=True,
+                                width='stretch',
                                 hide_index=True
                             )
                         else:
                             st.info("No receiving stats")
                     else:
                         st.info("Data not loaded")
-        else:
-            st.info("No player data available")
+                
+                # Season Averages Section
+                st.markdown("---")
+                st.markdown("### 📊 Season Averages (2025)")
+                
+                avg_col1, avg_col2, avg_col3 = st.columns(3)
+                
+                with avg_col1:
+                    st.markdown("**Passing Averages**")
+                    if passing_stats is not None:
+                        player_pass = passing_stats[passing_stats['player_id'] == selected_player_id]
+                        if not player_pass.empty and 'season' in player_pass.columns:
+                            player_pass_2025 = player_pass[player_pass['season'] == 2025]
+                            if not player_pass_2025.empty:
+                                games = len(player_pass_2025)
+                                avg_yards = player_pass_2025['passing_yards'].mean()
+                                avg_tds = player_pass_2025['pass_tds'].mean()
+                                avg_comp = player_pass_2025['completions'].mean()
+                                avg_att = player_pass_2025['attempts'].mean()
+                                avg_int = player_pass_2025['interceptions'].mean()
+                                comp_pct = (player_pass_2025['completions'].sum() / player_pass_2025['attempts'].sum() * 100) if player_pass_2025['attempts'].sum() > 0 else 0
+                                
+                                st.metric("Games Played", f"{games}")
+                                st.metric("Yards/Game", f"{avg_yards:.1f}")
+                                st.metric("TDs/Game", f"{avg_tds:.2f}")
+                                st.metric("Comp/Att", f"{avg_comp:.1f}/{avg_att:.1f}")
+                                st.metric("Comp %", f"{comp_pct:.1f}%")
+                                st.metric("INT/Game", f"{avg_int:.2f}")
+                            else:
+                                st.info("No 2025 passing stats")
+                        else:
+                            st.info("No passing stats")
+                    else:
+                        st.info("Data not loaded")
+                
+                with avg_col2:
+                    st.markdown("**Rushing Averages**")
+                    if rushing_stats is not None:
+                        player_rush = rushing_stats[rushing_stats['player_id'] == selected_player_id]
+                        if not player_rush.empty and 'season' in player_rush.columns:
+                            player_rush_2025 = player_rush[player_rush['season'] == 2025]
+                            if not player_rush_2025.empty:
+                                games = len(player_rush_2025)
+                                avg_yards = player_rush_2025['rushing_yards'].mean()
+                                avg_tds = player_rush_2025['rush_tds'].mean()
+                                avg_att = player_rush_2025['rush_attempts'].mean()
+                                ypc = (player_rush_2025['rushing_yards'].sum() / player_rush_2025['rush_attempts'].sum()) if player_rush_2025['rush_attempts'].sum() > 0 else 0
+                                
+                                st.metric("Games Played", f"{games}")
+                                st.metric("Yards/Game", f"{avg_yards:.1f}")
+                                st.metric("TDs/Game", f"{avg_tds:.2f}")
+                                st.metric("Att/Game", f"{avg_att:.1f}")
+                                st.metric("YPC", f"{ypc:.2f}")
+                            else:
+                                st.info("No 2025 rushing stats")
+                        else:
+                            st.info("No rushing stats")
+                    else:
+                        st.info("Data not loaded")
+                
+                with avg_col3:
+                    st.markdown("**Receiving Averages**")
+                    if receiving_stats is not None:
+                        player_rec = receiving_stats[receiving_stats['player_id'] == selected_player_id]
+                        if not player_rec.empty and 'season' in player_rec.columns:
+                            player_rec_2025 = player_rec[player_rec['season'] == 2025]
+                            if not player_rec_2025.empty:
+                                games = len(player_rec_2025)
+                                avg_yards = player_rec_2025['receiving_yards'].mean()
+                                avg_rec = player_rec_2025['receptions'].mean()
+                                avg_tds = player_rec_2025['rec_tds'].mean()
+                                avg_tgts = player_rec_2025['targets'].mean()
+                                ypr = (player_rec_2025['receiving_yards'].sum() / player_rec_2025['receptions'].sum()) if player_rec_2025['receptions'].sum() > 0 else 0
+                                catch_rate = (player_rec_2025['receptions'].sum() / player_rec_2025['targets'].sum() * 100) if player_rec_2025['targets'].sum() > 0 else 0
+                                
+                                st.metric("Games Played", f"{games}")
+                                st.metric("Yards/Game", f"{avg_yards:.1f}")
+                                st.metric("Rec/Game", f"{avg_rec:.1f}")
+                                st.metric("TDs/Game", f"{avg_tds:.2f}")
+                                st.metric("Targets/Game", f"{avg_tgts:.1f}")
+                                st.metric("YPR", f"{ypr:.2f}")
+                                st.metric("Catch Rate", f"{catch_rate:.1f}%")
+                            else:
+                                st.info("No 2025 receiving stats")
+                        else:
+                            st.info("No receiving stats")
+                    else:
+                        st.info("Data not loaded")
     
     # Footer
     st.markdown("---")
