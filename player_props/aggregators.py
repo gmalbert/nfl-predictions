@@ -222,6 +222,84 @@ def calculate_rolling_averages(
     return player_stats
 
 
+def add_matchup_features(df: pd.DataFrame, stat_type: str, all_stats: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """
+    Add matchup and situational features to player stats DataFrame.
+    
+    Args:
+        df: Player stats DataFrame
+        stat_type: 'passing', 'rushing', or 'receiving'
+        all_stats: Dict of all stat DataFrames for defense ranking calculation
+    
+    Returns:
+        DataFrame with added matchup features
+    """
+    df = df.copy()
+    
+    # Add is_home (1 if team is home, 0 if away)
+    # We need game info to determine this. For now, we'll use a simple heuristic
+    # In a real implementation, you'd join with game data
+    df['is_home'] = np.random.choice([0, 1], size=len(df))  # Placeholder - should be calculated from game data
+    
+    # Add opponent defense rank
+    df['opponent_def_rank'] = df.apply(
+        lambda row: get_opponent_defense_rank_static(row['opponent'], stat_type, all_stats),
+        axis=1
+    )
+    
+    # Add days rest (simplified - would need proper game scheduling)
+    df['days_rest'] = 7  # Default - in real implementation, calculate from game dates
+    
+    return df
+
+
+def get_opponent_defense_rank_static(opponent: str, stat_type: str, all_stats: Dict[str, pd.DataFrame]) -> int:
+    """
+    Calculate opponent's defensive ranking for a stat type (static version for training).
+    Lower rank = better defense (harder matchup).
+    """
+    if stat_type == 'passing':
+        stats_df = all_stats.get('passing')
+        if stats_df is None or stats_df.empty:
+            return 16  # Default to league average
+        
+        # Get all passing yards allowed by this opponent
+        opp_games = stats_df[stats_df['opponent'] == opponent]
+        if opp_games.empty:
+            return 16
+        
+        avg_allowed = opp_games['passing_yards'].mean()
+        # Simple ranking based on average allowed
+        # In real implementation, this would be more sophisticated
+        return min(32, max(1, int(avg_allowed / 200)))  # Rough ranking
+    
+    elif stat_type == 'rushing':
+        stats_df = all_stats.get('rushing')
+        if stats_df is None or stats_df.empty:
+            return 16
+        
+        opp_games = stats_df[stats_df['opponent'] == opponent]
+        if opp_games.empty:
+            return 16
+        
+        avg_allowed = opp_games['rushing_yards'].mean()
+        return min(32, max(1, int(avg_allowed / 100)))
+    
+    elif stat_type == 'receiving':
+        stats_df = all_stats.get('receiving')
+        if stats_df is None or stats_df.empty:
+            return 16
+        
+        opp_games = stats_df[stats_df['opponent'] == opponent]
+        if opp_games.empty:
+            return 16
+        
+        avg_allowed = opp_games['receiving_yards'].mean()
+        return min(32, max(1, int(avg_allowed / 200)))
+    
+    return 16  # Default
+
+
 def aggregate_all_stats(
     pbp: pd.DataFrame,
     rolling_windows: List[int] = [3, 5, 10],
@@ -274,6 +352,19 @@ def aggregate_all_stats(
             stat_cols=['receiving_yards', 'receptions', 'rec_tds', 'targets'],
             windows=rolling_windows
         )
+    
+    # Add matchup features
+    print("\n🎯 Adding Matchup Features...")
+    all_stats = {'passing': passing, 'rushing': rushing, 'receiving': receiving}
+    
+    if not passing.empty:
+        passing = add_matchup_features(passing, 'passing', all_stats)
+    
+    if not rushing.empty:
+        rushing = add_matchup_features(rushing, 'rushing', all_stats)
+    
+    if not receiving.empty:
+        receiving = add_matchup_features(receiving, 'receiving', all_stats)
     
     # Save if directory provided
     if save_to_dir:

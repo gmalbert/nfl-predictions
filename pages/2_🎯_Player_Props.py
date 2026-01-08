@@ -127,6 +127,11 @@ def load_player_props_predictions():
                 df['display_name'] = df['display_name'].fillna(df['player_name'])  # Fallback to short_name if no display_name
             df = df.drop('short_name', axis=1, errors='ignore')
     
+    # Ensure opponent_def_rank column exists (for backward compatibility)
+    if 'opponent_def_rank' not in df.columns:
+        st.warning("⚠️ opponent_def_rank column missing from predictions. Please regenerate predictions.")
+        df['opponent_def_rank'] = 16.0  # Default to league average
+    
     return df
 
 
@@ -315,10 +320,13 @@ def main():
                 )
                 display_df['Last 3 Avg'] = display_df['avg_L3'].apply(lambda x: f"{x:.1f}")
                 display_df['Last 5 Avg'] = display_df['avg_L5'].apply(lambda x: f"{x:.1f}")
+                display_df['Defense Rank'] = display_df['opponent_def_rank'].apply(
+                    lambda x: f"#{int(x)}/32" + (" 🛡️" if x <= 8 else (" ⚠️" if x >= 24 else ""))
+                )
                 
                 # Select columns to show
                 show_cols = [
-                    'display_name', 'position', 'team', 'opponent', 'prop_type', 
+                    'display_name', 'position', 'team', 'opponent', 'Defense Rank', 'prop_type', 
                     'Recommendation', 'Confidence', 'Tier', 'Last 3 Avg', 'Last 5 Avg'
                 ]
                 
