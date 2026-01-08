@@ -19,29 +19,43 @@ DATA_DIR = Path('data_files')
 MODELS_DIR = Path('player_props/models')
 MODELS_DIR.mkdir(exist_ok=True, parents=True)
 
-# Common prop betting lines - UPDATED TO REALISTIC VALUES BASED ON HISTORICAL PERFORMANCE
+# Common prop betting lines - UPDATED TO COMPREHENSIVE TIERED SYSTEM
 PROP_LINES = {
     'passing_yards': {
-        'elite_qb': 255.0,      # 70th percentile - elite QBs
-        'starter': 231.0,        # 60th percentile - average starter
-        'backup': 175.5          # Backup/struggling QB (unchanged)
-    },
-    'rushing_yards': {
-        'elite_rb': 85.5,        # Henry, Barkley (unchanged)
-        'starter': 24.0,         # 60th percentile - much more realistic!
-        'committee': 45.5        # RB in committee (unchanged)
-    },
-    'receiving_yards': {
-        'elite_wr': 75.5,        # Top WRs (unchanged)
-        'starter': 27.0,         # 60th percentile - much more realistic!
-        'role_player': 35.5      # WR4+, TEs (unchanged)
+        'elite_qb': 275.0,     # For QBs averaging 280+ yards/game (Stafford, Purdy)
+        'star_qb': 250.0,      # For QBs averaging 250-280 yards/game (Burrow, Goff)
+        'good_qb': 225.0,      # For QBs averaging 220-250 yards/game (Maye, Daniels)
+        'starter': 200.0       # For QBs averaging <220 yards/game
     },
     'passing_tds': {
-        'over': 1.0,             # 60th percentile - will QB throw 2+ TDs?
-        'high': 2.0              # 70th percentile - will QB throw 3+ TDs?
+        'elite_qb': 2.5,       # For QBs averaging 2.0+ tds/game (Stafford, Purdy)
+        'star_qb': 1.5,        # For QBs averaging 1.5-2.0 tds/game (Maye, Prescott)
+        'good_qb': 1.5,        # For QBs averaging 1.0-1.5 tds/game (Most QBs)
+        'starter': 0.5         # For QBs averaging <1.0 tds/game
     },
-    'rush_rec_tds': {
-        'anytime': 0.0           # 60th percentile - will player score a TD?
+    'rushing_yards': {
+        'elite_rb': 55.0,      # For RBs averaging 80+ yards/game (Henry, Barkley)
+        'star_rb': 45.0,       # For RBs averaging 60-80 yards/game (Taylor, Allen)
+        'good_rb': 35.0,       # For RBs averaging 40-60 yards/game (Jacobs, Cook)
+        'starter': 24.0        # For RBs averaging <40 yards/game
+    },
+    'receiving_yards': {
+        'elite_wr': 75.0,      # For WRs averaging 80+ yards/game (Adams, Diggs)
+        'star_wr': 60.0,       # For WRs averaging 60-80 yards/game (Wilson, Lamb)
+        'good_wr': 45.0,       # For WRs averaging 40-60 yards/game (Kraft, Waller)
+        'starter': 27.0        # For WRs averaging <40 yards/game
+    },
+    'rushing_tds': {
+        'elite_rb': 0.5,       # For RBs averaging 1.0+ tds/game (Taylor, Henry)
+        'star_rb': 0.5,        # For RBs averaging 0.7-1.0 tds/game (Allen, Jacobs)
+        'good_rb': 0.5,        # For RBs averaging 0.4-0.7 tds/game (Cook, Charbonnet)
+        'anytime': 0.5         # For RBs averaging <0.4 tds/game
+    },
+    'receiving_tds': {
+        'elite_wr': 0.5,       # For WRs averaging 1.0+ tds/game (Adams)
+        'star_wr': 0.5,        # For WRs averaging 0.7-1.0 tds/game (Wilson, Kraft)
+        'good_wr': 0.5,        # For WRs averaging 0.4-0.7 tds/game (Higgins, Goedert)
+        'anytime': 0.5         # For WRs averaging <0.4 tds/game
     }
 }
 
@@ -102,6 +116,7 @@ def prepare_training_features(df, stat_type='passing'):
     - Team strength indicators
     - Home/away
     - Recent trends
+    - Matchup features (opponent defense rank, home/away, days rest)
     """
     # Core stat column mapping
     stat_col_map = {
@@ -147,6 +162,17 @@ def prepare_training_features(df, stat_type='passing'):
     extra_cols = [c for c in extra_cols if c in df.columns]
     feature_cols.extend(extra_cols)
     
+    # Add matchup and situational features
+    matchup_cols = [
+        'opponent_def_rank',
+        'is_home', 
+        'days_rest'
+    ]
+    
+    # Only add matchup features that exist
+    matchup_cols = [c for c in matchup_cols if c in df.columns]
+    feature_cols.extend(matchup_cols)
+    
     # Filter to only existing columns
     feature_cols = [c for c in feature_cols if c in df.columns]
     
@@ -162,6 +188,7 @@ def prepare_td_training_features(df, stat_type='passing'):
     TD models use different features than yards models:
     - Focus on TD-related stats and volume metrics
     - Exclude yards (to avoid data leakage for TD predictions)
+    - Include matchup features for better predictions
     """
     # Filter to only games with valid rolling TD averages
     td_col = 'pass_tds' if stat_type == 'passing' else ('rush_tds' if stat_type == 'rushing' else 'rec_tds')
@@ -186,6 +213,17 @@ def prepare_td_training_features(df, stat_type='passing'):
             'receptions_L3', 'receptions_L5', 'receptions_L10',
             'targets_L3', 'targets_L5', 'targets_L10'
         ]
+    
+    # Add matchup and situational features
+    matchup_cols = [
+        'opponent_def_rank',
+        'is_home', 
+        'days_rest'
+    ]
+    
+    # Only add matchup features that exist
+    matchup_cols = [c for c in matchup_cols if c in df.columns]
+    feature_cols.extend(matchup_cols)
     
     # Filter to only existing columns
     feature_cols = [c for c in feature_cols if c in df.columns]
@@ -290,184 +328,177 @@ def train_prop_model(df, features, target_col, model_name):
 # ============================================================================
 
 def train_all_models():
-    """Train all player prop models."""
+    """Train all player prop models with comprehensive tiered system."""
     print("=" * 70)
-    print("🏈 NFL Player Props Model Training")
+    print("🏈 NFL Player Props Model Training - Comprehensive Tiered System")
     print("=" * 70)
-    
+
     all_metrics = []
-    
+
     # ========================================================================
     # 1. PASSING YARDS MODELS
     # ========================================================================
     print("\n\n📊 PASSING YARDS MODELS")
     print("-" * 70)
-    
+
     passing_df = load_player_stats('passing')
     if passing_df is not None:
-        # Create targets for different QB tiers
+        # Create targets for all QB tiers
         passing_df = create_prop_targets(
-            passing_df, 
+            passing_df,
             'passing_yards',
-            {
-                'elite_qb': PROP_LINES['passing_yards']['elite_qb'],
-                'starter': PROP_LINES['passing_yards']['starter']
-            }
+            PROP_LINES['passing_yards']
         )
-        
+
         passing_df, pass_features = prepare_training_features(passing_df, 'passing')
-        
-        # Train models for each line
-        for line_type in ['elite_qb', 'starter']:
+
+        # Train models for each tier
+        for line_type in PROP_LINES['passing_yards'].keys():
             target_col = f'over_{line_type}'
             model_name = f'passing_yards_{line_type}'
-            
+
             model, metrics = train_prop_model(
                 passing_df, pass_features, target_col, model_name
             )
             if metrics:
                 all_metrics.append(metrics)
-    
+
     # ========================================================================
-    # 1.5. PASSING TDS MODELS
+    # 2. PASSING TDS MODELS
     # ========================================================================
     print("\n\n🏈 PASSING TDS MODELS")
     print("-" * 70)
-    
+
     if passing_df is not None:
-        # Create targets for TD props
+        # Create targets for all TD tiers
         passing_df = create_prop_targets(
-            passing_df, 
+            passing_df,
             'pass_tds',
             PROP_LINES['passing_tds']
         )
-        
+
         # Prepare TD-specific features (no yards leakage)
         passing_df, pass_td_features = prepare_td_training_features(passing_df, 'passing')
-        
-        # Train models for each TD line
+
+        # Train models for each TD tier
         for line_type in PROP_LINES['passing_tds'].keys():
             target_col = f'over_{line_type}'
             model_name = f'passing_tds_{line_type}'
-            
+
             model, metrics = train_prop_model(
                 passing_df, pass_td_features, target_col, model_name
             )
             if metrics:
                 all_metrics.append(metrics)
-    
+
     # ========================================================================
-    # 2. RUSHING YARDS MODELS
+    # 3. RUSHING YARDS MODELS
     # ========================================================================
     print("\n\n🏃 RUSHING YARDS MODELS")
     print("-" * 70)
-    
+
     rushing_df = load_player_stats('rushing')
     if rushing_df is not None:
         rushing_df = create_prop_targets(
             rushing_df,
             'rushing_yards',
-            {
-                'elite_rb': PROP_LINES['rushing_yards']['elite_rb'],
-                'starter': PROP_LINES['rushing_yards']['starter']
-            }
+            PROP_LINES['rushing_yards']
         )
-        
+
         rushing_df, rush_features = prepare_training_features(rushing_df, 'rushing')
-        
-        for line_type in ['elite_rb', 'starter']:
+
+        for line_type in PROP_LINES['rushing_yards'].keys():
             target_col = f'over_{line_type}'
             model_name = f'rushing_yards_{line_type}'
-            
+
             model, metrics = train_prop_model(
                 rushing_df, rush_features, target_col, model_name
             )
             if metrics:
                 all_metrics.append(metrics)
-    
+
     # ========================================================================
-    # 2.5. RUSHING TDS MODELS
+    # 4. RUSHING TDS MODELS
     # ========================================================================
     print("\n\n🏃 RUSHING TDS MODELS")
     print("-" * 70)
-    
+
     if rushing_df is not None:
-        # Create targets for TD props
+        # Create targets for all TD tiers
         rushing_df = create_prop_targets(
             rushing_df,
             'rush_tds',
-            PROP_LINES['rush_rec_tds']
+            PROP_LINES['rushing_tds']
         )
-        
+
         # Prepare TD-specific features (no yards leakage)
         rushing_df, rush_td_features = prepare_td_training_features(rushing_df, 'rushing')
-        
-        # Train TD model
-        target_col = 'over_anytime'
-        model_name = 'rushing_tds_anytime'
-        
-        model, metrics = train_prop_model(
-            rushing_df, rush_td_features, target_col, model_name
-        )
-        if metrics:
-            all_metrics.append(metrics)
-    
+
+        # Train models for each TD tier
+        for line_type in PROP_LINES['rushing_tds'].keys():
+            target_col = f'over_{line_type}'
+            model_name = f'rushing_tds_{line_type}'
+
+            model, metrics = train_prop_model(
+                rushing_df, rush_td_features, target_col, model_name
+            )
+            if metrics:
+                all_metrics.append(metrics)
+
     # ========================================================================
-    # 3. RECEIVING YARDS MODELS
+    # 5. RECEIVING YARDS MODELS
     # ========================================================================
     print("\n\n🤲 RECEIVING YARDS MODELS")
     print("-" * 70)
-    
+
     receiving_df = load_player_stats('receiving')
     if receiving_df is not None:
         receiving_df = create_prop_targets(
             receiving_df,
             'receiving_yards',
-            {
-                'elite_wr': PROP_LINES['receiving_yards']['elite_wr'],
-                'starter': PROP_LINES['receiving_yards']['starter']
-            }
+            PROP_LINES['receiving_yards']
         )
-        
+
         receiving_df, rec_features = prepare_training_features(receiving_df, 'receiving')
-        
-        for line_type in ['elite_wr', 'starter']:
+
+        for line_type in PROP_LINES['receiving_yards'].keys():
             target_col = f'over_{line_type}'
             model_name = f'receiving_yards_{line_type}'
-            
+
             model, metrics = train_prop_model(
                 receiving_df, rec_features, target_col, model_name
             )
             if metrics:
                 all_metrics.append(metrics)
-    
+
     # ========================================================================
-    # 3.5. RECEIVING TDS MODELS
+    # 6. RECEIVING TDS MODELS
     # ========================================================================
     print("\n\n🤲 RECEIVING TDS MODELS")
     print("-" * 70)
-    
+
     if receiving_df is not None:
-        # Create targets for TD props
+        # Create targets for all TD tiers
         receiving_df = create_prop_targets(
             receiving_df,
             'rec_tds',
-            PROP_LINES['rush_rec_tds']
+            PROP_LINES['receiving_tds']
         )
-        
+
         # Prepare TD-specific features (no yards leakage)
         receiving_df, rec_td_features = prepare_td_training_features(receiving_df, 'receiving')
-        
-        # Train TD model
-        target_col = 'over_anytime'
-        model_name = 'receiving_tds_anytime'
-        
-        model, metrics = train_prop_model(
-            receiving_df, rec_td_features, target_col, model_name
-        )
-        if metrics:
-            all_metrics.append(metrics)
-    
+
+        # Train models for each TD tier
+        for line_type in PROP_LINES['receiving_tds'].keys():
+            target_col = f'over_{line_type}'
+            model_name = f'receiving_tds_{line_type}'
+
+            model, metrics = train_prop_model(
+                receiving_df, rec_td_features, target_col, model_name
+            )
+            if metrics:
+                all_metrics.append(metrics)
+
     # ========================================================================
     # SAVE SUMMARY METRICS
     # ========================================================================
@@ -476,7 +507,7 @@ def train_all_models():
         metrics_path = MODELS_DIR / 'model_metrics.csv'
         metrics_df.to_csv(metrics_path, index=False)
         print(f"\n\n💾 Saved metrics summary to {metrics_path}")
-        
+
         # Save JSON version too
         metrics_json_path = MODELS_DIR / 'model_metrics.json'
         with open(metrics_json_path, 'w') as f:
@@ -484,7 +515,7 @@ def train_all_models():
                 'trained_at': datetime.now().isoformat(),
                 'models': all_metrics
             }, f, indent=2)
-        
+
         # Print summary table
         print("\n" + "=" * 70)
         print("📊 MODEL PERFORMANCE SUMMARY")
