@@ -320,6 +320,7 @@ def main():
                 )
                 display_df['Last 3 Avg'] = display_df['avg_L3'].apply(lambda x: f"{x:.1f}")
                 display_df['Last 5 Avg'] = display_df['avg_L5'].apply(lambda x: f"{x:.1f}")
+                display_df['Last 10 Avg'] = display_df['avg_L10'].apply(lambda x: f"{x:.1f}")
                 display_df['Defense Rank'] = display_df['opponent_def_rank'].apply(
                     lambda x: f"#{int(x)}/32" + (" 🛡️" if x <= 8 else (" ⚠️" if x >= 24 else ""))
                 )
@@ -327,7 +328,7 @@ def main():
                 # Select columns to show
                 show_cols = [
                     'display_name', 'position', 'team', 'opponent', 'Defense Rank', 'prop_type', 
-                    'Recommendation', 'Confidence', 'Tier', 'Last 3 Avg', 'Last 5 Avg'
+                    'Recommendation', 'Confidence', 'Tier', 'Last 3 Avg', 'Last 5 Avg', 'Last 10 Avg'
                 ]
                 
                 st.dataframe(
