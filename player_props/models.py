@@ -56,6 +56,12 @@ PROP_LINES = {
         'star_wr': 0.5,        # For WRs averaging 0.7-1.0 tds/game (Wilson, Kraft)
         'good_wr': 0.5,        # For WRs averaging 0.4-0.7 tds/game (Higgins, Goedert)
         'anytime': 0.5         # For WRs averaging <0.4 tds/game
+    },
+    'receptions': {
+        'elite_wr': 7.5,       # Elite WRs: 8+ receptions (Adams, Diggs)
+        'star_wr': 5.5,        # Star WRs: 6+ receptions (Wilson, Lamb)
+        'good_wr': 4.5,        # Good WRs: 5+ receptions (Kraft, Waller)
+        'starter': 3.5         # Role players: 4+ receptions
     }
 }
 
@@ -233,9 +239,47 @@ def prepare_td_training_features(df, stat_type='passing'):
     return df, feature_cols
 
 
-# ============================================================================
-# MODEL TRAINING
-# ============================================================================
+def prepare_receptions_training_features(df):
+    """
+    Prepare features specifically for receptions model training.
+    
+    Receptions models use reception-focused features:
+    - Rolling receptions averages (L3, L5, L10)
+    - Rolling targets and TD features
+    - Matchup features (opponent defense rank, home/away, days rest)
+    """
+    # Filter to only games with valid rolling receptions averages
+    df = df.dropna(subset=['receptions_L3']).copy()
+    
+    # Core receptions features
+    feature_cols = [
+        'receptions_L3',
+        'receptions_L5', 
+        'receptions_L10',
+        'rec_tds_L3', 
+        'rec_tds_L5',
+        'targets_L3', 
+        'targets_L5'
+    ]
+    
+    # Add matchup and situational features
+    matchup_cols = [
+        'opponent_def_rank',
+        'is_home', 
+        'days_rest'
+    ]
+    
+    # Only add matchup features that exist
+    matchup_cols = [c for c in matchup_cols if c in df.columns]
+    feature_cols.extend(matchup_cols)
+    
+    # Filter to only existing columns
+    feature_cols = [c for c in feature_cols if c in df.columns]
+    
+    print(f"📊 Using {len(feature_cols)} receptions features: {feature_cols}")
+    
+    return df, feature_cols
+
 
 def train_prop_model(df, features, target_col, model_name):
     """
@@ -495,6 +539,34 @@ def train_all_models():
 
             model, metrics = train_prop_model(
                 receiving_df, rec_td_features, target_col, model_name
+            )
+            if metrics:
+                all_metrics.append(metrics)
+
+    # ========================================================================
+    # 7. RECEPTIONS MODELS
+    # ========================================================================
+    print("\n\n🤲 RECEPTIONS MODELS")
+    print("-" * 70)
+
+    if receiving_df is not None:
+        # Create targets for all reception tiers
+        receiving_df = create_prop_targets(
+            receiving_df,
+            'receptions',
+            PROP_LINES['receptions']
+        )
+
+        # Prepare reception-specific features
+        receiving_df, rec_features = prepare_receptions_training_features(receiving_df)
+
+        # Train models for each reception tier
+        for line_type in PROP_LINES['receptions'].keys():
+            target_col = f'over_{line_type}'
+            model_name = f'receptions_{line_type}'
+
+            model, metrics = train_prop_model(
+                receiving_df, rec_features, target_col, model_name
             )
             if metrics:
                 all_metrics.append(metrics)

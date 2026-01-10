@@ -64,6 +64,12 @@ PROP_LINES = {
         'star_wr': 0.5,      # Star WRs: Over 0.5 TDs (will they score at least 1?)
         'good_wr': 0.5,      # Good WRs: Over 0.5 TDs (will they score at least 1?)
         'anytime': 0.5       # Role WRs: Over 0.5 TDs (will they score at least 1?)
+    },
+    'receptions': {
+        'elite_wr': 7.5,     # Elite WRs: Over 7.5 receptions
+        'star_wr': 5.5,      # Star WRs: Over 5.5 receptions
+        'good_wr': 4.5,      # Good WRs: Over 4.5 receptions
+        'starter': 3.5       # Role players: Over 3.5 receptions
     }
 }
 
@@ -73,9 +79,9 @@ MIN_CONFIDENCE = 0.55  # 55% probability for a recommendation
 # Position mapping for prop types
 POSITION_MAP = {
     'QB': ['passing_yards', 'passing_tds'],
-    'RB': ['rushing_yards', 'rushing_tds'],
-    'WR': ['receiving_yards', 'receiving_tds'],
-    'TE': ['receiving_yards', 'receiving_tds']
+    'RB': ['rushing_yards', 'rushing_tds', 'receptions'],
+    'WR': ['receiving_yards', 'receiving_tds', 'receptions'],
+    'TE': ['receiving_yards', 'receiving_tds', 'receptions']
 }
 
 # ============================================================================
@@ -184,7 +190,13 @@ def load_models():
         ('receiving_tds_elite_wr', 'receiving_tds', 'elite_wr'),
         ('receiving_tds_star_wr', 'receiving_tds', 'star_wr'),
         ('receiving_tds_good_wr', 'receiving_tds', 'good_wr'),
-        ('receiving_tds_anytime', 'receiving_tds', 'anytime')
+        ('receiving_tds_anytime', 'receiving_tds', 'anytime'),
+        
+        # Receptions Models
+        ('receptions_elite_wr', 'receptions', 'elite_wr'),
+        ('receptions_star_wr', 'receptions', 'star_wr'),
+        ('receptions_good_wr', 'receptions', 'good_wr'),
+        ('receptions_starter', 'receptions', 'starter')
     ]
     
     for model_name, prop_type, line_type in model_configs:
@@ -201,9 +213,16 @@ def load_models():
             elif prop_type in ['rushing_yards', 'rushing_tds']:
                 stat_type = 'rushing'
                 stat_col = 'rushing_yards' if prop_type == 'rushing_yards' else 'rush_tds'
-            elif prop_type in ['receiving_yards', 'receiving_tds']:
+            elif prop_type in ['receiving_yards', 'receiving_tds', 'receptions']:
                 stat_type = 'receiving'
-                stat_col = 'receiving_yards' if prop_type == 'receiving_yards' else 'rec_tds'
+                if prop_type == 'receiving_yards':
+                    stat_col = 'receiving_yards'
+                elif prop_type == 'receiving_tds':
+                    stat_col = 'rec_tds'
+                elif prop_type == 'receptions':
+                    stat_col = 'receptions'
+                else:
+                    continue
             else:
                 continue
             
@@ -229,6 +248,19 @@ def load_models():
             'stat_col': star_model['stat_col'],
             'line_type': 'elite_wr',
             'line_value': PROP_LINES['receiving_yards']['elite_wr']
+        }
+    
+    # Add fallback for receptions elite_wr (use star_wr model)
+    if 'receptions_elite_wr' not in models and 'receptions_star_wr' in models:
+        print("🔄 Using star_wr model as fallback for receptions elite_wr")
+        star_model = models['receptions_star_wr']
+        models['receptions_elite_wr'] = {
+            'model': star_model['model'],
+            'prop_type': star_model['prop_type'],
+            'stat_type': star_model['stat_type'],
+            'stat_col': star_model['stat_col'],
+            'line_type': 'elite_wr',
+            'line_value': PROP_LINES['receptions']['elite_wr']
         }
     
     return models
@@ -303,9 +335,16 @@ def get_player_features(stats_df, player_name, team, prop_type, opponent=None, i
     elif prop_type in ['rushing_yards', 'rushing_tds']:
         stat_type = 'rushing'
         stat_col = 'rushing_yards' if prop_type == 'rushing_yards' else 'rush_tds'
-    elif prop_type in ['receiving_yards', 'receiving_tds']:
+    elif prop_type in ['receiving_yards', 'receiving_tds', 'receptions']:
         stat_type = 'receiving'
-        stat_col = 'receiving_yards' if prop_type == 'receiving_yards' else 'rec_tds'
+        if prop_type == 'receiving_yards':
+            stat_col = 'receiving_yards'
+        elif prop_type == 'receiving_tds':
+            stat_col = 'rec_tds'
+        elif prop_type == 'receptions':
+            stat_col = 'receptions'
+        else:
+            return None
     else:
         return None
     
@@ -676,6 +715,35 @@ def get_player_performance_tier(player_name, prop_type, all_stats):
             return 'good_wr'
         else:
             return 'anytime'
+    
+    elif prop_type == 'receptions':
+        # Get relevant stats DataFrame
+        stats_df = all_stats.get('receiving')
+        if stats_df is None or stats_df.empty:
+            return 'starter'
+        
+        # Get player's recent performance (last 8 games)
+        player_stats = stats_df[stats_df['player_name'] == player_name].copy()
+        if player_stats.empty:
+            return 'starter'
+        
+        player_stats = player_stats.sort_values('game_date', ascending=False)
+        recent_stats = player_stats.head(8)  # Last 8 games
+        
+        if len(recent_stats) < 3:  # Need at least 3 games
+            return 'starter'
+        
+        # Calculate average performance
+        avg_performance = recent_stats['receptions'].mean()
+        
+        if avg_performance >= 7.5:
+            return 'elite_wr'
+        elif avg_performance >= 5.5:
+            return 'star_wr'
+        elif avg_performance >= 4.5:
+            return 'good_wr'
+        else:
+            return 'starter'
     
     # Default fallback
     return 'starter'

@@ -532,7 +532,7 @@ def main():
                 
                 st.dataframe(
                     display_df,
-                    use_container_width=True,
+                    width='stretch',
                     height=600,
                     hide_index=True
                 )
@@ -601,7 +601,7 @@ def main():
                 
                 st.dataframe(
                     display_df,
-                    use_container_width=True,
+                    width='stretch',
                     height=600,
                     hide_index=True
                 )
@@ -672,7 +672,7 @@ def main():
                 
                 st.dataframe(
                     display_df,
-                    use_container_width=True,
+                    width='stretch',
                     height=600,
                     hide_index=True
                 )
@@ -773,7 +773,7 @@ def main():
                                     'attempts': 'Att',
                                     'interceptions': 'INT'
                                 }),
-                                use_container_width=True,
+                                width='stretch',
                                 hide_index=True
                             )
                         else:
@@ -799,7 +799,7 @@ def main():
                                     'rush_tds': 'TDs',
                                     'rush_attempts': 'Att'
                                 }),
-                                use_container_width=True,
+                                width='stretch',
                                 hide_index=True
                             )
                         else:
@@ -826,7 +826,7 @@ def main():
                                     'rec_tds': 'TDs',
                                     'targets': 'Targets'
                                 }),
-                                use_container_width=True,
+                                width='stretch',
                                 hide_index=True
                             )
                         else:
