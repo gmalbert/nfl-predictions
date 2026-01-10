@@ -189,7 +189,8 @@ def calculate_rolling_averages(
     player_id_col: str = 'player_id'
 ) -> pd.DataFrame:
     """
-    Calculate rolling averages for stat columns.
+    Calculate exponentially-weighted rolling averages for stat columns.
+    More recent games get higher weight for better prediction accuracy.
     
     Args:
         player_stats: Game-level player stats (must have player_id, season, week)
@@ -198,7 +199,7 @@ def calculate_rolling_averages(
         player_id_col: Column name for player ID
     
     Returns:
-        DataFrame with additional columns for rolling averages
+        DataFrame with additional columns for exponentially-weighted rolling averages
         (e.g., passing_yards_L3, passing_yards_L5)
     """
     # Ensure sorted by player and time
@@ -212,12 +213,14 @@ def calculate_rolling_averages(
         for window in windows:
             col_name = f'{stat_col}_L{window}'
             
-            # Calculate rolling average, excluding current game (shift by 1)
+            # Calculate exponentially-weighted rolling average, excluding current game
+            # alpha = 2/(window+1) gives more weight to recent games
+            alpha = 2 / (window + 1)
             player_stats[col_name] = player_stats.groupby(player_id_col)[stat_col].transform(
-                lambda x: x.shift(1).rolling(window, min_periods=1).mean()
+                lambda x: x.shift(1).ewm(span=window, adjust=False).mean()
             )
     
-    print(f"✅ Calculated rolling averages: windows={windows}")
+    print(f"✅ Calculated exponentially-weighted rolling averages: windows={windows}, alpha={alpha:.3f}")
     
     return player_stats
 
