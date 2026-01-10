@@ -11,6 +11,11 @@ python-dotenv>=1.0.0
 reportlab>=4.0
 plotly>=5.0.0
 
+# Weather API dependencies
+openmeteo_requests>=1.2.0
+requests_cache>=1.1.0
+retry_requests>=2.0.0
+
 # Optional / development dependencies (keep commented)
 # pytest>=7.4.0
 # jupyter>=1.0.0
