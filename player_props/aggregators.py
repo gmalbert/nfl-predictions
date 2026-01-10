@@ -43,7 +43,7 @@ def aggregate_passing_stats(pbp: pd.DataFrame) -> pd.DataFrame:
         'week',
         'posteam',  # Team the player is on
         'defteam'   # Opponent
-    ]).agg({
+    ], observed=False).agg({
         'passing_yards': 'sum',
         'pass_touchdown': 'sum',
         'complete_pass': 'sum',
@@ -97,7 +97,7 @@ def aggregate_rushing_stats(pbp: pd.DataFrame) -> pd.DataFrame:
         'week',
         'posteam',
         'defteam'
-    ]).agg({
+    ], observed=False).agg({
         'rushing_yards': 'sum',
         'rush_touchdown': 'sum',
         'rush_attempt': 'sum',
@@ -150,7 +150,7 @@ def aggregate_receiving_stats(pbp: pd.DataFrame) -> pd.DataFrame:
         'week',
         'posteam',
         'defteam'
-    ]).agg({
+    ], observed=False).agg({
         'receiving_yards': 'sum',
         'complete_pass': 'sum',  # Receptions = completed passes
         'pass_touchdown': 'sum',  # Receiving TDs
@@ -216,7 +216,7 @@ def calculate_rolling_averages(
             # Calculate exponentially-weighted rolling average, excluding current game
             # alpha = 2/(window+1) gives more weight to recent games
             alpha = 2 / (window + 1)
-            player_stats[col_name] = player_stats.groupby(player_id_col)[stat_col].transform(
+            player_stats[col_name] = player_stats.groupby(player_id_col, observed=False)[stat_col].transform(
                 lambda x: x.shift(1).ewm(span=window, adjust=False).mean()
             )
     

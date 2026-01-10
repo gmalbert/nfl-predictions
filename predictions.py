@@ -3981,7 +3981,7 @@ with pred_tab8:
             if len(completed_bets) > 0:
                 # Performance by confidence tier
                 st.write("#### 🎯 Performance by Confidence Level")
-                confidence_performance = completed_bets.groupby('confidence_tier').agg({
+                confidence_performance = completed_bets.groupby('confidence_tier', observed=False).agg({
                     'bet_result': lambda x: (x == 'win').mean() * 100,
                     'bet_profit': 'sum'
                 }).round(2)
@@ -3995,7 +3995,7 @@ with pred_tab8:
                 completed_bets['gameday'] = pd.to_datetime(completed_bets['gameday'], errors='coerce')
                 completed_bets['week'] = completed_bets['gameday'].dt.isocalendar().week
                 
-                weekly_data = completed_bets.groupby('week').agg({
+                weekly_data = completed_bets.groupby('week', observed=False).agg({
                     'bet_result': lambda x: (x == 'win').mean() * 100,
                     'bet_profit': 'sum'
                 }).round(2)
@@ -4014,7 +4014,7 @@ with pred_tab8:
                     st.info(f"🏆 **Elite Tier Performance**: {len(elite_bets)} bets with {elite_win_rate:.1f}% win rate")
                 
                 # Best performing bet types
-                bet_type_performance = completed_bets.groupby('bet_type').agg({
+                bet_type_performance = completed_bets.groupby('bet_type', observed=False).agg({
                     'bet_result': lambda x: (x == 'win').mean() * 100,
                     'bet_profit': 'sum'
                 }).round(2)
