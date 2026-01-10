@@ -71,7 +71,7 @@ def collect_actual_results(week: int, season: int = 2025) -> tuple[pd.DataFrame,
             
             # Aggregate passing stats
             passing_plays = week_pbp[week_pbp['pass'] == 1].copy()
-            passing_stats = passing_plays.groupby('passer_player_name', observed=False).agg({
+            passing_stats = passing_plays.groupby('passer_player_name', observed=True).agg({
                 'passing_yards': 'sum',
                 'pass_touchdown': 'sum'
             }).reset_index()
@@ -79,7 +79,7 @@ def collect_actual_results(week: int, season: int = 2025) -> tuple[pd.DataFrame,
             
             # Aggregate rushing stats
             rushing_plays = week_pbp[week_pbp['rush'] == 1].copy()
-            rushing_stats = rushing_plays.groupby('rusher_player_name', observed=False).agg({
+            rushing_stats = rushing_plays.groupby('rusher_player_name', observed=True).agg({
                 'rushing_yards': 'sum',
                 'rush_touchdown': 'sum'
             }).reset_index()
@@ -88,7 +88,7 @@ def collect_actual_results(week: int, season: int = 2025) -> tuple[pd.DataFrame,
             # Aggregate receiving stats
             receiving_plays = week_pbp[(week_pbp['pass'] == 1) & 
                                         (week_pbp['receiver_player_name'].notna())].copy()
-            receiving_stats = receiving_plays.groupby('receiver_player_name', observed=False).agg({
+            receiving_stats = receiving_plays.groupby('receiver_player_name', observed=True).agg({
                 'receiving_yards': 'sum',
                 'complete_pass': 'sum',  # Receptions
                 'pass_touchdown': 'sum'   # Receiving TDs
@@ -248,10 +248,10 @@ def calculate_hit_rate(predictions_df: pd.DataFrame, actuals_df: pd.DataFrame) -
         include_lowest=True
     )
 
-    by_confidence = results_df.groupby('confidence_tier', observed=False)['hit'].mean()
+    by_confidence = results_df.groupby('confidence_tier', observed=True)['hit'].mean()
 
     # Calculate accuracy by prop type
-    by_prop_type = results_df.groupby('prop_type', observed=False)['hit'].mean()
+    by_prop_type = results_df.groupby('prop_type', observed=True)['hit'].mean()
 
     print(f"📊 Accuracy Analysis Complete:")
     print(f"   Total predictions evaluated: {len(results_df)}")
@@ -398,22 +398,93 @@ def load_accuracy_history() -> pd.DataFrame:
             with open(filepath, 'r') as f:
                 data = json.load(f)
 
-            # Extract week from filename
-            week_match = filepath.split('week')[1].split('_')[0]
-            week = int(week_match)
+            # Extract week and timestamp from filename
+            # Filename format: accuracy_results_week{week}_{date}_{time}.json
+            # Example: accuracy_results_week18_20260110_141431.json
+            import os
+            filename = os.path.basename(filepath)  # Remove directory path
+            parts = filename.split('_')
+            
+            # Extract week number from 'week18' -> 18
+            week_str = parts[2]  # 'week18'
+            week = int(week_str.replace('week', ''))
+            
+            # Parse timestamp from date and time parts
+            if len(parts) >= 5:
+                date_str = parts[3]  # e.g., '20260110'
+                time_str = parts[4].replace('.json', '')  # e.g., '141431'
+                
+                # Format as readable datetime: 20260110 -> 2026-01-10, 141431 -> 14:14:31
+                try:
+                    formatted_timestamp = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]} {time_str[:2]}:{time_str[2:4]}:{time_str[4:]}"
+                except:
+                    formatted_timestamp = f"{date_str} {time_str}"
+            else:
+                formatted_timestamp = data.get('timestamp', 'Unknown')
 
             history_data.append({
                 'week': week,
                 'overall_accuracy': data.get('overall_accuracy', 0),
                 'total_predictions': data.get('total_predictions', 0),
-                'timestamp': data.get('timestamp', filepath.split('_')[-1].replace('.json', ''))
+                'timestamp': formatted_timestamp
             })
 
         except Exception as e:
             print(f"⚠️  Error loading {filepath}: {e}")
             continue
 
-    return pd.DataFrame(history_data).sort_values('week')
+    if not history_data:
+        return pd.DataFrame()
+
+    # Create DataFrame and deduplicate by week (keep most recent timestamp)
+    df = pd.DataFrame(history_data)
+    df['timestamp_dt'] = pd.to_datetime(df['timestamp'], errors='coerce')
+    
+    # Group by week and keep the row with the most recent timestamp
+    df_deduped = df.loc[df.groupby('week')['timestamp_dt'].idxmax()].copy()
+    df_deduped = df_deduped.drop('timestamp_dt', axis=1)
+    
+    return df_deduped.sort_values('week')
+
+
+def load_accuracy_results_for_week(week: int, season: int = 2025) -> Optional[Dict]:
+    """
+    Load the most recent accuracy results for a specific week.
+
+    Args:
+        week: NFL week number
+        season: NFL season year
+
+    Returns:
+        Dictionary with accuracy results, or None if not found
+    """
+    import glob
+    import json
+
+    # Find all accuracy result files for this week
+    pattern = f"data_files/accuracy_results_week{week}_*.json"
+    accuracy_files = glob.glob(pattern)
+
+    if not accuracy_files:
+        return None
+
+    # Find the most recent file (by timestamp in filename)
+    most_recent_file = max(accuracy_files, key=lambda f: f.split('_')[-1].replace('.json', ''))
+
+    try:
+        with open(most_recent_file, 'r') as f:
+            data = json.load(f)
+
+        # Convert back to proper format
+        data['by_confidence_tier'] = pd.Series(data['by_confidence_tier'])
+        data['by_prop_type'] = pd.Series(data['by_prop_type'])
+        data['detailed_results'] = pd.DataFrame(data['detailed_results'])
+
+        return data
+
+    except Exception as e:
+        print(f"⚠️  Error loading {most_recent_file}: {e}")
+        return None
 
 
 # Example usage and testing functions
