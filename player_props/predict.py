@@ -290,7 +290,7 @@ def get_recent_starters(stats_df, team, n_games=3):
     recent_stats = team_stats[team_stats['game_id'].isin(recent_games)]
     
     # Find players with most activity
-    player_activity = recent_stats.groupby('player_name', observed=False).agg({
+    player_activity = recent_stats.groupby('player_name', observed=True).agg({
         'game_id': 'nunique',  # Games played
         'game_date': 'max'      # Last appearance
     }).reset_index()
@@ -457,7 +457,7 @@ def get_opponent_defense_rank(opponent, stat_type, all_stats):
             return 16  # Default to league average
         
         # Calculate average passing yards allowed by each defense
-        avg_allowed = stats_df.groupby('opponent', observed=False)['passing_yards'].mean()
+        avg_allowed = stats_df.groupby('opponent', observed=True)['passing_yards'].mean()
         # Rank defenses (1 = stingiest, 32 = most generous)
         defense_ranks = avg_allowed.rank(method='min')
         return defense_ranks.get(opponent, 16)  # Default to league average
@@ -469,7 +469,7 @@ def get_opponent_defense_rank(opponent, stat_type, all_stats):
             return 16
         
         # Calculate average rushing yards allowed by each defense
-        avg_allowed = stats_df.groupby('opponent', observed=False)['rushing_yards'].mean()
+        avg_allowed = stats_df.groupby('opponent', observed=True)['rushing_yards'].mean()
         defense_ranks = avg_allowed.rank(method='min')
         return defense_ranks.get(opponent, 16)
     
@@ -480,7 +480,7 @@ def get_opponent_defense_rank(opponent, stat_type, all_stats):
             return 16
         
         # Calculate average receiving yards allowed by each defense
-        avg_allowed = stats_df.groupby('opponent', observed=False)['receiving_yards'].mean()
+        avg_allowed = stats_df.groupby('opponent', observed=True)['receiving_yards'].mean()
         defense_ranks = avg_allowed.rank(method='min')
         return defense_ranks.get(opponent, 16)
     

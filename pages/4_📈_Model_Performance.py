@@ -22,6 +22,8 @@ try:
     from player_props.backtest import (
         run_weekly_accuracy_check,
         load_accuracy_history,
+        load_accuracy_results_for_week,
+        save_accuracy_results,
         calculate_hit_rate,
         calculate_roi,
         profitable_subset,
@@ -206,8 +208,8 @@ analysis_type = st.sidebar.radio(
 )
 
 # Auto-run analysis button
-if st.sidebar.button("🔄 Run Fresh Analysis", help="Re-run accuracy analysis for selected week"):
-    with st.spinner("Running accuracy analysis..."):
+if st.sidebar.button("🔄 Run Fresh Analysis", help="Re-run accuracy analysis for selected week and update cached results"):
+    with st.spinner("Running fresh accuracy analysis..."):
         # First check if we can collect actual results
         test_df, error_msg = collect_actual_results(selected_week, selected_season)
 
@@ -221,7 +223,7 @@ if st.sidebar.button("🔄 Run Fresh Analysis", help="Re-run accuracy analysis f
         else:
             accuracy_results = run_weekly_accuracy_check(selected_week, selected_season)
             if accuracy_results:
-                st.sidebar.success(f"✅ Analysis complete for Week {selected_week}")
+                st.sidebar.success(f"✅ Fresh analysis complete for Week {selected_week} (results cached)")
                 st.rerun()
             else:
                 st.sidebar.error("❌ Analysis failed - check data availability")
@@ -231,58 +233,70 @@ def display_current_week_analysis(week: int, season: int):
     """Display accuracy analysis for a specific week."""
     st.header(f"🎯 Week {week} Accuracy Analysis")
 
-    # Load predictions and actual results
-    predictions_file = f"data_files/player_props_predictions_week{week}.csv"
-    if not Path(predictions_file).exists():
-        predictions_file = "data_files/player_props_predictions.csv"
+    # First check for cached results
+    cached_results = load_accuracy_results_for_week(week, season)
+    
+    if cached_results:
+        st.info(f"📋 **Using cached results** from previous analysis. Click '🔄 Run Fresh Analysis' in sidebar to recalculate.")
+        accuracy_metrics = cached_results
+    else:
+        st.info("🔄 **Calculating fresh analysis** for this week...")
+        
+        # Load predictions and actual results
+        predictions_file = f"data_files/player_props_predictions_week{week}.csv"
+        if not Path(predictions_file).exists():
+            predictions_file = "data_files/player_props_predictions.csv"
 
-    if not Path(predictions_file).exists():
-        st.error(f"❌ No predictions file found for Week {week}")
-        return
+        if not Path(predictions_file).exists():
+            st.error(f"❌ No predictions file found for Week {week}")
+            return
 
-    predictions_df = pd.read_csv(predictions_file)
+        predictions_df = pd.read_csv(predictions_file)
 
-    # Filter to high-confidence predictions
-    high_conf_predictions = predictions_df[predictions_df['confidence'] >= 0.55]
+        # Filter to high-confidence predictions
+        high_conf_predictions = predictions_df[predictions_df['confidence'] >= 0.55]
 
-    if high_conf_predictions.empty:
-        st.warning(f"⚠️ No high-confidence predictions (≥55%) found for Week {week}")
-        return
+        if high_conf_predictions.empty:
+            st.warning(f"⚠️ No high-confidence predictions (≥55%) found for Week {week}")
+            return
 
-    # Collect actual results
-    actuals_df, error_msg = collect_actual_results(week, season)
+        # Collect actual results
+        actuals_df, error_msg = collect_actual_results(week, season)
 
-    if actuals_df.empty:
-        if error_msg:
-            st.error(f"❌ **Data Collection Failed**: {error_msg}")
-            st.info("💡 **Troubleshooting Tips:**\n"
-                   "- Check your internet connection\n"
-                   "- The NFL data API may be temporarily unavailable\n"
-                   "- Historical data may not be available for recent seasons\n"
-                   "- Try selecting an earlier week with completed games")
-        else:
-            st.info(f"ℹ️ Actual results for Week {week} are not yet available. Games may still be in progress.")
-        st.markdown("**Preview Analysis** (based on available data)")
+        if actuals_df.empty:
+            if error_msg:
+                st.error(f"❌ **Data Collection Failed**: {error_msg}")
+                st.info("💡 **Troubleshooting Tips:**\n"
+                       "- Check your internet connection\n"
+                       "- The NFL data API may be temporarily unavailable\n"
+                       "- Historical data may not be available for recent seasons\n"
+                       "- Try selecting an earlier week with completed games")
+            else:
+                st.info(f"ℹ️ Actual results for Week {week} are not yet available. Games may still be in progress.")
+            st.markdown("**Preview Analysis** (based on available data)")
 
-        # Show prediction distribution
-        fig = px.histogram(
-            high_conf_predictions,
-            x='confidence',
-            nbins=20,
-            title=f"Week {week} Prediction Confidence Distribution",
-            labels={'confidence': 'Model Confidence', 'count': 'Number of Predictions'}
-        )
-        st.plotly_chart(fig, width='stretch')
+            # Show prediction distribution
+            fig = px.histogram(
+                high_conf_predictions,
+                x='confidence',
+                nbins=20,
+                title=f"Week {week} Prediction Confidence Distribution",
+                labels={'confidence': 'Model Confidence', 'count': 'Number of Predictions'}
+            )
+            st.plotly_chart(fig, width='stretch')
 
-        return
+            return
 
-    # Calculate accuracy metrics
-    accuracy_metrics = calculate_hit_rate(high_conf_predictions, actuals_df)
+        # Calculate accuracy metrics
+        accuracy_metrics = calculate_hit_rate(high_conf_predictions, actuals_df)
 
-    if accuracy_metrics['total_predictions'] == 0:
-        st.warning("⚠️ No matching predictions found with actual results")
-        return
+        if accuracy_metrics['total_predictions'] == 0:
+            st.warning("⚠️ No matching predictions found with actual results")
+            return
 
+        # Save results for future caching
+        save_accuracy_results(accuracy_metrics, week)
+    
     # Display key metrics
     col1, col2, col3, col4 = st.columns(4)
 
@@ -342,7 +356,7 @@ def display_current_week_analysis(week: int, season: int):
         # Show as table too
         st.dataframe(
             conf_df.style.format({'Accuracy': '{:.1%}'}),
-            width=600,
+            width=400,
             height=get_dataframe_height(conf_df),
             hide_index=True
         )
@@ -479,9 +493,9 @@ def display_historical_trends():
             'week': st.column_config.NumberColumn('Week', width='small'),
             'overall_accuracy': st.column_config.TextColumn('Accuracy', width='small'),
             'total_predictions': st.column_config.NumberColumn('Predictions', width='small'),
-            'timestamp': st.column_config.TextColumn('Analysis Date', width='medium'),
+            'timestamp': st.column_config.TextColumn('Analysis Date', width='medium', help='When the accuracy analysis was run'),
         },
-        width='stretch',
+        width=600,
         hide_index=True
     )
 
@@ -617,5 +631,5 @@ elif analysis_type == "ROI Analysis":
 
 # Footer
 st.markdown("---")
-st.markdown("*Dashboard automatically updates when new accuracy analyses are run.*")
+# st.markdown("*Dashboard automatically updates when new accuracy analyses are run.*")
 st.markdown("*ROI calculations assume standard -110 American odds.*")

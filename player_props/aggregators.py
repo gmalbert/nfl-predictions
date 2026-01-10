@@ -43,7 +43,7 @@ def aggregate_passing_stats(pbp: pd.DataFrame) -> pd.DataFrame:
         'week',
         'posteam',  # Team the player is on
         'defteam'   # Opponent
-    ], observed=False).agg({
+    ], observed=True).agg({
         'passing_yards': 'sum',
         'pass_touchdown': 'sum',
         'complete_pass': 'sum',
@@ -97,7 +97,7 @@ def aggregate_rushing_stats(pbp: pd.DataFrame) -> pd.DataFrame:
         'week',
         'posteam',
         'defteam'
-    ], observed=False).agg({
+    ], observed=True).agg({
         'rushing_yards': 'sum',
         'rush_touchdown': 'sum',
         'rush_attempt': 'sum',
@@ -150,7 +150,7 @@ def aggregate_receiving_stats(pbp: pd.DataFrame) -> pd.DataFrame:
         'week',
         'posteam',
         'defteam'
-    ], observed=False).agg({
+    ], observed=True).agg({
         'receiving_yards': 'sum',
         'complete_pass': 'sum',  # Receptions = completed passes
         'pass_touchdown': 'sum',  # Receiving TDs
