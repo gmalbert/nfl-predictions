@@ -486,7 +486,7 @@ def main():
             
             if not season_stats.empty:
                 # Aggregate to season totals per player
-                season_totals = season_stats.groupby(['player_name', 'team']).agg({
+                season_totals = season_stats.groupby(['player_name', 'team'], observed=False).agg({
                     'passing_yards': 'sum',
                     'pass_tds': 'sum',
                     'completions': 'sum',
@@ -556,7 +556,7 @@ def main():
             
             if not season_stats.empty:
                 # Aggregate to season totals per player
-                season_totals = season_stats.groupby(['player_name', 'team']).agg({
+                season_totals = season_stats.groupby(['player_name', 'team'], observed=False).agg({
                     'rushing_yards': 'sum',
                     'rush_tds': 'sum',
                     'rush_attempts': 'sum',
@@ -625,7 +625,7 @@ def main():
             
             if not season_stats.empty:
                 # Aggregate to season totals per player
-                season_totals = season_stats.groupby(['player_name', 'team']).agg({
+                season_totals = season_stats.groupby(['player_name', 'team'], observed=False).agg({
                     'receiving_yards': 'sum',
                     'receptions': 'sum',
                     'rec_tds': 'sum',

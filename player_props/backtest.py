@@ -13,42 +13,126 @@ import nfl_data_py as nfl
 from typing import Dict, List, Tuple, Optional
 
 
-def collect_actual_results(week: int, season: int = 2025) -> pd.DataFrame:
+def collect_actual_results(week: int, season: int = 2025) -> tuple[pd.DataFrame, str]:
     """
     Fetch actual player stats for completed games in a given week.
+    
+    Tries two methods in order:
+    1. Pre-aggregated weekly stats (fast, preferred)
+    2. PBP data aggregation (slower, fallback)
 
     Args:
         week: NFL week number
         season: NFL season year
 
     Returns:
-        DataFrame with actual player statistics
+        Tuple of (DataFrame with actual player statistics, error message if any)
     """
+    # Method 1: Try pre-aggregated weekly stats first (much faster)
     try:
-        # Get actual player stats for the week
+        print(f"📊 Attempting to load pre-aggregated stats for {season} Season, Week {week}...")
         actual_stats = nfl.import_weekly_data([season], columns=[
-            'player_name', 'week', 'season', 'passing_yards', 'pass_tds',
-            'rushing_yards', 'rush_tds', 'receiving_yards', 'rec_tds',
+            'player_name', 'week', 'season', 'passing_yards', 'passing_tds',
+            'rushing_yards', 'rushing_tds', 'receiving_yards', 'receiving_tds',
             'receptions', 'completions', 'attempts'
         ])
-
+        
         # Filter to specific week
         week_stats = actual_stats[actual_stats['week'] == week].copy()
-
+        
         if week_stats.empty:
-            print(f"⚠️  No actual results found for Week {week}, Season {season}")
-            return pd.DataFrame()
-
-        print(f"✅ Collected actual results for {len(week_stats)} players in Week {week}")
-
-        # Clean up player names to match our prediction format
+            print(f"⚠️  Pre-aggregated stats found but empty for Week {week}, trying PBP aggregation...")
+            raise ValueError("Empty weekly stats")
+        
+        # Clean up player names
         week_stats['player_name'] = week_stats['player_name'].str.strip()
-
-        return week_stats
-
+        
+        print(f"✅ Collected pre-aggregated stats for {len(week_stats)} players in Week {week}")
+        return week_stats, ""
+        
     except Exception as e:
-        print(f"❌ Error collecting actual results: {e}")
-        return pd.DataFrame()
+        # Method 2: Fallback to PBP aggregation
+        print(f"   Pre-aggregated stats unavailable ({str(e)[:50]})")
+        print(f"   Falling back to play-by-play data aggregation...")
+        
+        try:
+            # Load play-by-play data directly from nflverse parquet files
+            pbp_url = f"https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_{season}.parquet"
+            
+            pbp_data = pd.read_parquet(pbp_url)
+            
+            # Filter to specific week
+            week_pbp = pbp_data[pbp_data['week'] == week].copy()
+            
+            if week_pbp.empty:
+                return pd.DataFrame(), f"No play-by-play data found for Week {week}, Season {season}"
+            
+            print(f"   Loaded {len(week_pbp):,} plays for Week {week}")
+            
+            # Aggregate passing stats
+            passing_plays = week_pbp[week_pbp['pass'] == 1].copy()
+            passing_stats = passing_plays.groupby('passer_player_name', observed=False).agg({
+                'passing_yards': 'sum',
+                'pass_touchdown': 'sum'
+            }).reset_index()
+            passing_stats.columns = ['player_name', 'passing_yards', 'passing_tds']
+            
+            # Aggregate rushing stats
+            rushing_plays = week_pbp[week_pbp['rush'] == 1].copy()
+            rushing_stats = rushing_plays.groupby('rusher_player_name', observed=False).agg({
+                'rushing_yards': 'sum',
+                'rush_touchdown': 'sum'
+            }).reset_index()
+            rushing_stats.columns = ['player_name', 'rushing_yards', 'rushing_tds']
+            
+            # Aggregate receiving stats
+            receiving_plays = week_pbp[(week_pbp['pass'] == 1) & 
+                                        (week_pbp['receiver_player_name'].notna())].copy()
+            receiving_stats = receiving_plays.groupby('receiver_player_name', observed=False).agg({
+                'receiving_yards': 'sum',
+                'complete_pass': 'sum',  # Receptions
+                'pass_touchdown': 'sum'   # Receiving TDs
+            }).reset_index()
+            receiving_stats.columns = ['player_name', 'receiving_yards', 'receptions', 'receiving_tds']
+            
+            # Merge all stats together
+            combined_stats = pd.DataFrame()
+            
+            if not passing_stats.empty:
+                combined_stats = passing_stats
+            
+            if not rushing_stats.empty:
+                if combined_stats.empty:
+                    combined_stats = rushing_stats
+                else:
+                    combined_stats = combined_stats.merge(
+                        rushing_stats, on='player_name', how='outer'
+                    )
+            
+            if not receiving_stats.empty:
+                if combined_stats.empty:
+                    combined_stats = receiving_stats
+                else:
+                    combined_stats = combined_stats.merge(
+                        receiving_stats, on='player_name', how='outer'
+                    )
+            
+            # Fill NaN with 0 and add metadata
+            combined_stats = combined_stats.fillna(0)
+            combined_stats['week'] = week
+            combined_stats['season'] = season
+            
+            # Clean up player names
+            combined_stats['player_name'] = combined_stats['player_name'].str.strip()
+            
+            print(f"✅ Collected PBP-aggregated stats for {len(combined_stats)} players in Week {week}")
+            
+            return combined_stats, ""
+            
+        except Exception as pbp_error:
+            error_msg = f"Both methods failed - Pre-aggregated: {str(e)[:50]}, PBP: {str(pbp_error)[:50]}"
+            print(f"❌ Error collecting actual results: {error_msg}")
+            return pd.DataFrame(), error_msg
 
 
 def calculate_hit_rate(predictions_df: pd.DataFrame, actuals_df: pd.DataFrame) -> Dict:
@@ -80,7 +164,9 @@ def calculate_hit_rate(predictions_df: pd.DataFrame, actuals_df: pd.DataFrame) -
     )
 
     # Filter out players with no actual stats (DNP, etc.)
-    merged = merged.dropna(subset=['passing_yards_actual'])
+    # Check if any of the key stat columns have data
+    stat_columns = ['passing_yards', 'rushing_yards', 'receiving_yards']
+    merged = merged.dropna(subset=stat_columns, how='all')
 
     if merged.empty:
         print("⚠️  No matching predictions found with actual results")
@@ -102,13 +188,13 @@ def calculate_hit_rate(predictions_df: pd.DataFrame, actuals_df: pd.DataFrame) -
 
         # Get actual stat value based on prop type
         stat_mapping = {
-            'passing_yards': 'passing_yards_actual',
-            'passing_tds': 'pass_tds_actual',
-            'rushing_yards': 'rushing_yards_actual',
-            'rushing_tds': 'rush_tds_actual',
-            'receiving_yards': 'receiving_yards_actual',
-            'receiving_tds': 'rec_tds_actual',
-            'receptions': 'receptions_actual'
+            'passing_yards': 'passing_yards',
+            'passing_tds': 'passing_tds',
+            'rushing_yards': 'rushing_yards',
+            'rushing_tds': 'rushing_tds',
+            'receiving_yards': 'receiving_yards',
+            'receiving_tds': 'receiving_tds',
+            'receptions': 'receptions'
         }
 
         stat_col = stat_mapping.get(prop_type)
@@ -162,10 +248,10 @@ def calculate_hit_rate(predictions_df: pd.DataFrame, actuals_df: pd.DataFrame) -
         include_lowest=True
     )
 
-    by_confidence = results_df.groupby('confidence_tier')['hit'].mean()
+    by_confidence = results_df.groupby('confidence_tier', observed=False)['hit'].mean()
 
     # Calculate accuracy by prop type
-    by_prop_type = results_df.groupby('prop_type')['hit'].mean()
+    by_prop_type = results_df.groupby('prop_type', observed=False)['hit'].mean()
 
     print(f"📊 Accuracy Analysis Complete:")
     print(f"   Total predictions evaluated: {len(results_df)}")
@@ -359,10 +445,10 @@ def run_weekly_accuracy_check(week: int, season: int = 2025) -> Dict:
     print(f"📂 Loaded {len(predictions_df)} predictions")
 
     # Collect actual results
-    actuals_df = collect_actual_results(week, season)
+    actuals_df, error_msg = collect_actual_results(week, season)
 
     if actuals_df.empty:
-        print(f"❌ No actual results available for week {week}")
+        print(f"❌ No actual results available for week {week}: {error_msg}")
         return {}
 
     # Calculate accuracy

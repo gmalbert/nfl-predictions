@@ -31,6 +31,9 @@ except ImportError:
     st.error("❌ Could not import backtest module. Please ensure player_props/backtest.py exists.")
     st.stop()
 
+# Set page to wide layout for better chart display
+st.set_page_config(layout="wide")
+
 st.title("📈 Model Performance Dashboard")
 
 st.markdown("""
@@ -89,16 +92,110 @@ def get_current_nfl_week() -> int:
         return min(playoff_week, 22)  # Cap at 22 for Super Bowl week
 
 
+def get_season_for_week(week: int) -> int:
+    """
+    Determine the NFL season year for a given week number.
+
+    This accounts for the fact that playoff games (weeks 19-22) from season N
+    are played in January/February of year N+1.
+
+    Args:
+        week: NFL week number (1-22)
+
+    Returns:
+        Season year for the given week
+    """
+    current_week = get_current_nfl_week()
+    today = datetime.now()
+
+    # Determine current season year
+    # NFL season runs from September to February
+    if today.month <= 2:  # January-February (playoffs)
+        current_season = today.year - 1  # 2025 season plays in Jan/Feb 2026
+    else:
+        current_season = today.year
+
+    # If the requested week is <= current week, it's from the current season
+    if week <= current_week:
+        return current_season
+
+    # If the requested week > current week, we need to look backwards
+    # This handles historical analysis (e.g., analyzing week 18 when we're in week 19)
+    else:
+        # For now, assume we're only looking at recent weeks within the same season
+        # If we need to analyze older seasons, this logic would need enhancement
+        return current_season
+
+def get_dataframe_height(df, row_height=35, header_height=38, padding=2, max_height=600):
+    """
+    Calculate the optimal height for a Streamlit dataframe based on number of rows.
+    
+    Args:
+        df (pd.DataFrame): The dataframe to display
+        row_height (int): Height per row in pixels. Default: 35
+        header_height (int): Height of header row in pixels. Default: 38
+        padding (int): Extra padding in pixels. Default: 2
+        max_height (int): Maximum height cap in pixels. Default: 600 (None for no limit)
+    
+    Returns:
+        int: Calculated height in pixels
+    
+    Example:
+        height = get_dataframe_height(my_df)
+        st.dataframe(my_df, height=height)
+    """
+    num_rows = len(df)
+    calculated_height = (num_rows * row_height) + header_height + padding
+    
+    if max_height is not None:
+        return min(calculated_height, max_height)
+    return calculated_height
+
 # Sidebar controls
 st.sidebar.header("📊 Analysis Controls")
 
-# Week selection - now dynamic!
-current_week = get_current_nfl_week()
+# Season selection - current season and two prior seasons
+today = datetime.now()
+if today.month <= 2:  # January-February (playoffs)
+    current_season = today.year - 1
+else:
+    current_season = today.year
+
+available_seasons = [current_season - 2, current_season - 1, current_season]
+season_labels = {
+    current_season - 2: f"{current_season - 2} Season",
+    current_season - 1: f"{current_season - 1} Season",
+    current_season: f"{current_season} Season"
+}
+
+selected_season_idx = st.sidebar.selectbox(
+    "Select Season to Analyze",
+    options=range(len(available_seasons)),
+    format_func=lambda i: season_labels[available_seasons[i]],
+    index=len(available_seasons)-1,  # Default to current season
+    help="Choose which NFL season to analyze. Note: Current season data may not be available yet from the API."
+)
+selected_season = available_seasons[selected_season_idx]
+
+# Week selection - show appropriate weeks for selected season
+if selected_season == 2025:
+    # Current season - we're in week 19 (playoffs)
+    current_week = get_current_nfl_week()
+    max_week = min(current_week, 18)  # Regular season only for now
+    st.sidebar.info(f"ℹ️ **2025 Season Note**: We're currently in Week {current_week}. Data for 2025 may not be available yet. If analysis fails, try 2024 Season.")
+elif selected_season == 2024:
+    max_week = 18  # Full regular season available
+elif selected_season == 2023:
+    max_week = 18  # Full regular season available
+else:
+    max_week = 18
+
+available_weeks = list(range(1, max_week + 1))
 selected_week = st.sidebar.selectbox(
     "Select Week to Analyze",
-    options=list(range(current_week, max(1, current_week-8), -1)),  # Last 8 weeks, but not below 1
-    index=0,
-    help="Choose which week's predictions to analyze against actual results"
+    options=available_weeks,
+    index=len(available_weeks)-1,  # Default to most recent
+    help=f"Choose which week from {selected_season} season to analyze against actual results"
 )
 
 # Analysis type
@@ -111,15 +208,26 @@ analysis_type = st.sidebar.radio(
 # Auto-run analysis button
 if st.sidebar.button("🔄 Run Fresh Analysis", help="Re-run accuracy analysis for selected week"):
     with st.spinner("Running accuracy analysis..."):
-        accuracy_results = run_weekly_accuracy_check(selected_week)
-        if accuracy_results:
-            st.sidebar.success(f"✅ Analysis complete for Week {selected_week}")
-            st.rerun()
+        # First check if we can collect actual results
+        test_df, error_msg = collect_actual_results(selected_week, selected_season)
+
+        if test_df.empty and error_msg:
+            st.sidebar.error(f"❌ **Data Collection Failed**: {error_msg}")
+            st.sidebar.info("💡 **Troubleshooting Tips:**\n"
+                           "- Check your internet connection\n"
+                           "- The NFL data API may be temporarily unavailable\n"
+                           "- Historical data may not be available for recent seasons\n"
+                           "- Try selecting an earlier week with completed games")
         else:
-            st.sidebar.error("❌ Analysis failed - check data availability")
+            accuracy_results = run_weekly_accuracy_check(selected_week, selected_season)
+            if accuracy_results:
+                st.sidebar.success(f"✅ Analysis complete for Week {selected_week}")
+                st.rerun()
+            else:
+                st.sidebar.error("❌ Analysis failed - check data availability")
 
 
-def display_current_week_analysis(week: int):
+def display_current_week_analysis(week: int, season: int):
     """Display accuracy analysis for a specific week."""
     st.header(f"🎯 Week {week} Accuracy Analysis")
 
@@ -142,10 +250,18 @@ def display_current_week_analysis(week: int):
         return
 
     # Collect actual results
-    actuals_df = collect_actual_results(week)
+    actuals_df, error_msg = collect_actual_results(week, season)
 
     if actuals_df.empty:
-        st.info(f"ℹ️ Actual results for Week {week} are not yet available. Games may still be in progress.")
+        if error_msg:
+            st.error(f"❌ **Data Collection Failed**: {error_msg}")
+            st.info("💡 **Troubleshooting Tips:**\n"
+                   "- Check your internet connection\n"
+                   "- The NFL data API may be temporarily unavailable\n"
+                   "- Historical data may not be available for recent seasons\n"
+                   "- Try selecting an earlier week with completed games")
+        else:
+            st.info(f"ℹ️ Actual results for Week {week} are not yet available. Games may still be in progress.")
         st.markdown("**Preview Analysis** (based on available data)")
 
         # Show prediction distribution
@@ -226,7 +342,8 @@ def display_current_week_analysis(week: int):
         # Show as table too
         st.dataframe(
             conf_df.style.format({'Accuracy': '{:.1%}'}),
-            width='stretch',
+            width=600,
+            height=get_dataframe_height(conf_df),
             hide_index=True
         )
     else:
@@ -268,6 +385,8 @@ def display_current_week_analysis(week: int):
     detailed_df['confidence'] = detailed_df['confidence'].map('{:.1%}'.format)
     detailed_df['hit'] = detailed_df['hit'].map({True: '✅', False: '❌'})
 
+    height = get_dataframe_height(detailed_df)
+
     st.dataframe(
         detailed_df,
         column_config={
@@ -280,7 +399,8 @@ def display_current_week_analysis(week: int):
             'hit': st.column_config.TextColumn('Hit', width='small'),
             'confidence': st.column_config.TextColumn('Confidence', width='small'),
         },
-        width='stretch',
+        width=1000,
+        height=height,
         hide_index=True
     )
 
@@ -366,7 +486,7 @@ def display_historical_trends():
     )
 
 
-def display_roi_analysis(week: int):
+def display_roi_analysis(week: int, season: int):
     """Display ROI analysis for different confidence thresholds."""
     st.header("💰 ROI Analysis")
 
@@ -380,10 +500,18 @@ def display_roi_analysis(week: int):
         return
 
     predictions_df = pd.read_csv(predictions_file)
-    actuals_df = collect_actual_results(week)
+    actuals_df, error_msg = collect_actual_results(week, season)
 
     if actuals_df.empty:
-        st.info(f"ℹ️ Actual results for Week {week} are not yet available for ROI analysis.")
+        if error_msg:
+            st.error(f"❌ **Data Collection Failed**: {error_msg}")
+            st.info("💡 **Troubleshooting Tips:**\n"
+                   "- Check your internet connection\n"
+                   "- The NFL data API may be temporarily unavailable\n"
+                   "- Historical data may not be available for recent seasons\n"
+                   "- Try selecting an earlier week with completed games")
+        else:
+            st.info(f"ℹ️ Actual results for Week {week} are not yet available for ROI analysis.")
         return
 
     # Calculate accuracy metrics
@@ -478,13 +606,13 @@ def display_roi_analysis(week: int):
 
 # Main content based on analysis type
 if analysis_type == "Current Week":
-    display_current_week_analysis(selected_week)
+    display_current_week_analysis(selected_week, selected_season)
 
 elif analysis_type == "Historical Trends":
     display_historical_trends()
 
 elif analysis_type == "ROI Analysis":
-    display_roi_analysis(selected_week)
+    display_roi_analysis(selected_week, selected_season)
 
 
 # Footer
