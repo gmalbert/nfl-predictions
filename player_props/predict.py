@@ -442,7 +442,7 @@ def get_player_features(stats_df, player_name, team, prop_type, opponent=None, i
     else:
         features['days_rest'] = 7  # Default
     
-    return features, latest
+    return features, latest, player_stats
 
 
 def get_opponent_defense_rank(opponent, stat_type, all_stats):
@@ -513,6 +513,30 @@ def calculate_days_rest(game_date):
     
     # Clamp to reasonable range
     return max(1, min(days_rest, 14))
+
+
+def calculate_trend(player_stats, stat_col):
+    """
+    Calculate if player is trending up, down, or stable.
+    Returns: '🔥' (hot), '➡️' (stable), '❄️' (cold)
+    """
+    if len(player_stats) < 5:
+        return '➡️'  # Not enough data
+    
+    recent = player_stats.head(3)[stat_col].mean()  # Last 3 games
+    older = player_stats.iloc[3:6][stat_col].mean()  # Games 4-6
+    
+    if older == 0:
+        return '➡️'  # Avoid division by zero
+    
+    pct_change = (recent - older) / older
+    
+    if pct_change > 0.20:
+        return '🔥'  # Hot streak (20%+ increase)
+    elif pct_change < -0.20:
+        return '❄️'  # Cold streak (20%+ decrease)
+    else:
+        return '➡️'  # Stable
 
 
 # ============================================================================
@@ -816,7 +840,7 @@ def predict_props_for_game(game_row, all_stats, models):
                 if result is None:
                     continue
                 
-                features, player_latest = result
+                features, player_latest, player_stats_history = result
                 
                 # Get tier-appropriate line value
                 line_value = PROP_LINES[prop_type].get(player_tier, 0.5)  # Default to 0.5 if tier not found
@@ -865,6 +889,10 @@ def predict_props_for_game(game_row, all_stats, models):
                             'avg_L5': features.get(f"{model_info['stat_col']}_L5"),
                             'avg_L10': features.get(f"{model_info['stat_col']}_L10")
                         }
+                        
+                        # Calculate performance trend
+                        trend_indicator = calculate_trend(player_stats_history, model_info['stat_col'])
+                        prediction['trend'] = trend_indicator
                         
                         # Check for injuries and adjust prediction
                         # Try matching with display_name first, then player_name

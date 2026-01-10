@@ -406,7 +406,7 @@ def main():
                 
                 # Select columns to show
                 show_cols = [
-                    'display_name', 'position', 'team', 'opponent', 'Defense Rank', 'prop_type', 
+                    'display_name', 'position', 'team', 'opponent', 'Defense Rank', 'trend', 'prop_type', 
                     'Recommendation', 'Confidence', 'Tier', 'Last 3 Avg', 'Last 5 Avg', 'Last 10 Avg', 'Injury Status'
                 ]
                 
@@ -418,6 +418,7 @@ def main():
                         'position': 'Pos',
                         'team': 'Team',
                         'opponent': 'Opp',
+                        'trend': 'Trend',
                         'prop_type': 'Prop Type'
                     }),
                     width='stretch',
@@ -923,9 +924,7 @@ def main():
                         st.info("Data not loaded")
     
     # Footer
-    st.markdown("---")
-    st.caption("💡 **Coming Soon**: ML-powered prop predictions, lineup optimizer, parlay builder")
-
+   
 
 if __name__ == "__main__":
     main()
