@@ -13,12 +13,14 @@ warnings.filterwarnings('ignore')
 # Import injury functions
 try:
     from .injuries import get_injury_report, find_player_injury, adjust_prediction_for_injury
+    from .weather import get_weather_for_game, adjust_for_weather
 except ImportError:
     # Fallback for direct execution
     import sys
     import os
     sys.path.append(os.path.dirname(__file__))
     from injuries import get_injury_report, find_player_injury, adjust_prediction_for_injury
+    from weather import get_weather_for_game, adjust_for_weather
 
 # ============================================================================
 # CONFIGURATION
@@ -910,6 +912,30 @@ def predict_props_for_game(game_row, all_stats, models):
                                 # Player is out - skip this prediction
                                 continue
                             prediction = adjusted_prediction
+                        
+                        # Apply weather adjustments for outdoor games
+                        try:
+                            # Ensure game_date is a string
+                            game_date_str = str(game_date) if hasattr(game_date, 'strftime') else str(game_date)
+                            if len(game_date_str) > 10:  # If it has time component, extract date only
+                                game_date_str = game_date_str[:10]
+                            weather_data = get_weather_for_game(team, game_row['venue'], game_date_str)
+                            if not weather_data.get('is_dome', False):
+                                original_prob = prediction['prob_over']
+                                adjusted_prob = adjust_for_weather(original_prob, prop_type, weather_data)
+                                prediction['prob_over'] = adjusted_prob
+                                prediction['prob_under'] = 1 - adjusted_prob
+                                prediction['confidence'] = max(adjusted_prob, 1 - adjusted_prob)
+                                prediction['recommendation'] = 'OVER' if adjusted_prob >= MIN_CONFIDENCE else 'UNDER'
+                                prediction['weather_adjusted'] = True
+                                prediction['weather_conditions'] = f"{weather_data['temp_f']:.0f}°F, {weather_data['wind_mph']:.1f} mph wind"
+                            else:
+                                prediction['weather_adjusted'] = False
+                                prediction['weather_conditions'] = "Dome"
+                        except Exception as e:
+                            print(f"⚠️ Weather adjustment failed for {player_name}: {e}")
+                            prediction['weather_adjusted'] = False
+                            prediction['weather_conditions'] = "Unknown"
                         
                         predictions.append(prediction)
                     

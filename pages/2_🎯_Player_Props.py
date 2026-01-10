@@ -407,7 +407,7 @@ def main():
                 # Select columns to show
                 show_cols = [
                     'display_name', 'position', 'team', 'opponent', 'Defense Rank', 'trend', 'prop_type', 
-                    'Recommendation', 'Confidence', 'Tier', 'Last 3 Avg', 'Last 5 Avg', 'Last 10 Avg', 'Injury Status'
+                    'Recommendation', 'Confidence', 'Tier', 'Last 3 Avg', 'Last 5 Avg', 'Last 10 Avg', 'weather_conditions', 'Injury Status'
                 ]
                 
                 height = get_dataframe_height(display_df[show_cols])
@@ -419,7 +419,8 @@ def main():
                         'team': 'Team',
                         'opponent': 'Opp',
                         'trend': 'Trend',
-                        'prop_type': 'Prop Type'
+                        'prop_type': 'Prop Type',
+                        'weather_conditions': 'Weather'
                     }),
                     width='stretch',
                     height=height,
@@ -445,6 +446,11 @@ def main():
                     **Recent Averages:**
                     - **Last 3/Last 5 Avg**: Player's average performance over Last 3/5 games
                     - Compare to the line value to gauge difficulty
+                    
+                    **Weather Impact:**
+                    - **Weather**: Shows weather conditions for outdoor games (temperature, wind, precipitation)
+                    - Weather adjustments are automatically applied to predictions for outdoor stadiums
+                    - Dome games show "Dome" with no weather impact
                     
                     **Model Info:**
                     - Trained on 2020-2025 historical data
