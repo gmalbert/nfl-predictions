@@ -74,6 +74,13 @@ jobs:
           python fetch_espn_weekly_scores.py
         continue-on-error: true  # Don't fail if ESPN API is temporarily down
       
+      - name: Update play-by-play data
+        if: steps.season_check.outputs.in_season == 'true'
+        run: |
+          echo "Smart update of play-by-play data..."
+          python update_pbp_smart.py
+        continue-on-error: true  # Don't fail if NFLverse is temporarily down
+      
       - name: Run prediction pipeline
         if: steps.season_check.outputs.in_season == 'true'
         run: |

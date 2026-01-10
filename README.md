@@ -136,15 +136,18 @@ The repository includes a GitHub Actions workflow (`.github/workflows/nightly-up
 - **Season Detection**: Automatically skips runs outside football season (March-August)
 - **Update Process**:
   1. Fetches latest ESPN scores and betting lines
-  2. Runs the complete prediction pipeline (`build_and_train_pipeline.py`)
-  3. Uploads updated predictions as artifacts
-  4. Optionally commits changes back to the repository
+  2. Smart update of NFLverse play-by-play data (only when new games detected)
+  3. Runs the complete prediction pipeline (`build_and_train_pipeline.py`)
+  4. Uploads updated predictions as artifacts
+  5. Optionally commits changes back to the repository
+
+**Smart PBP Updates**: The system uses intelligent detection to only download play-by-play data when new games are likely available, avoiding unnecessary bandwidth usage on non-game days.
 
 **Manual Trigger**: You can manually run the workflow from the Actions tab in GitHub.
 
 **Data Sources Update Cadence**:
 - **ESPN API** (scores/odds): Real-time, polled nightly at 3 AM
-- **NFLverse/nflfastR** (play-by-play): Updated nightly after games complete
+- **NFLverse PBP** (play-by-play): Smart updates nightly - only downloads when new games detected
 - **Predictions CSV**: Regenerated after each pipeline run (~5 minutes)
 
 ### On-UI Pipeline Run

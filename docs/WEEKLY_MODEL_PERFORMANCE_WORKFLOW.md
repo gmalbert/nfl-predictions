@@ -19,7 +19,11 @@ The model performance analysis compares your predictions against actual game res
 
 ## Weekly Workflow
 
-### Step 1: Update Play-by-Play Data (Required for Current Season)
+### Step 1: Update Play-by-Play Data (Usually Automatic)
+
+**Note**: As of January 2026, play-by-play data is now updated automatically nightly via GitHub Actions using smart detection - it only downloads when new games are detected. This prevents unnecessary downloads on non-game days.
+
+However, if you need the absolute latest data immediately after games, you can run this manually:
 
 For the current season (2025), actual results are not available through the standard NFL API, so you need to download play-by-play data first:
 
@@ -36,6 +40,8 @@ python create-play-by-play.py
 - Extracts player stats (passing, rushing, receiving) from game data
 - Saves to `data_files/nfl_play_by_play_historical.csv.gz`
 - Takes ~2-3 minutes to complete
+
+**When to run manually**: Right after games complete if you need immediate analysis before the nightly automated update.
 
 ### Step 2: Run Model Performance Analysis
 
