@@ -229,7 +229,7 @@ if len(selected_options) >= 2:
             'avg_L5': st.column_config.NumberColumn('L5 Avg', width='small'),
             'avg_L10': st.column_config.NumberColumn('L10 Avg', width='small'),
         },
-        use_container_width=True,
+        width='stretch',
         hide_index=True
     )
 

@@ -1,0 +1,520 @@
+"""
+Model Performance Dashboard
+
+Displays prediction accuracy tracking, ROI analysis, and model calibration metrics.
+Shows historical performance trends and helps validate model improvements.
+"""
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from pathlib import Path
+from datetime import datetime, timedelta
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from player_props.backtest import (
+        run_weekly_accuracy_check,
+        load_accuracy_history,
+        calculate_hit_rate,
+        calculate_roi,
+        profitable_subset,
+        collect_actual_results
+    )
+except ImportError:
+    st.error("❌ Could not import backtest module. Please ensure player_props/backtest.py exists.")
+    st.stop()
+
+st.title("📈 Model Performance Dashboard")
+
+st.markdown("""
+Track prediction accuracy, ROI analysis, and model calibration over time.
+Validate that our model improvements are actually working!
+""")
+
+# Sidebar controls
+st.sidebar.header("📊 Analysis Controls")
+
+# Week selection
+current_week = 19  # This should be dynamic based on NFL schedule
+selected_week = st.sidebar.selectbox(
+    "Select Week to Analyze",
+    options=list(range(current_week, current_week-8, -1)),  # Last 8 weeks
+    index=0,
+    help="Choose which week's predictions to analyze against actual results"
+)
+
+# Analysis type
+analysis_type = st.sidebar.radio(
+    "Analysis Type",
+    ["Current Week", "Historical Trends", "ROI Analysis"],
+    help="Choose what type of analysis to display"
+)
+
+# Auto-run analysis button
+if st.sidebar.button("🔄 Run Fresh Analysis", help="Re-run accuracy analysis for selected week"):
+    with st.spinner("Running accuracy analysis..."):
+        accuracy_results = run_weekly_accuracy_check(selected_week)
+        if accuracy_results:
+            st.sidebar.success(f"✅ Analysis complete for Week {selected_week}")
+            st.rerun()
+        else:
+            st.sidebar.error("❌ Analysis failed - check data availability")
+
+# Function definitions will go here
+
+def display_current_week_analysis(week: int):
+    """Display accuracy analysis for a specific week."""
+    st.header(f"🎯 Week {week} Accuracy Analysis")
+
+    # Load predictions and actual results
+    predictions_file = f"data_files/player_props_predictions_week{week}.csv"
+    if not Path(predictions_file).exists():
+        predictions_file = "data_files/player_props_predictions.csv"
+
+    if not Path(predictions_file).exists():
+        st.error(f"❌ No predictions file found for Week {week}")
+        return
+
+    predictions_df = pd.read_csv(predictions_file)
+
+    # Filter to high-confidence predictions
+    high_conf_predictions = predictions_df[predictions_df['confidence'] >= 0.55]
+
+    if high_conf_predictions.empty:
+        st.warning(f"⚠️ No high-confidence predictions (≥55%) found for Week {week}")
+        return
+
+    # Collect actual results
+    actuals_df = collect_actual_results(week)
+
+    if actuals_df.empty:
+        st.info(f"ℹ️ Actual results for Week {week} are not yet available. Games may still be in progress.")
+        st.markdown("**Preview Analysis** (based on available data)")
+
+        # Show prediction distribution
+        fig = px.histogram(
+            high_conf_predictions,
+            x='confidence',
+            nbins=20,
+            title=f"Week {week} Prediction Confidence Distribution",
+            labels={'confidence': 'Model Confidence', 'count': 'Number of Predictions'}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        return
+
+    # Calculate accuracy metrics
+    accuracy_metrics = calculate_hit_rate(high_conf_predictions, actuals_df)
+
+    if accuracy_metrics['total_predictions'] == 0:
+        st.warning("⚠️ No matching predictions found with actual results")
+        return
+
+    # Display key metrics
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            "Overall Accuracy",
+            f"{accuracy_metrics['overall_accuracy']:.1%}",
+            help="Percentage of predictions that were correct"
+        )
+
+    with col2:
+        st.metric(
+            "Total Predictions",
+            accuracy_metrics['total_predictions'],
+            help="Number of predictions evaluated"
+        )
+
+    with col3:
+        # Calculate average confidence
+        avg_conf = accuracy_metrics['detailed_results']['confidence'].mean()
+        st.metric(
+            "Avg Confidence",
+            f"{avg_conf:.1%}",
+            help="Average model confidence for evaluated predictions"
+        )
+
+    with col4:
+        # Calculate ROI
+        roi_metrics = calculate_roi(accuracy_metrics['detailed_results'])
+        st.metric(
+            "Hypothetical ROI",
+            f"{roi_metrics['roi']:.1f}%",
+            delta=f"{roi_metrics['roi']:.1f}%" if roi_metrics['roi'] != 0 else None,
+            help=f"ROI at -110 odds. Breakeven: {roi_metrics['breakeven_rate']:.1f}%"
+        )
+
+    # Accuracy by confidence tier
+    st.subheader("🎯 Accuracy by Confidence Tier")
+
+    if not accuracy_metrics['by_confidence_tier'].empty:
+        # Create bar chart
+        conf_df = accuracy_metrics['by_confidence_tier'].reset_index()
+        conf_df.columns = ['Confidence Tier', 'Accuracy']
+
+        fig = px.bar(
+            conf_df,
+            x='Confidence Tier',
+            y='Accuracy',
+            title="Prediction Accuracy by Confidence Level",
+            labels={'Accuracy': 'Hit Rate'},
+            color='Accuracy',
+            color_continuous_scale='RdYlGn'
+        )
+        fig.update_layout(yaxis_tickformat='.1%')
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Show as table too
+        st.dataframe(
+            conf_df.style.format({'Accuracy': '{:.1%}'}),
+        st.warning(f"⚠️ No high-confidence predictions (≥55%) found for Week {week}")
+        return
+
+    # Collect actual results
+    actuals_df = collect_actual_results(week)
+
+    if actuals_df.empty:
+        st.info(f"ℹ️ Actual results for Week {week} are not yet available. Games may still be in progress.")
+        st.markdown("**Preview Analysis** (based on available data)")
+
+        # Show prediction distribution
+        fig = px.histogram(
+            high_conf_predictions,
+            x='confidence',
+            nbins=20,
+            title=f"Week {week} Prediction Confidence Distribution",
+            labels={'confidence': 'Model Confidence', 'count': 'Number of Predictions'}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        return
+
+    # Calculate accuracy metrics
+    accuracy_metrics = calculate_hit_rate(high_conf_predictions, actuals_df)
+
+    if accuracy_metrics['total_predictions'] == 0:
+        st.warning("⚠️ No matching predictions found with actual results")
+        return
+
+    # Display key metrics
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            "Overall Accuracy",
+            f"{accuracy_metrics['overall_accuracy']:.1%}",
+            help="Percentage of predictions that were correct"
+        )
+
+    with col2:
+        st.metric(
+            "Total Predictions",
+            accuracy_metrics['total_predictions'],
+            help="Number of predictions evaluated"
+        )
+
+    with col3:
+        # Calculate average confidence
+        avg_conf = accuracy_metrics['detailed_results']['confidence'].mean()
+        st.metric(
+            "Avg Confidence",
+            f"{avg_conf:.1%}",
+            help="Average model confidence for evaluated predictions"
+        )
+
+    with col4:
+        # Calculate ROI
+        roi_metrics = calculate_roi(accuracy_metrics['detailed_results'])
+        st.metric(
+            "Hypothetical ROI",
+            f"{roi_metrics['roi']:.1f}%",
+            delta=f"{roi_metrics['roi']:.1f}%" if roi_metrics['roi'] != 0 else None,
+            help=f"ROI at -110 odds. Breakeven: {roi_metrics['breakeven_rate']:.1f}%"
+        )
+
+    # Accuracy by confidence tier
+    st.subheader("🎯 Accuracy by Confidence Tier")
+
+    if not accuracy_metrics['by_confidence_tier'].empty:
+        # Create bar chart
+        conf_df = accuracy_metrics['by_confidence_tier'].reset_index()
+        conf_df.columns = ['Confidence Tier', 'Accuracy']
+
+        fig = px.bar(
+            conf_df,
+            x='Confidence Tier',
+            y='Accuracy',
+            title="Prediction Accuracy by Confidence Level",
+            labels={'Accuracy': 'Hit Rate'},
+            color='Accuracy',
+            color_continuous_scale='RdYlGn'
+        )
+        fig.update_layout(yaxis_tickformat='.1%')
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Show as table too
+        st.dataframe(
+            conf_df.style.format({'Accuracy': '{:.1%}'}),
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info("Not enough data for confidence tier analysis")
+
+    # Accuracy by prop type
+    st.subheader("🏈 Accuracy by Prop Type")
+
+    if not accuracy_metrics['by_prop_type'].empty:
+        prop_df = accuracy_metrics['by_prop_type'].reset_index()
+        prop_df.columns = ['Prop Type', 'Accuracy']
+
+        # Sort by accuracy
+        prop_df = prop_df.sort_values('Accuracy', ascending=False)
+
+        fig = px.bar(
+            prop_df,
+            x='Prop Type',
+            y='Accuracy',
+            title="Prediction Accuracy by Prop Type",
+            labels={'Accuracy': 'Hit Rate'},
+            color='Accuracy',
+            color_continuous_scale='RdYlGn'
+        )
+        fig.update_layout(yaxis_tickformat='.1%')
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Not enough data for prop type analysis")
+
+    # Detailed results table
+    st.subheader("📋 Detailed Results")
+
+    detailed_df = accuracy_metrics['detailed_results'][[
+        'display_name', 'prop_type', 'line_value', 'predicted', 'actual', 'actual_value', 'hit', 'confidence'
+    ]].copy()
+
+    # Format columns
+    detailed_df['prop_type'] = detailed_df['prop_type'].str.replace('_', ' ').str.title()
+    detailed_df['confidence'] = detailed_df['confidence'].map('{:.1%}'.format)
+    detailed_df['hit'] = detailed_df['hit'].map({True: '✅', False: '❌'})
+
+    st.dataframe(
+        detailed_df,
+        column_config={
+            'display_name': st.column_config.TextColumn('Player', width='medium'),
+            'prop_type': st.column_config.TextColumn('Prop Type', width='medium'),
+            'line_value': st.column_config.NumberColumn('Line', width='small'),
+            'predicted': st.column_config.TextColumn('Predicted', width='small'),
+            'actual': st.column_config.TextColumn('Actual', width='small'),
+            'actual_value': st.column_config.NumberColumn('Actual Value', width='small'),
+            'hit': st.column_config.TextColumn('Hit', width='small'),
+            'confidence': st.column_config.TextColumn('Confidence', width='small'),
+        },
+        use_container_width=True,
+        hide_index=True
+    )
+
+
+def display_historical_trends():
+    """Display historical accuracy trends across multiple weeks."""
+    st.header("📈 Historical Performance Trends")
+
+    # Load historical accuracy data
+    history_df = load_accuracy_history()
+
+    if history_df.empty:
+        st.info("ℹ️ No historical accuracy data found. Run some weekly analyses first!")
+        st.markdown("""
+        **To build historical data:**
+        1. Select "Current Week" analysis
+        2. Choose different weeks
+        3. Click "🔄 Run Fresh Analysis" for each week
+        4. Return here to see trends
+        """)
+        return
+
+    # Display summary metrics
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        avg_accuracy = history_df['overall_accuracy'].mean()
+        st.metric("Average Accuracy", f"{avg_accuracy:.1%}")
+
+    with col2:
+        total_predictions = history_df['total_predictions'].sum()
+        st.metric("Total Predictions", f"{total_predictions:,}")
+
+    with col3:
+        weeks_analyzed = len(history_df)
+        st.metric("Weeks Analyzed", weeks_analyzed)
+
+    # Accuracy trend over time
+    st.subheader("📊 Accuracy Trend Over Time")
+
+    fig = px.line(
+        history_df,
+        x='week',
+        y='overall_accuracy',
+        title="Weekly Prediction Accuracy Trend",
+        labels={'week': 'NFL Week', 'overall_accuracy': 'Accuracy'},
+        markers=True
+    )
+    fig.update_layout(yaxis_tickformat='.1%')
+    fig.update_xaxes(tickmode='linear')
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Volume trend
+    st.subheader("📈 Prediction Volume Trend")
+
+    fig = px.bar(
+        history_df,
+        x='week',
+        y='total_predictions',
+        title="Weekly Prediction Volume",
+        labels={'week': 'NFL Week', 'total_predictions': 'Predictions'}
+    )
+    fig.update_xaxes(tickmode='linear')
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Historical data table
+    st.subheader("📋 Historical Results")
+
+    display_df = history_df.copy()
+    display_df['overall_accuracy'] = display_df['overall_accuracy'].map('{:.1%}'.format)
+    display_df = display_df.sort_values('week', ascending=False)
+
+    st.dataframe(
+        display_df,
+        column_config={
+            'week': st.column_config.NumberColumn('Week', width='small'),
+            'overall_accuracy': st.column_config.TextColumn('Accuracy', width='small'),
+            'total_predictions': st.column_config.NumberColumn('Predictions', width='small'),
+            'timestamp': st.column_config.TextColumn('Analysis Date', width='medium'),
+        },
+        use_container_width=True,
+        hide_index=True
+    )
+
+
+def display_roi_analysis(week: int):
+    """Display ROI analysis for different confidence thresholds."""
+    st.header("💰 ROI Analysis")
+
+    # Load predictions and actual results
+    predictions_file = f"data_files/player_props_predictions_week{week}.csv"
+    if not Path(predictions_file).exists():
+        predictions_file = "data_files/player_props_predictions.csv"
+
+    if not Path(predictions_file).exists():
+        st.error(f"❌ No predictions file found for Week {week}")
+        return
+
+    predictions_df = pd.read_csv(predictions_file)
+    actuals_df = collect_actual_results(week)
+
+    if actuals_df.empty:
+        st.info(f"ℹ️ Actual results for Week {week} are not yet available for ROI analysis.")
+        return
+
+    # Calculate accuracy metrics
+    accuracy_metrics = calculate_hit_rate(predictions_df, actuals_df)
+
+    if accuracy_metrics['total_predictions'] == 0:
+        st.warning("⚠️ No matching predictions found with actual results")
+        return
+
+    # ROI analysis for different confidence thresholds
+    roi_table = profitable_subset(accuracy_metrics['detailed_results'])
+
+    if roi_table.empty:
+        st.warning("⚠️ Not enough data for ROI analysis")
+        return
+
+    st.subheader("💵 ROI by Confidence Threshold")
+
+    # Format the ROI table for display
+    display_roi = roi_table.copy()
+    display_roi['hit_rate'] = display_roi['hit_rate'].map('{:.1%}'.format)
+    display_roi['roi'] = display_roi['roi'].map('{:.1f}%'.format)
+    display_roi['breakeven_rate'] = display_roi['breakeven_rate'].map('{:.1f}%'.format)
+
+    st.dataframe(
+        display_roi[['total_bets', 'hit_rate', 'roi', 'breakeven_rate']],
+        column_config={
+            'total_bets': st.column_config.NumberColumn('Bets', width='small'),
+            'hit_rate': st.column_config.TextColumn('Hit Rate', width='small'),
+            'roi': st.column_config.TextColumn('ROI', width='small'),
+            'breakeven_rate': st.column_config.TextColumn('Breakeven', width='small'),
+        },
+        use_container_width=True
+    )
+
+    # Find best performing threshold
+    if not roi_table.empty:
+        best_threshold = roi_table['roi'].idxmax()
+        best_roi = roi_table.loc[best_threshold, 'roi']
+
+        st.success(f"🎯 **Best Strategy**: Bet on {best_threshold:.0%}+ confidence props (ROI: {best_roi:.1f}%)")
+
+    # ROI vs Confidence Threshold Chart
+    st.subheader("📊 ROI vs Confidence Threshold")
+
+    fig = px.line(
+        roi_table.reset_index(),
+        x='index',
+        y='roi',
+        title="ROI by Minimum Confidence Threshold",
+        labels={'index': 'Minimum Confidence', 'roi': 'ROI (%)'},
+        markers=True
+    )
+    fig.add_hline(y=0, line_dash="dash", line_color="red", annotation_text="Breakeven")
+    fig.update_layout(yaxis_tickformat='.1f')
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Hit Rate vs Confidence Threshold
+    st.subheader("🎯 Hit Rate vs Confidence Threshold")
+
+    fig = px.line(
+        roi_table.reset_index(),
+        x='index',
+        y='hit_rate',
+        title="Hit Rate by Minimum Confidence Threshold",
+        labels={'index': 'Minimum Confidence', 'hit_rate': 'Hit Rate'},
+        markers=True
+    )
+    fig.update_layout(yaxis_tickformat='.1%')
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Betting strategy recommendations
+    st.subheader("🎲 Betting Strategy Insights")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**✅ Profitable Thresholds:**")
+        profitable = roi_table[roi_table['roi'] > 0]
+        if not profitable.empty:
+            for threshold, row in profitable.iterrows():
+                st.write(f"• {threshold:.0%}+ confidence: {row['roi']:.1f}% ROI")
+        else:
+            st.write("• None found - model needs improvement")
+
+    with col2:
+        st.markdown("**📈 Improvement Opportunities:**")
+        st.write("• Focus on prop types with low accuracy")
+        st.write("• Investigate high-confidence misses")
+        st.write("• Consider adjusting confidence thresholds")
+
+
+# Footer
+st.markdown("---")
+st.markdown("*Dashboard automatically updates when new accuracy analyses are run.*")
+st.markdown("*ROI calculations assume standard -110 American odds.*")
