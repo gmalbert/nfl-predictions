@@ -131,7 +131,7 @@ def generate_pdf_bytes(df_upcoming) -> bytes:
 ## Integration Points
 - **External data**: All historical/play-by-play data is pre-fetched and stored in `data_files/`. No runtime API calls except ESPN scores for completed games.
 - **Feature importances/metrics**: Stored in `model_feature_importances.csv` and `model_metrics.json`.
-- **Automated workflows**: GitHub Actions run nightly updates during NFL season (Sept-Feb), weekly email predictions on Wednesdays at 8 PM ET.
+- **Automated workflows**: GitHub Actions run nightly updates during NFL season (Sept-Feb), including ESPN scores, smart play-by-play data updates, and model predictions. Weekly email predictions sent Wednesdays at 8 PM ET.
 - **Email notifications**: Enhanced HTML emails with clear betting recommendations:
   - Format: "**TEN +2.5** to cover (69.1%) 🔥 ELITE" instead of cryptic probabilities
   - Individual confidence badges per bet (ELITE ≥65%, STRONG 60-65%, GOOD 55-60%)
