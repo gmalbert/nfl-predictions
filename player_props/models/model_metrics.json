@@ -1,5 +1,5 @@
 {
-  "trained_at": "2026-01-07T21:26:05.685819",
+  "trained_at": "2026-01-09T19:50:23.966127",
   "models": [
     {
       "model_name": "passing_yards_elite_qb",
@@ -253,6 +253,39 @@
       "recall": 0.6124567474048442,
       "f1": 0.36926286509040335,
       "roc_auc": 0.6704913537736976
+    },
+    {
+      "model_name": "receptions_star_wr",
+      "target": "over_star_wr",
+      "train_samples": 20661,
+      "test_samples": 5166,
+      "accuracy": 0.7613240418118467,
+      "precision": 0.3063583815028902,
+      "recall": 0.7571428571428571,
+      "f1": 0.43621399176954734,
+      "roc_auc": 0.8297463326894544
+    },
+    {
+      "model_name": "receptions_good_wr",
+      "target": "over_good_wr",
+      "train_samples": 20661,
+      "test_samples": 5166,
+      "accuracy": 0.7222222222222222,
+      "precision": 0.3905236907730673,
+      "recall": 0.786144578313253,
+      "f1": 0.5218260579806732,
+      "roc_auc": 0.8204122244373176
+    },
+    {
+      "model_name": "receptions_starter",
+      "target": "over_starter",
+      "train_samples": 20661,
+      "test_samples": 5166,
+      "accuracy": 0.7171893147502904,
+      "precision": 0.5153740247820101,
+      "recall": 0.7349476439790575,
+      "f1": 0.6058807661181549,
+      "roc_auc": 0.7955105575527662
     }
   ]
 }
