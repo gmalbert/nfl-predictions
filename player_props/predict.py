@@ -10,6 +10,16 @@ from datetime import datetime, timezone
 import warnings
 warnings.filterwarnings('ignore')
 
+# Import injury functions
+try:
+    from .injuries import get_injury_report, find_player_injury, adjust_prediction_for_injury
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    import os
+    sys.path.append(os.path.dirname(__file__))
+    from injuries import get_injury_report, find_player_injury, adjust_prediction_for_injury
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -479,7 +489,12 @@ def get_player_position(player_name):
             # If multiple players with same short_name, prefer QB for passing props, etc.
             # For now, just return the first match
             record = player_record.iloc[0]
-            return record['position'], record['display_name']
+            position = record['position']
+            display_name = record['display_name']
+            # Ensure we return strings or None, not NaN
+            position = position if isinstance(position, str) else None
+            display_name = display_name if isinstance(display_name, str) else None
+            return position, display_name
     return None, None
 
 
@@ -676,6 +691,9 @@ def predict_props_for_game(game_row, all_stats, models):
     game_date = game_row['game_date']
     week = game_row['week']
     
+    # Load injury data for adjustment
+    injuries_df = get_injury_report()
+    
     for team in teams:
         opponent = game_row['away_team'] if team == game_row['home_team'] else game_row['home_team']
         is_home = team == game_row['home_team']
@@ -688,6 +706,10 @@ def predict_props_for_game(game_row, all_stats, models):
                 all_starters.update(team_starters)
         
         for player_name in all_starters:
+            # Skip if player_name is not a valid string
+            if not isinstance(player_name, str) or not player_name:
+                continue
+            
             # Get player position and display name
             player_position, player_display_name = get_player_position(player_name)
             
@@ -775,6 +797,24 @@ def predict_props_for_game(game_row, all_stats, models):
                             'avg_L5': features.get(f"{model_info['stat_col']}_L5"),
                             'avg_L10': features.get(f"{model_info['stat_col']}_L10")
                         }
+                        
+                        # Check for injuries and adjust prediction
+                        # Try matching with display_name first, then player_name
+                        display_name = player_display_name if player_display_name and isinstance(player_display_name, str) else player_name
+                        if isinstance(display_name, str):
+                            injury_info = find_player_injury(display_name, injuries_df)
+                            if not injury_info and display_name != player_name:
+                                injury_info = find_player_injury(player_name, injuries_df)
+                        else:
+                            injury_info = None
+                        
+                        if injury_info:
+                            adjusted_prediction = adjust_prediction_for_injury(prediction, injury_info)
+                            if adjusted_prediction is None:
+                                # Player is out - skip this prediction
+                                continue
+                            prediction = adjusted_prediction
+                        
                         predictions.append(prediction)
                     
                 except Exception as e:

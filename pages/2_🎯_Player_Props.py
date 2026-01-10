@@ -127,13 +127,73 @@ def load_player_props_predictions():
                 df['display_name'] = df['display_name'].fillna(df['player_name'])  # Fallback to short_name if no display_name
             df = df.drop('short_name', axis=1, errors='ignore')
     
+@st.cache_data(ttl=3600)
+def load_player_props_predictions():
+    """Load player prop predictions with memory optimization."""
+    file_path = Path('data_files/player_props_predictions.csv')
+    if not file_path.exists():
+        return None
+    
+    df = pd.read_csv(file_path)
+    
+    # Memory optimization
+    for col in df.select_dtypes(include=['float64']).columns:
+        df[col] = df[col].astype('float32')
+    
+    # Parse game_date
+    if 'game_date' in df.columns:
+        df['game_date'] = pd.to_datetime(df['game_date'])
+    
+    # Add position and display_name information by joining with players data (only if not already present)
+    if 'display_name' not in df.columns or 'position' not in df.columns:
+        players_df = load_players()
+        if players_df is not None:
+            df = df.merge(
+                players_df[['short_name', 'display_name', 'position']], 
+                left_on='player_name', 
+                right_on='short_name', 
+                how='left'
+            )
+            # Use display_name for display, keep short_name for data operations
+            if 'display_name' in df.columns:
+                df['display_name'] = df['display_name'].fillna(df['player_name'])  # Fallback to short_name if no display_name
+            df = df.drop('short_name', axis=1, errors='ignore')
+    
     # Ensure opponent_def_rank column exists (for backward compatibility)
     if 'opponent_def_rank' not in df.columns:
         st.warning("⚠️ opponent_def_rank column missing from predictions. Please regenerate predictions.")
         df['opponent_def_rank'] = 16.0  # Default to league average
     
+    # Ensure injury_note column exists (for backward compatibility)
+    if 'injury_note' not in df.columns:
+        df['injury_note'] = None
+    
     return df
 
+def get_dataframe_height(df, row_height=35, header_height=38, padding=2, max_height=600):
+    """
+    Calculate the optimal height for a Streamlit dataframe based on number of rows.
+    
+    Args:
+        df (pd.DataFrame): The dataframe to display
+        row_height (int): Height per row in pixels. Default: 35
+        header_height (int): Height of header row in pixels. Default: 38
+        padding (int): Extra padding in pixels. Default: 2
+        max_height (int): Maximum height cap in pixels. Default: 600 (None for no limit)
+    
+    Returns:
+        int: Calculated height in pixels
+    
+    Example:
+        height = get_dataframe_height(my_df)
+        st.dataframe(my_df, height=height)
+    """
+    num_rows = len(df)
+    calculated_height = (num_rows * row_height) + header_height + padding
+    
+    if max_height is not None:
+        return min(calculated_height, max_height)
+    return calculated_height
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -273,7 +333,7 @@ def main():
             st.markdown("---")
             
             # Filters
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             
             with col1:
                 min_conf = st.slider("Minimum Confidence", 0.50, 0.90, 0.60, 0.05, key="min_conf_top")
@@ -287,6 +347,13 @@ def main():
                 )
             
             with col3:
+                injury_filter = st.selectbox(
+                    "Injury Status",
+                    ["All Players", "Healthy Only", "Injured Only"],
+                    key="injury_filter_top"
+                )
+            
+            with col4:
                 sort_option = st.selectbox(
                     "Sort By",
                     ["Confidence", "Player Name", "Avg L3"],
@@ -298,6 +365,12 @@ def main():
                 (predictions['confidence'] >= min_conf) &
                 (predictions['prop_type'].isin(prop_types))
             ].copy()
+            
+            # Apply injury filter
+            if injury_filter == "Healthy Only":
+                filtered = filtered[filtered['injury_note'].isna() | (filtered['injury_note'] == '')]
+            elif injury_filter == "Injured Only":
+                filtered = filtered[filtered['injury_note'].notna() & (filtered['injury_note'] != '')]
             
             # Sort
             if sort_option == "Confidence":
@@ -325,12 +398,20 @@ def main():
                     lambda x: f"#{int(x)}/32" + (" 🛡️" if x <= 8 else (" ⚠️" if x >= 24 else ""))
                 )
                 
+                # Add injury information if available
+                if 'injury_note' in display_df.columns:
+                    display_df['Injury Status'] = display_df['injury_note'].fillna('')
+                else:
+                    display_df['Injury Status'] = ''
+                
                 # Select columns to show
                 show_cols = [
                     'display_name', 'position', 'team', 'opponent', 'Defense Rank', 'prop_type', 
-                    'Recommendation', 'Confidence', 'Tier', 'Last 3 Avg', 'Last 5 Avg', 'Last 10 Avg'
+                    'Recommendation', 'Confidence', 'Tier', 'Last 3 Avg', 'Last 5 Avg', 'Last 10 Avg', 'Injury Status'
                 ]
                 
+                height = get_dataframe_height(display_df[show_cols])
+
                 st.dataframe(
                     display_df[show_cols].rename(columns={
                         'display_name': 'Player',
@@ -340,11 +421,13 @@ def main():
                         'prop_type': 'Prop Type'
                     }),
                     width='stretch',
-                    height=600,
+                    height=height,
                     hide_index=True
                 )
                 
-                st.caption(f"Showing {len(filtered):,} predictions")
+                injured_count = len(filtered[filtered['injury_note'].notna() & (filtered['injury_note'] != '')]) if 'injury_note' in filtered.columns else 0
+                filter_desc = f" ({injury_filter})" if injury_filter != "All Players" else ""
+                st.caption(f"Showing {len(filtered):,} predictions{filter_desc} • {injured_count} with injury adjustments")
                 
                 # Explanation
                 with st.expander("ℹ️ How to Read These Predictions"):
@@ -449,7 +532,7 @@ def main():
                 
                 st.dataframe(
                     display_df,
-                    width='stretch',
+                    use_container_width=True,
                     height=600,
                     hide_index=True
                 )
@@ -518,7 +601,7 @@ def main():
                 
                 st.dataframe(
                     display_df,
-                    width='stretch',
+                    use_container_width=True,
                     height=600,
                     hide_index=True
                 )
@@ -589,7 +672,7 @@ def main():
                 
                 st.dataframe(
                     display_df,
-                    width='stretch',
+                    use_container_width=True,
                     height=600,
                     hide_index=True
                 )
@@ -690,7 +773,7 @@ def main():
                                     'attempts': 'Att',
                                     'interceptions': 'INT'
                                 }),
-                                width='stretch',
+                                use_container_width=True,
                                 hide_index=True
                             )
                         else:
@@ -716,7 +799,7 @@ def main():
                                     'rush_tds': 'TDs',
                                     'rush_attempts': 'Att'
                                 }),
-                                width='stretch',
+                                use_container_width=True,
                                 hide_index=True
                             )
                         else:
@@ -743,7 +826,7 @@ def main():
                                     'rec_tds': 'TDs',
                                     'targets': 'Targets'
                                 }),
-                                width='stretch',
+                                use_container_width=True,
                                 hide_index=True
                             )
                         else:
