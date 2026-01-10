@@ -9,6 +9,7 @@ nfl-data-py>=0.3.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 reportlab>=4.0
+plotly>=5.0.0
 
 # Optional / development dependencies (keep commented)
 # pytest>=7.4.0
