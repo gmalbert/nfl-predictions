@@ -1008,6 +1008,15 @@ def main():
                         how='left'
                     )
                     season_totals = season_totals.drop('short_name', axis=1)
+                # Ensure `position` exists for downstream display (fallback to empty string)
+                if 'position' not in season_totals.columns:
+                    season_totals['position'] = ''
+                # Ensure `position` exists for downstream display (fallback to empty string)
+                if 'position' not in season_totals.columns:
+                    season_totals['position'] = ''
+                # Ensure `position` exists for downstream display (fallback to empty string)
+                if 'position' not in season_totals.columns:
+                    season_totals['position'] = ''
                 
                 # Sort by total yards
                 season_totals = season_totals.sort_values('passing_yards', ascending=False).head(30)

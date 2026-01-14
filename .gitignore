@@ -39,7 +39,7 @@ __pypackages__/
 # /data_files/espn_schedule*
 /data_files/logo for *
 /data_files/qbr*
-/data_files/players.csv
+# /data_files/players.csv
 /data_files/otc*
 /data_files/schedule*
 /data_files/nfl.code-workspace
