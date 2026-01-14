@@ -1,7 +1,7 @@
 # Copilot Instructions: NFL Predictions Project
 
 ## Overview
-Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predicts outcomes for spread, moneyline, and over/under markets. All data and models are pre-computed locally; no runtime API calls except ESPN score fetching.
+Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predicts outcomes for spread, moneyline, over/under markets, and player props (passing/rushing/receiving yards, TDs). All data and models are pre-computed locally; no runtime API calls except ESPN score fetching.
 
 ## Architecture & Data Flow
 **Data Pipeline (Sequential)**:
@@ -12,6 +12,10 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 **UI Layer**:
 - `predictions.py` → Main dashboard (betting tabs, metrics, PDF exports)
 - `pages/1_📊_Historical_Data.py` → Advanced filtering over 196k+ play-by-play records
+- `pages/2_🎯_Player_Props.py` → Player performance predictions (yards, TDs)
+  - **New**: includes a `DK Pick 6 Calculator` tab for entering DraftKings Pick 6 over/under lines and receiving an OVER/UNDER recommendation. The calculator uses cached XGBoost models located in `player_props/models` (loaded via `load_xgb_models()` in the page) and falls back to a Laplace-smoothed historical hit rate when a model/tier is unavailable.
+- `pages/3_🎲_Parlay_Builder.py` → Multi-bet parlay construction and analysis
+- `pages/4_📈_Model_Performance.py` → Model evaluation and calibration metrics
 - All data loaded via `@st.cache_data` decorators (never at module level)
 - Feature lists (`best_features_*.txt`) must stay synchronized between training and UI
 
@@ -126,6 +130,18 @@ def generate_pdf_bytes(df_upcoming) -> bytes:
       else:
           st.warning("Data not available")
   ```
+- **Player Props**: Load player stats from `data_files/player_*.csv`, use XGBoost models for yards/TD predictions, display in `pages/2_🎯_Player_Props.py`
+ - **DK Pick 6 Calculator**: `pages/2_🎯_Player_Props.py` now contains an interactive calculator where users can:
+   - Search/select a player, choose stat category (auto-suggested by position), and enter the DraftKings Pick 6 line.
+   - See both the ML-model probability (when available) and a historical hit-rate fallback (Laplace smoothing).
+   - View the prediction source in the UI: `🤖 ML Model` (model chosen by season-average tier) or `📊 Historical` (fallback).
+   - Models and feature logic live under `player_props/predict.py` and model files are JSONs in `player_props/models/`.
+
+  Developer notes:
+  - Models are loaded with `@st.cache_data` to avoid repeated heavy loads.
+  - Feature extraction uses L3/L5/L10 rolling stats plus auxiliary features (TDs, attempts, completions, targets) and basic matchup defaults (`opponent_def_rank`, `is_home`, `days_rest`).
+  - If you need to regenerate player prop models, run `python player_props/predict.py` per the pipeline.
+- **Parlay Builder**: In `pages/3_🎲_Parlay_Builder.py`, combine bets from predictions_df, calculate parlay odds = product of individual probabilities
 - **Betting logic**: Confidence tiers—Elite (≥65%), Strong (60-65%), Good (55-60%), Standard (50-55%).
 
 ## Integration Points

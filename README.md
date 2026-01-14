@@ -12,6 +12,19 @@ A sophisticated NFL analytics platform that uses advanced machine learning to id
 
 **🆕 PLAYER PROPS SYSTEM**: Individual player performance predictions (Passing Yards, Rushing Yards, Receiving Yards, TDs) for DraftKings Pick 6 and similar prop betting markets. See [Player Props Roadmap](docs/PLAYER_PROPS_ROADMAP.md) for details.
 
+### 📊 DraftKings Pick 6 Calculator (Interactive)
+A new interactive DraftKings Pick 6 line comparison tool is available in the Player Props page. Enter a player, choose a stat category (e.g., Passing Yards), and paste the DraftKings Pick 6 over/under line (e.g., 242.5). The tool will show:
+
+- A data-driven recommendation (OVER / UNDER)
+- Confidence and tier (🔥 ELITE, 💪 STRONG, ✅ GOOD, ⚠️ LEAN)
+- Prediction source: either the trained XGBoost model ("🤖 ML Model") or a historical hit-rate fallback ("📊 Historical")
+- Recent-game averages (L3, L5, L10), season average, and a recent game log showing OVER/UNDER hits
+
+Notes for developers:
+- The feature uses the project models in `player_props/models` and the prediction pipeline in `player_props/predict.py`.
+- Models are loaded with caching to keep UI responsive; if a model for the selected stat/tier is missing, the code falls back to a simple Laplace-smoothed historical hit rate.
+- For full production predictions, regenerate player props with `python player_props/predict.py`.
+
 ## 📋 Table of Contents
 
 - [🎯 Key Features](#-key-features)

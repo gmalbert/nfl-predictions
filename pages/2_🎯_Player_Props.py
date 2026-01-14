@@ -8,6 +8,7 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 import sys
+import xgboost as xgb
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -22,6 +23,43 @@ st.set_page_config(
 # ============================================================================
 # DATA LOADING (Lazy with Caching)
 # ============================================================================
+
+@st.cache_data(ttl=3600)
+def load_xgb_models():
+    """Load trained XGBoost models for player props."""
+    models = {}
+    models_dir = Path('player_props/models')
+    
+    if not models_dir.exists():
+        return None
+    
+    # Define which models we need for DK calculator
+    model_configs = {
+        'passing_yards': ['elite_qb', 'star_qb', 'good_qb', 'starter'],
+        'passing_tds': ['elite_qb', 'star_qb', 'good_qb', 'starter'],
+        'rushing_yards': ['elite_rb', 'star_rb', 'good_rb', 'starter'],
+        'rushing_tds': ['elite_rb', 'star_rb', 'good_rb', 'anytime'],
+        'receiving_yards': ['star_wr', 'good_wr', 'starter'],
+        'receiving_tds': ['star_wr', 'good_wr', 'anytime'],
+        'receptions': ['star_wr', 'good_wr', 'starter']
+    }
+    
+    for prop_type, tiers in model_configs.items():
+        models[prop_type] = {}
+        for tier in tiers:
+            model_name = f"{prop_type}_{tier}"
+            model_path = models_dir / f"{model_name}.json"
+            
+            if model_path.exists():
+                try:
+                    model = xgb.XGBClassifier()
+                    model.load_model(str(model_path))
+                    models[prop_type][tier] = model
+                except Exception:
+                    pass  # Silently skip failed models
+    
+    return models if models else None
+
 
 @st.cache_data(ttl=3600)
 def load_player_passing_stats():
@@ -300,8 +338,9 @@ def main():
         st.info(f"📅 **{len(upcoming)} upcoming games** this week")
     
     # Main tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "⭐ Top Picks",
+        "📊 DK Pick 6 Calculator",
         "🎯 Top QBs",
         "🏃 Top RBs", 
         "🙌 Top WRs/TEs",
@@ -481,9 +520,461 @@ def main():
                 """)
     
     # ========================================================================
-    # TAB 2: Top QBs (Season Leaders)
+    # TAB 2: DraftKings Pick 6 Line Calculator
     # ========================================================================
     with tab2:
+        st.subheader("📊 DraftKings Pick 6 - Line Comparison")
+        st.markdown("Enter a player and their DraftKings Pick 6 line to get the model's prediction")
+        
+        # Load models
+        xgb_models = load_xgb_models()
+        
+        # Check if we have the necessary data
+        if passing_stats is None or rushing_stats is None or receiving_stats is None:
+            st.warning("⚠️ Player stats not available. Run aggregation pipeline first.")
+            return
+        
+        # Create two columns for inputs
+        input_col1, input_col2 = st.columns([2, 1])
+        
+        with input_col1:
+            # Player selection with full name search
+            if players is not None:
+                player_search = st.text_input(
+                    "🔍 Search Player", 
+                    placeholder="Type player name (e.g., Josh Allen, Patrick Mahomes)",
+                    key="dk_player_search"
+                )
+                
+                if player_search:
+                    # Search in display_name and last_name
+                    search_lower = player_search.lower()
+                    matches = players[
+                        players['display_name'].str.lower().str.contains(search_lower, na=False) |
+                        players['last_name'].str.lower().str.contains(search_lower, na=False)
+                    ].copy()
+                    
+                    if not matches.empty:
+                        # Sort by relevance (exact matches first)
+                        matches['exact_match'] = matches['display_name'].str.lower() == search_lower
+                        matches = matches.sort_values(['exact_match', 'display_name'], ascending=[False, True])
+                        
+                        # Create display options with team info
+                        player_options = {}
+                        for _, row in matches.head(20).iterrows():
+                            display = f"{row['display_name']} - {row['position']}"
+                            player_options[display] = row['gsis_id']
+                        
+                        selected_display = st.selectbox(
+                            "Select Player",
+                            options=list(player_options.keys()),
+                            key="dk_player_select"
+                        )
+                        selected_player_id = player_options[selected_display]
+                        selected_player_name = matches[matches['gsis_id'] == selected_player_id].iloc[0]['short_name']
+                        selected_player_full = matches[matches['gsis_id'] == selected_player_id].iloc[0]['display_name']
+                        selected_position = matches[matches['gsis_id'] == selected_player_id].iloc[0]['position']
+                    else:
+                        st.info("No players found. Try a different search.")
+                        selected_player_id = None
+                        selected_player_name = None
+                        selected_player_full = None
+                        selected_position = None
+                else:
+                    selected_player_id = None
+                    selected_player_name = None
+                    selected_player_full = None
+                    selected_position = None
+            else:
+                st.error("Player data not loaded")
+                selected_player_id = None
+                selected_player_name = None
+                selected_player_full = None
+                selected_position = None
+        
+        with input_col2:
+            # Stat category selection based on position
+            if selected_position:
+                if selected_position == 'QB':
+                    stat_options = ['Passing Yards', 'Passing TDs']
+                elif selected_position in ['RB', 'FB']:
+                    stat_options = ['Rushing Yards', 'Rushing TDs', 'Receiving Yards', 'Receiving TDs']
+                elif selected_position in ['WR', 'TE']:
+                    stat_options = ['Receiving Yards', 'Receiving TDs', 'Receptions']
+                else:
+                    stat_options = ['Passing Yards', 'Rushing Yards', 'Receiving Yards']
+                
+                stat_category = st.selectbox(
+                    "Stat Category",
+                    options=stat_options,
+                    key="dk_stat_category"
+                )
+            else:
+                stat_category = None
+        
+        # Line input
+        if selected_player_id and stat_category:
+            dk_line = st.number_input(
+                f"DraftKings Pick 6 Line for {stat_category}",
+                min_value=0.5,
+                max_value=500.0,
+                value=100.5,
+                step=0.5,
+                key="dk_line_value",
+                help="Enter the exact line from DraftKings Pick 6 (e.g., 100.5, 225.5)"
+            )
+            
+            # Get player stats based on category
+            if stat_category in ['Passing Yards', 'Passing TDs']:
+                player_stats_df = passing_stats[passing_stats['player_id'] == selected_player_id].copy()
+                if stat_category == 'Passing Yards':
+                    stat_col = 'passing_yards'
+                    td_col = 'pass_tds'
+                else:
+                    stat_col = 'pass_tds'
+                    td_col = None
+            elif stat_category in ['Rushing Yards', 'Rushing TDs']:
+                player_stats_df = rushing_stats[rushing_stats['player_id'] == selected_player_id].copy()
+                if stat_category == 'Rushing Yards':
+                    stat_col = 'rushing_yards'
+                    td_col = 'rush_tds'
+                else:
+                    stat_col = 'rush_tds'
+                    td_col = None
+            else:  # Receiving stats
+                player_stats_df = receiving_stats[receiving_stats['player_id'] == selected_player_id].copy()
+                if stat_category == 'Receiving Yards':
+                    stat_col = 'receiving_yards'
+                    td_col = 'rec_tds'
+                elif stat_category == 'Receptions':
+                    stat_col = 'receptions'
+                    td_col = 'rec_tds'
+                else:
+                    stat_col = 'rec_tds'
+                    td_col = None
+            
+            # Filter to 2025 season
+            if not player_stats_df.empty and 'season' in player_stats_df.columns:
+                player_stats_df = player_stats_df[player_stats_df['season'] == 2025].sort_values('week', ascending=False)
+            
+            if not player_stats_df.empty:
+                st.markdown("---")
+                
+                # Calculate statistics
+                recent_games = player_stats_df.head(10)
+                last_3_avg = recent_games.head(3)[stat_col].mean()
+                last_5_avg = recent_games.head(5)[stat_col].mean()
+                last_10_avg = recent_games.head(10)[stat_col].mean()
+                season_avg = player_stats_df[stat_col].mean()
+                
+                # === MODEL-BASED PREDICTION ===
+                model_prob_over = None
+                model_confidence = None
+                
+                if xgb_models:
+                    prop_type = stat_category.replace(' ', '_').lower()
+                    
+                    # Select appropriate model tier based on season average
+                    tier = None
+                    if prop_type in ['passing_yards', 'passing_tds']:
+                        if season_avg >= 280:
+                            tier = 'elite_qb'
+                        elif season_avg >= 250:
+                            tier = 'star_qb'
+                        elif season_avg >= 220:
+                            tier = 'good_qb'
+                        else:
+                            tier = 'starter'
+                    elif prop_type in ['rushing_yards', 'rushing_tds']:
+                        if season_avg >= 80:
+                            tier = 'elite_rb'
+                        elif season_avg >= 60:
+                            tier = 'star_rb'
+                        elif season_avg >= 45:
+                            tier = 'good_rb'
+                        else:
+                            tier = 'starter' if prop_type == 'rushing_yards' else 'anytime'
+                    else:  # receiving
+                        if season_avg >= 75:
+                            tier = 'star_wr'
+                        elif season_avg >= 55:
+                            tier = 'star_wr'
+                        elif season_avg >= 40:
+                            tier = 'good_wr'
+                        else:
+                            tier = 'starter' if prop_type != 'receiving_tds' else 'anytime'
+                    
+                    # Get the model
+                    if tier and prop_type in xgb_models and tier in xgb_models[prop_type]:
+                        model = xgb_models[prop_type][tier]
+                        
+                        # Build features
+                        features = {}
+                        
+                        # Core rolling features
+                        features[f'{stat_col}_L3'] = last_3_avg
+                        features[f'{stat_col}_L5'] = last_5_avg
+                        features[f'{stat_col}_L10'] = last_10_avg
+                        
+                        # Add auxiliary features based on stat type
+                        if prop_type in ['passing_yards', 'passing_tds']:
+                            features['pass_tds_L3'] = recent_games.head(3)['pass_tds'].mean() if 'pass_tds' in recent_games.columns else 0
+                            features['pass_tds_L5'] = recent_games.head(5)['pass_tds'].mean() if 'pass_tds' in recent_games.columns else 0
+                            features['completions_L3'] = recent_games.head(3)['completions'].mean() if 'completions' in recent_games.columns else 0
+                            features['completions_L5'] = recent_games.head(5)['completions'].mean() if 'completions' in recent_games.columns else 0
+                            features['attempts_L3'] = recent_games.head(3)['attempts'].mean() if 'attempts' in recent_games.columns else 0
+                            features['attempts_L5'] = recent_games.head(5)['attempts'].mean() if 'attempts' in recent_games.columns else 0
+                            if prop_type == 'passing_tds':
+                                features['pass_tds_L10'] = last_10_avg
+                                features['completions_L10'] = recent_games.head(10)['completions'].mean() if 'completions' in recent_games.columns else 0
+                                features['attempts_L10'] = recent_games.head(10)['attempts'].mean() if 'attempts' in recent_games.columns else 0
+                        
+                        elif prop_type in ['rushing_yards', 'rushing_tds']:
+                            features['rush_tds_L3'] = recent_games.head(3)['rush_tds'].mean() if 'rush_tds' in recent_games.columns else 0
+                            features['rush_tds_L5'] = recent_games.head(5)['rush_tds'].mean() if 'rush_tds' in recent_games.columns else 0
+                            features['rush_attempts_L3'] = recent_games.head(3)['rush_attempts'].mean() if 'rush_attempts' in recent_games.columns else 0
+                            features['rush_attempts_L5'] = recent_games.head(5)['rush_attempts'].mean() if 'rush_attempts' in recent_games.columns else 0
+                            if prop_type == 'rushing_tds':
+                                features['rush_tds_L10'] = last_10_avg
+                                features['rush_attempts_L10'] = recent_games.head(10)['rush_attempts'].mean() if 'rush_attempts' in recent_games.columns else 0
+                        
+                        else:  # receiving
+                            features['rec_tds_L3'] = recent_games.head(3)['rec_tds'].mean() if 'rec_tds' in recent_games.columns else 0
+                            features['rec_tds_L5'] = recent_games.head(5)['rec_tds'].mean() if 'rec_tds' in recent_games.columns else 0
+                            features['receptions_L3'] = recent_games.head(3)['receptions'].mean() if 'receptions' in recent_games.columns else 0
+                            features['receptions_L5'] = recent_games.head(5)['receptions'].mean() if 'receptions' in recent_games.columns else 0
+                            features['targets_L3'] = recent_games.head(3)['targets'].mean() if 'targets' in recent_games.columns else 0
+                            features['targets_L5'] = recent_games.head(5)['targets'].mean() if 'targets' in recent_games.columns else 0
+                            if prop_type == 'receiving_tds':
+                                features['rec_tds_L10'] = last_10_avg
+                                features['receptions_L10'] = recent_games.head(10)['receptions'].mean() if 'receptions' in recent_games.columns else 0
+                                features['targets_L10'] = recent_games.head(10)['targets'].mean() if 'targets' in recent_games.columns else 0
+                        
+                        # Add matchup features (defaults)
+                        features['opponent_def_rank'] = 16.0
+                        features['is_home'] = 1
+                        features['days_rest'] = 7
+                        
+                        # Create feature DataFrame and predict
+                        try:
+                            feature_df = pd.DataFrame([features])
+                            model_prob_over = model.predict_proba(feature_df)[0][1]
+                        except Exception:
+                            model_prob_over = None
+                
+                # === HISTORICAL HIT RATE (Fallback) ===
+                total_games = len(recent_games)
+                games_over = len(recent_games[recent_games[stat_col] > dk_line])
+                games_under = total_games - games_over
+                hist_prob_over = (games_over + 1) / (total_games + 2)
+                
+                # Use model prediction if available
+                if model_prob_over is not None:
+                    prob_over = model_prob_over
+                    prob_under = 1 - prob_over
+                    prediction_source = "🤖 Machine Learning Model"
+                else:
+                    prob_over = hist_prob_over
+                    prob_under = 1 - prob_over
+                    prediction_source = "📊 Historical"
+                
+                # Determine recommendation
+                if prob_over >= 0.60:
+                    recommendation = "OVER"
+                    confidence = prob_over
+                    tier = "🔥 ELITE" if prob_over >= 0.65 else "💪 STRONG"
+                elif prob_under >= 0.60:
+                    recommendation = "UNDER"
+                    confidence = prob_under
+                    tier = "🔥 ELITE" if prob_under >= 0.65 else "💪 STRONG"
+                else:
+                    recommendation = "OVER" if prob_over > prob_under else "UNDER"
+                    confidence = max(prob_over, prob_under)
+                    tier = "✅ GOOD" if confidence >= 0.55 else "⚠️ LEAN"
+                
+                # Display results in a prominent card
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            padding: 2rem; border-radius: 15px; color: white; margin: 1rem 0;">
+                    <h2 style="margin: 0; font-size: 1.8rem;">{selected_player_full}</h2>
+                    <p style="margin: 0.5rem 0; font-size: 1.1rem; opacity: 0.9;">{stat_category}</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+                        <div>
+                            <p style="margin: 0; font-size: 0.9rem; opacity: 0.8;">DraftKings Line</p>
+                            <p style="margin: 0; font-size: 2.5rem; font-weight: bold;">{dk_line}</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="margin: 0; font-size: 0.9rem; opacity: 0.8;">Recommendation</p>
+                            <p style="margin: 0; font-size: 2.5rem; font-weight: bold;">{recommendation}</p>
+                            <p style="margin: 0.5rem 0 0 0; font-size: 1.2rem;">{tier}</p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.2);">
+                        <p style="margin: 0; font-size: 1rem;">Confidence: <strong>{confidence:.1%}</strong> ({prediction_source})</p>
+                        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; opacity: 0.8;">
+                            Historical: {total_games} games ({games_over} over, {games_under} under)
+                        </p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Detailed statistics
+                st.markdown("### 📈 Performance Analysis")
+                
+                metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+                
+                with metric_col1:
+                    delta_3 = last_3_avg - dk_line
+                    st.metric(
+                        "Last 3 Games Avg",
+                        f"{last_3_avg:.1f}",
+                        f"{delta_3:+.1f} vs line",
+                        delta_color="normal"
+                    )
+                
+                with metric_col2:
+                    delta_5 = last_5_avg - dk_line
+                    st.metric(
+                        "Last 5 Games Avg",
+                        f"{last_5_avg:.1f}",
+                        f"{delta_5:+.1f} vs line",
+                        delta_color="normal"
+                    )
+                
+                with metric_col3:
+                    delta_10 = last_10_avg - dk_line
+                    st.metric(
+                        "Last 10 Games Avg",
+                        f"{last_10_avg:.1f}",
+                        f"{delta_10:+.1f} vs line",
+                        delta_color="normal"
+                    )
+                
+                with metric_col4:
+                    delta_season = season_avg - dk_line
+                    st.metric(
+                        "Season Average",
+                        f"{season_avg:.1f}",
+                        f"{delta_season:+.1f} vs line",
+                        delta_color="normal"
+                    )
+                
+                # Game log
+                st.markdown("### 📊 Recent Game Log")
+                
+                display_cols = ['week', 'opponent', stat_col]
+                if td_col and td_col in recent_games.columns:
+                    display_cols.append(td_col)
+                
+                game_log = recent_games[display_cols].copy()
+                game_log['Result'] = game_log[stat_col].apply(
+                    lambda x: f"{'✅ OVER' if x > dk_line else '❌ UNDER'} ({x:.1f})"
+                )
+                
+                rename_map = {
+                    'week': 'Week',
+                    'opponent': 'Opponent',
+                    stat_col: stat_category
+                }
+                if td_col:
+                    rename_map[td_col] = 'TDs'
+                
+                st.dataframe(
+                    game_log.rename(columns=rename_map),
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                # Hit rate by game count
+                st.markdown("### 🎯 Hit Rate Analysis")
+                
+                hit_col1, hit_col2, hit_col3 = st.columns(3)
+                
+                with hit_col1:
+                    last_3 = recent_games.head(3)
+                    over_3 = len(last_3[last_3[stat_col] > dk_line])
+                    rate_3 = over_3 / 3 * 100 if len(last_3) >= 3 else 0
+                    st.metric("Last 3 Games", f"{over_3}/3 Over", f"{rate_3:.0f}% hit rate")
+                
+                with hit_col2:
+                    last_5 = recent_games.head(5)
+                    over_5 = len(last_5[last_5[stat_col] > dk_line])
+                    rate_5 = over_5 / 5 * 100 if len(last_5) >= 5 else 0
+                    st.metric("Last 5 Games", f"{over_5}/5 Over", f"{rate_5:.0f}% hit rate")
+                
+                with hit_col3:
+                    over_10 = len(recent_games[recent_games[stat_col] > dk_line])
+                    rate_10 = over_10 / len(recent_games) * 100 if len(recent_games) > 0 else 0
+                    st.metric(f"Last {len(recent_games)} Games", f"{over_10}/{len(recent_games)} Over", f"{rate_10:.0f}% hit rate")
+                
+                # Explanation
+                with st.expander("ℹ️ How This Works"):
+                    if model_prob_over is not None:
+                        st.markdown(f"""
+                        **🤖 Machine Learning Model Prediction Method:**
+                        - Uses trained XGBoost model (tier: {tier})
+                        - Season average: {season_avg:.1f} → model tier selection
+                        - Analyzes rolling stats (L3, L5, L10 games)
+                        - Considers TDs, attempts/targets, matchup factors
+                        - Trained on 2020-2024 data (ROC-AUC: 0.72-0.84)
+                        
+                        **Prediction Comparison:**
+                        - **Machine Learning Model**: {model_prob_over:.1%} probability OVER
+                        - **Historical**: {hist_prob_over:.1%} hit rate ({games_over}/{total_games} games)
+                        - **Recommendation**: {recommendation} with {confidence:.1%} confidence
+                        """)
+                    else:
+                        st.markdown(f"""
+                        **📊 Historical Analysis Method:**
+                        - Analyzes {selected_player_full}'s {total_games} games in 2025
+                        - Compares actual performance to line ({dk_line})
+                        - Uses Laplace smoothing for reliability
+                        - Machine Learning model not available for this stat/tier
+                        """)
+                    
+                    st.markdown("""
+                    **Confidence Tiers:**
+                    - 🔥 **ELITE (≥65%)**: Highest confidence picks
+                    - 💪 **STRONG (60-65%)**: Very confident picks  
+                    - ✅ **GOOD (55-60%)**: Solid picks above breakeven
+                    - ⚠️ **LEAN (<55%)**: Lower confidence
+                    
+                    **Pro Tips:**
+                    - Model auto-selects tier based on season average
+                    - Recent form (L3/L5) weighted heavily
+                    - Check opponent defense rank for full analysis
+                    - Weather/injuries not included in quick calculator
+                    """)
+            else:
+                st.info(f"No 2025 season data available for {selected_player_full}")
+        
+        else:
+            st.info("👆 Search for a player above to get started")
+            
+            # Show example
+            with st.expander("📖 How to Use This Tool"):
+                st.markdown("""
+                ### Step-by-Step Guide:
+                
+                1. **Search for a Player**: Type the player's name in the search box
+                2. **Select from Results**: Choose the correct player from the dropdown
+                3. **Pick a Stat Category**: The tool auto-suggests categories based on position
+                4. **Enter DraftKings Line**: Input the exact over/under line from DK Pick 6
+                5. **Get Recommendation**: See the model's OVER/UNDER prediction with confidence
+                
+                ### Example:
+                - Player: **Josh Allen**
+                - Category: **Passing Yards**
+                - DK Line: **242.5**
+                - Model says: **OVER 242.5** (💪 STRONG - 63% confidence)
+                
+                The model analyzes recent performance, season averages, and hit rates to give you data-driven recommendations!
+                """)
+    
+    # ========================================================================
+    # TAB 3: Top QBs (Season Leaders)
+    # ========================================================================
+    with tab3:
         st.subheader("🏆 2025 Season Leaders - Quarterbacks")
         
         if passing_stats is not None:
@@ -551,9 +1042,9 @@ def main():
             st.error("Passing stats not loaded")
     
     # ========================================================================
-    # TAB 3: Top RBs (Season Leaders)
+    # TAB 4: Top RBs (Season Leaders)
     # ========================================================================
-    with tab3:
+    with tab4:
         st.subheader("🏆 2025 Season Leaders - Running Backs")
         
         if rushing_stats is not None:
@@ -620,9 +1111,9 @@ def main():
             st.error("Rushing stats not loaded")
     
     # ========================================================================
-    # TAB 4: Top WRs/TEs (Season Leaders)
+    # TAB 5: Top WRs/TEs (Season Leaders)
     # ========================================================================
-    with tab4:
+    with tab5:
         st.subheader("🏆 2025 Season Leaders - Wide Receivers & Tight Ends")
         
         if receiving_stats is not None:
@@ -691,9 +1182,9 @@ def main():
             st.error("Receiving stats not loaded")
     
     # ========================================================================
-    # TAB 5: Player Search
+    # TAB 6: Player Search
     # ========================================================================
-    with tab5:
+    with tab6:
         st.subheader("Search Individual Player Stats")
         
         # Get unique player IDs from stats
