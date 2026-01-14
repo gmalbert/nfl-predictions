@@ -32,6 +32,13 @@ def run_script(script_path: Path) -> int:
 
 def main() -> int:
     os.makedirs(ROOT / 'data_files', exist_ok=True)
+    # Run schedule updater first (best-effort). Keeps local schedule current
+    # before building historical data and training models.
+    schedule_script = ROOT / 'update_schedule.py'
+    if schedule_script.exists():
+        code = run_script(schedule_script)
+        if code != 0:
+            print("Warning: update_schedule.py failed — continuing pipeline")
 
     create_script = ROOT / 'create-nfl-historical.py'
     gather_script = ROOT / 'nfl-gather-data.py'

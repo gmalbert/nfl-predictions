@@ -271,9 +271,13 @@ week,date,home_team,away_team,venue,status
 18,2026-01-04,NE,MIA,Gillette Stadium,REG
 18,2026-01-04,PHI,WAS,Lincoln Financial Field,REG
 18,2026-01-04,PIT,BAL,Acrisure Stadium,REG
-19,2026-01-10,CAR,LA,Bank of America Stadium,WC
-19,2026-01-10,CHI,GB,Soldier Field,WC
-19,2026-01-11,JAX,BUF,TIAA Bank Stadium,WC
-19,2026-01-11,PHI,SF,Lincoln Financial Field,WC
-19,2026-01-11,NE,LAC,Gillette Stadium,WC
-19,2026-01-12,PIT,HOU,Acrisure Stadium,WC
+19,2026-01-10,CAR,LA,Bank of America Stadium,REG
+19,2026-01-10,CHI,GB,Soldier Field,REG
+19,2026-01-11,JAX,BUF,TIAA Bank Stadium,REG
+19,2026-01-11,PHI,SF,Lincoln Financial Field,REG
+19,2026-01-11,NE,LAC,Gillette Stadium,REG
+19,2026-01-12,PIT,HOU,Acrisure Stadium,REG
+20,2026-01-17,DEN,BUF,Empower Field at Mile High,REG
+20,2026-01-17,SEA,SF,Lumen Field,REG
+20,2026-01-18,NE,HOU,Gillette Stadium,REG
+20,2026-01-18,CHI,LA,Soldier Field,REG

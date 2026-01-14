@@ -897,43 +897,66 @@ def load_play_by_play_chunked(max_rows: int | None = None, usecols: list | None 
 # DON'T load at module level - will be loaded lazily when needed
 historical_data = None
 
-@st.cache_data
+@st.cache_data(ttl=60)
 def load_schedule():
     import glob
     try:
-        target_path = path.join(DATA_DIR, f'nfl_schedule_{current_year}.csv')
+        schedule_data = None
+        # NFL seasons span two calendar years (e.g., 2025 season runs Sep 2025 - Feb 2026)
+        # In Jan-Feb, use previous year's schedule file
+        now = datetime.now()
+        if now.month <= 2:
+            schedule_year = now.year - 1
+        else:
+            schedule_year = now.year
+            
+        target_path = path.join(DATA_DIR, f'nfl_schedule_{schedule_year}.csv')
         if os.path.exists(target_path):
             schedule_data = pd.read_csv(target_path, low_memory=False)
-            return schedule_data
+        else:
+            # Fallback: pick the most-recent nfl_schedule_YYYY.csv in DATA_DIR
+            pattern = path.join(DATA_DIR, 'nfl_schedule_*.csv')
+            candidates = glob.glob(pattern)
+            if candidates:
+                # Extract year from filename and sort descending
+                def _year(pth):
+                    m = re.search(r"nfl_schedule_(\d{4})\.csv", pth)
+                    return int(m.group(1)) if m else 0
 
-        # Fallback: pick the most-recent nfl_schedule_YYYY.csv in DATA_DIR
-        pattern = path.join(DATA_DIR, 'nfl_schedule_*.csv')
-        candidates = glob.glob(pattern)
-        if candidates:
-            # Extract year from filename and sort descending
-            def _year(pth):
-                m = re.search(r"nfl_schedule_(\d{4})\.csv", pth)
-                return int(m.group(1)) if m else 0
-
-            candidates.sort(key=_year, reverse=True)
-            for cand in candidates:
-                try:
-                    schedule_data = pd.read_csv(cand, low_memory=False)
-                    # Inform the UI that we're using a fallback schedule
+                candidates.sort(key=_year, reverse=True)
+                for cand in candidates:
                     try:
-                        m = re.search(r"nfl_schedule_(\d{4})\.csv", path.basename(cand))
-                        year_used = m.group(1) if m else path.basename(cand)
-                        st.warning(f"Schedule for {current_year} not found. Using {year_used} schedule.")
+                        schedule_data = pd.read_csv(cand, low_memory=False)
+                        # Inform the UI that we're using a fallback schedule
+                        try:
+                            m = re.search(r"nfl_schedule_(\d{4})\.csv", path.basename(cand))
+                            year_used = m.group(1) if m else path.basename(cand)
+                            st.warning(f"Schedule for {schedule_year} not found. Using {year_used} schedule.")
+                        except Exception:
+                            pass
+                        break
                     except Exception:
-                        pass
-                    return schedule_data
-                except Exception:
-                    continue
+                        continue
 
-        st.warning(f"Schedule file for {current_year} not found. Schedule data will be unavailable.")
-        return pd.DataFrame()  # Return empty DataFrame as fallback
+        if schedule_data is None or schedule_data.empty:
+            try:
+                st.warning(f"Schedule file for {schedule_year} not found. Schedule data will be unavailable.")
+            except Exception:
+                pass
+            return pd.DataFrame()  # Return empty DataFrame as fallback
+
+        # Mark past games as STATUS_FINAL
+        schedule_data['date_parsed'] = pd.to_datetime(schedule_data['date'], utc=True).dt.date
+        today = pd.Timestamp.now(tz='UTC').date()
+        schedule_data.loc[schedule_data['date_parsed'] < today, 'status'] = 'STATUS_FINAL'
+        schedule_data.drop('date_parsed', axis=1, inplace=True)
+
+        return schedule_data
     except Exception as e:
-        st.error(f"Error loading schedule data: {str(e)}")
+        try:
+            st.error(f"Error loading schedule data: {str(e)}")
+        except Exception:
+            pass
         return pd.DataFrame()
 
 # Calculate ROI from betting log
@@ -2721,6 +2744,9 @@ except Exception as e:
             st.dataframe(display_data, hide_index=True, column_config=column_config if column_config else None)
 
 print("🎨 Starting main UI rendering...", file=sys.stderr, flush=True)
+
+# Load schedule data (needed for upcoming games expander)
+schedule = load_schedule()
 
 # Create tabs for prediction and betting sections
 st.write("---")
