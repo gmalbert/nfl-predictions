@@ -1,11 +1,11 @@
 {
-  "Spread Accuracy": 0.5132743362831859,
+  "Spread Accuracy": 0.5221238938053098,
   "Moneyline Accuracy": 0.6548672566371682,
-  "Totals Accuracy": 0.5457227138643068,
-  "Spread MAE": 0.48672566371681414,
+  "Totals Accuracy": 0.5663716814159292,
+  "Spread MAE": 0.4778761061946903,
   "Moneyline MAE": 0.34513274336283184,
-  "Totals MAE": 0.45427728613569324,
+  "Totals MAE": 0.4336283185840708,
   "Optimal Spread Threshold": 0.524,
   "Optimal Moneyline Threshold": 0.24000000000000002,
-  "Optimal Totals Threshold": 0.30000000000000004
+  "Optimal Totals Threshold": 0.4
 }
