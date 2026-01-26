@@ -680,6 +680,55 @@ def get_dataframe_height(df, row_height=35, header_height=38, padding=2, max_hei
         return min(calculated_height, max_height)
     return calculated_height
 
+def add_spread_confidence_tiers(df):
+    """
+    Add confidence tier labels for spread betting.
+    
+    Tiers:
+    - 🔥 Elite (≥60%): Highest confidence bets
+    - ⭐ Strong (55-60%): Strong conviction bets
+    - 📈 Good (52-55%): Positive edge bets
+    - ⚖️ Lean (50-52%): Slight edge, lower units
+    
+    Args:
+        df: DataFrame with prob_underdogCovered column
+        
+    Returns:
+        DataFrame with added confidence tier columns
+    """
+    df = df.copy()
+    
+    # Create tier column
+    conditions = [
+        df['prob_underdogCovered'] >= 0.60,
+        (df['prob_underdogCovered'] >= 0.55) & (df['prob_underdogCovered'] < 0.60),
+        (df['prob_underdogCovered'] >= 0.52) & (df['prob_underdogCovered'] < 0.55),
+        (df['prob_underdogCovered'] >= 0.50) & (df['prob_underdogCovered'] < 0.52),
+    ]
+    
+    choices = ['🔥 Elite', '⭐ Strong', '📈 Good', '⚖️ Lean']
+    
+    df['spread_confidence_tier'] = np.select(conditions, choices, default='')
+    
+    # Add recommended bet sizing
+    # Elite: 3-5% of bankroll
+    # Strong: 2-3% of bankroll
+    # Good: 1-2% of bankroll
+    # Lean: 0.5-1% of bankroll
+    
+    unit_conditions = [
+        df['prob_underdogCovered'] >= 0.60,
+        (df['prob_underdogCovered'] >= 0.55) & (df['prob_underdogCovered'] < 0.60),
+        (df['prob_underdogCovered'] >= 0.52) & (df['prob_underdogCovered'] < 0.55),
+        (df['prob_underdogCovered'] >= 0.50) & (df['prob_underdogCovered'] < 0.52),
+    ]
+    
+    unit_choices = ['3-5%', '2-3%', '1-2%', '0.5-1%']
+    
+    df['recommended_bet_size'] = np.select(unit_conditions, unit_choices, default='')
+    
+    return df
+
 # Function to automatically update completed game results
 def update_completed_games():
     """Fetch scores from ESPN API and update betting log for completed games"""
@@ -3508,8 +3557,8 @@ with pred_tab4:
 
 with pred_tab5:
     if predictions_df is not None:
-        st.write("### 🏈 Next 10 Recommended Spread Bets")
-        st.write("*Games where model thinks underdog will cover spread (>50% confidence)*")
+        st.write("### 🏈 Spread Betting Opportunities")
+        st.write("*Tiered confidence system for underdog spread bets*")
         
         # Reload predictions_df fresh and filter for upcoming games only
         predictions_df_spread = pd.read_csv(predictions_csv_path, sep='\t')
@@ -3521,19 +3570,16 @@ with pred_tab5:
         
         # Filter for upcoming games where model thinks underdog has ANY chance to cover (>50%)
         if 'prob_underdogCovered' in predictions_df_spread.columns:
-            spread_bets = predictions_df_spread[predictions_df_spread['prob_underdogCovered'] > 0.50].copy()
+            spread_bets_all = predictions_df_spread[predictions_df_spread['prob_underdogCovered'] > 0.50].copy()
             
-            if len(spread_bets) > 0:
-                # Sort by date and take first 10
-                if 'gameday' in spread_bets.columns:
-                    spread_bets = spread_bets.sort_values('gameday').head(10)
-                else:
-                    spread_bets = spread_bets.head(10)
-
-                # Add columns for better display
-                spread_bets_display = spread_bets.copy()
+            if len(spread_bets_all) > 0:
+                # Add confidence tiers
+                spread_bets_all = add_spread_confidence_tiers(spread_bets_all)
                 
-                # Add favored team and spread info
+                # Sort by date ascending (earliest games first)
+                spread_bets_all = spread_bets_all.sort_values('gameday')
+                
+                # Add columns for better display
                 def get_spread_info(row):
                     if not pd.isnull(row.get('spread_line', None)):
                         spread = row['spread_line']
@@ -3545,7 +3591,7 @@ with pred_tab5:
                             return 'Pick\'em'
                     return 'N/A'
                 
-                spread_bets_display['Favorite & Spread'] = spread_bets_display.apply(get_spread_info, axis=1)
+                spread_bets_all['Favorite & Spread'] = spread_bets_all.apply(get_spread_info, axis=1)
                 
                 # Add underdog team (who we're betting on to cover)
                 def get_spread_underdog(row):
@@ -3559,86 +3605,106 @@ with pred_tab5:
                             return 'Pick\'em'
                     return 'N/A'
                 
-                spread_bets_display['Underdog (Bet On)'] = spread_bets_display.apply(get_spread_underdog, axis=1)
+                spread_bets_all['Underdog (Bet On)'] = spread_bets_all.apply(get_spread_underdog, axis=1)
                 
                 # Convert probability to percentage for display
-                spread_bets_display['Model Confidence'] = spread_bets_display['prob_underdogCovered'] * 100
-                
-                # Add confidence tier for prioritization
-                def get_confidence_tier(row):
-                    confidence = row['prob_underdogCovered']
-                    if confidence >= 0.54:
-                        return "🔥 Elite (54%+)"
-                    elif confidence >= 0.52:
-                        return "⭐ Strong (52-54%)"
-                    else:
-                        return "📈 Good (50-52%)"
-                
-                spread_bets_display['Tier'] = spread_bets_display.apply(get_confidence_tier, axis=1)
-                
-                # Calculate expected payout (standard -110 odds)
-                spread_bets_display['Expected Payout'] = "$90.91 profit on $100 bet (91% ROI based on historical performance)"
+                spread_bets_all['Model Confidence'] = spread_bets_all['prob_underdogCovered'] * 100
                 
                 # Add edge calculation if available
-                if 'edge_underdog_spread' in spread_bets_display.columns:
-                    spread_bets_display['Value Edge'] = spread_bets_display['edge_underdog_spread'] * 100
+                if 'edge_underdog_spread' in spread_bets_all.columns:
+                    spread_bets_all['Value Edge'] = spread_bets_all['edge_underdog_spread'] * 100
                 else:
-                    spread_bets_display['Value Edge'] = 'N/A'
+                    spread_bets_all['Value Edge'] = 'N/A'
                 
-                # Select and rename columns for display
-                display_cols = ['gameday', 'home_team', 'away_team', 'Favorite & Spread', 'Underdog (Bet On)', 'Tier', 'Model Confidence', 'Value Edge', 'Expected Payout']
-                display_cols = [col for col in display_cols if col in spread_bets_display.columns]
+                st.write(f"### 🎯 Spread Betting Opportunities ({len(spread_bets_all)} games)")
                 
-                final_spread_display = spread_bets_display[display_cols].rename(columns={
-                    'gameday': 'Date',
-                    'home_team': 'Home Team',
-                    'away_team': 'Away Team'
-                })
+                # Group by tier and show in expanders
+                for tier in ['🔥 Elite', '⭐ Strong', '📈 Good', '⚖️ Lean']:
+                    tier_games = spread_bets_all[spread_bets_all['spread_confidence_tier'] == tier]
+                    
+                    if len(tier_games) > 0:
+                        # Define tier descriptions and bet sizing
+                        tier_info = {
+                            '🔥 Elite': {
+                                'desc': 'Highest confidence bets (≥60%) - Recommended for max units',
+                                'units': '3-5% of bankroll',
+                                'expanded': True
+                            },
+                            '⭐ Strong': {
+                                'desc': 'Strong conviction bets (55-60%) - Good risk/reward',
+                                'units': '2-3% of bankroll',
+                                'expanded': True
+                            },
+                            '📈 Good': {
+                                'desc': 'Positive edge bets (52-55%) - Solid value',
+                                'units': '1-2% of bankroll',
+                                'expanded': False
+                            },
+                            '⚖️ Lean': {
+                                'desc': 'Slight edge bets (50-52%) - Lower risk approach',
+                                'units': '0.5-1% of bankroll',
+                                'expanded': False
+                            }
+                        }
+                        
+                        with st.expander(f"{tier} ({len(tier_games)} games) - {tier_info[tier]['units']}", 
+                                       expanded=tier_info[tier]['expanded']):
+                            st.write(f"**{tier_info[tier]['desc']}**")
+                            
+                            # Prepare display dataframe
+                            display_cols = ['gameday', 'home_team', 'away_team', 'Favorite & Spread', 
+                                          'Underdog (Bet On)', 'Model Confidence', 'Value Edge', 'recommended_bet_size']
+                            display_cols = [col for col in display_cols if col in tier_games.columns]
+                            
+                            tier_display = tier_games[display_cols].rename(columns={
+                                'gameday': 'Date',
+                                'home_team': 'Home Team',
+                                'away_team': 'Away Team',
+                                'recommended_bet_size': 'Bet Size'
+                            })
+                            
+                            # Sort by confidence within tier (highest first)
+                            if 'Model Confidence' in tier_display.columns:
+                                tier_display = tier_display.sort_values('Model Confidence', ascending=False)
+                            
+                            height = get_dataframe_height(tier_display)
+                            st.dataframe(
+                                tier_display,
+                                column_config={
+                                    'Date': st.column_config.DateColumn(format='MM/DD/YYYY'),
+                                    'Home Team': st.column_config.TextColumn(width='medium'),
+                                    'Away Team': st.column_config.TextColumn(width='medium'),
+                                    'Favorite & Spread': st.column_config.TextColumn(width='medium'),
+                                    'Underdog (Bet On)': st.column_config.TextColumn(width='medium'),
+                                    'Model Confidence': st.column_config.NumberColumn(format='%.1f%%'),
+                                    'Value Edge': st.column_config.NumberColumn(format='%.1f%%') if 'Value Edge' in tier_display.columns and tier_display['Value Edge'].dtype != 'object' else st.column_config.TextColumn(),
+                                    'Bet Size': st.column_config.TextColumn(width='small')
+                                },
+                                height=height,
+                                hide_index=True
+                            )
                 
-                # Sort by model confidence (highest first), then by date
-                if 'Model Confidence' in final_spread_display.columns:
-                    final_spread_display = final_spread_display.sort_values(['Model Confidence', 'Date'], ascending=[False, True])
-                elif 'Date' in final_spread_display.columns:
-                    final_spread_display = final_spread_display.sort_values('Date')
-                
-                height = get_dataframe_height(final_spread_display)
-                st.dataframe(
-                    final_spread_display,
-                    column_config={
-                        'Date': st.column_config.DateColumn(format='MM/DD/YYYY'),
-                        'Home Team': st.column_config.TextColumn(width='medium'),
-                        'Away Team': st.column_config.TextColumn(width='medium'),
-                        'Favorite & Spread': st.column_config.TextColumn(width='medium'),
-                        'Underdog (Bet On)': st.column_config.TextColumn(width='medium'),
-                        'Tier': st.column_config.TextColumn(width='medium'),
-                        'Model Confidence': st.column_config.NumberColumn(format='%.1f%%'),
-                        'Value Edge': st.column_config.NumberColumn(format='%.1f%%') if 'Value Edge' in final_spread_display.columns and final_spread_display['Value Edge'].dtype != 'object' else st.column_config.TextColumn(),
-                        'Expected Payout': st.column_config.TextColumn(width='large')
-                    },
-                    height=height,
-                    hide_index=True
-                )
-                
-                st.write(f"**📊 Showing**: {len(spread_bets)} next spread betting opportunities")
-                
-                # Add explanatory note with tiered performance
+                # Summary statistics
                 st.success(f"""
-                **� PERFORMANCE BY CONFIDENCE LEVEL:**
-                - **High Confidence (≥54%)**: 91.9% win rate, 75.5% ROI (elite level)
-                - **Medium Confidence (50-54%)**: Expected ~52-55% win rate (still profitable)
-                - **Current Selection**: Showing all games >50% confidence for more opportunities
+                **📊 PERFORMANCE BY CONFIDENCE LEVEL:**
+                - **Elite (≥60%)**: Expected 60%+ win rate, highest ROI potential
+                - **Strong (55-60%)**: Expected 55-60% win rate, strong value
+                - **Good (52-55%)**: Expected 52-55% win rate, positive edge
+                - **Lean (50-52%)**: Expected 50-52% win rate, slight edge
+                
+                **Total Opportunities**: {len(spread_bets_all)} games across all tiers
                 """)
                 
                 st.info("""
                 **💡 How to Use Spread Bets:**
                 - **Underdog (Bet On)**: Team to bet on covering the spread (+points means they get that advantage)
-                - **Model Confidence**: How confident model is underdog will cover (50%+ shown for more opportunities)
+                - **Model Confidence**: How confident model is underdog will cover
                 - **Value Edge**: How much better the model thinks the odds are vs the betting line
-                - **Strategy**: Higher confidence = better historical performance, but >50% still profitable
+                - **Bet Size**: Recommended percentage of bankroll based on confidence tier
                 
                 **Example**: If betting "Chiefs +3.5", the Chiefs can lose by 1, 2, or 3 points and you still win!
                 
-                **💰 Betting Strategy**: Focus on highest confidence games first, but >50% games still have value!
+                **💰 Strategy**: Start with Elite/Strong tiers for best risk-adjusted returns!
                 """)
                 
             else:
