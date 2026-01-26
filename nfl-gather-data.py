@@ -337,35 +337,63 @@ for threshold in thresholds:
 best_threshold = thresholds[np.argmax(f1_scores)]
 optimal_moneyline_threshold = best_threshold
 
-# Spread threshold optimization - EV-based approach
-# Only bet when expected value is positive (probability > breakeven)
-y_spread_proba = model_spread.predict_proba(X_test_spread)[:, 1]
+def calculate_spread_ev_threshold(model, X_test, y_test, spread_lines=None, min_edge=0.02):
+    """
+    Calculate an EV-based spread threshold.
 
-# For standard -110 odds, breakeven is at 52.4% (need to win 52.4% to break even)
-# Calculation: Risk $110 to win $100, so need to win 110/(110+100) = 52.4% of bets
-BREAKEVEN_PROB_SPREAD = 0.524
-optimal_spread_threshold = BREAKEVEN_PROB_SPREAD
+    Returns (optimal_threshold, analysis_dict).
+    """
+    probs = model.predict_proba(X_test)[:, 1]
 
-print("\nUsing EV-based threshold for spread betting (breakeven + edge)")
-print(f"   - Breakeven probability: {BREAKEVEN_PROB_SPREAD:.1%} (based on -110 odds)")
-print(f"   - Threshold: {optimal_spread_threshold:.1%} (bet only when EV > 0)")
+    # Default implied probability for -110
+    implied_prob = 0.5238
 
-# Validate threshold performance
-spread_bets_triggered = (y_spread_proba >= optimal_spread_threshold).sum()
-print(f"   - {spread_bets_triggered}/{len(y_spread_proba)} test games trigger spread bet ({spread_bets_triggered/len(y_spread_proba)*100:.1f}%)")
+    # Edge = model prob - implied prob
+    edges = probs - implied_prob
 
-# Calculate accuracy and expected value on triggered bets
-if spread_bets_triggered > 0:
-    triggered_mask = y_spread_proba >= optimal_spread_threshold
-    triggered_accuracy = y_spread_test[triggered_mask].mean()
-    # EV calculation: (win_prob * payout) - (loss_prob * stake)
-    # For -110 odds: EV = (win_prob * 90.91) - (loss_prob * 100)
-    avg_confidence = y_spread_proba[triggered_mask].mean()
-    expected_ev = (avg_confidence * 90.91) - ((1 - avg_confidence) * 100)
-    print(f"   - Historical accuracy on {optimal_spread_threshold:.1%}+ confidence bets: {triggered_accuracy*100:.1f}%")
-    print(f"   - Average confidence: {avg_confidence:.1%}")
-    print(f"   - Expected Value per $100 bet: ${expected_ev:.2f}")
-    print(f"   - Expected ROI: {expected_ev:.1f}%")
+    # Only consider bets where edge >= min_edge and prob >= 0.50
+    ev_based_bets = (edges >= min_edge) & (probs >= 0.50)
+
+    if ev_based_bets.sum() > 0:
+        optimal_threshold = float(probs[ev_based_bets].min())
+    else:
+        optimal_threshold = 0.50
+        print("⚠️ Warning: No +EV spread bets found in validation set; falling back to 50%")
+
+    analysis = {
+        'threshold': float(optimal_threshold),
+        'min_edge': float(min_edge),
+        'bets_triggered': int(ev_based_bets.sum()),
+        'total_games': int(len(probs)),
+        'bet_percentage': float(ev_based_bets.sum() / len(probs) * 100.0)
+    }
+
+    # Backtest performance if any bets
+    if ev_based_bets.sum() > 0:
+        accuracy = float(y_test[ev_based_bets].mean())
+        wins = int(y_test[ev_based_bets].sum())
+        losses = int(ev_based_bets.sum() - wins)
+        # Theoretical ROI at -110
+        profit = (wins * 90.91) - (losses * 100)
+        roi = (profit / (ev_based_bets.sum() * 100.0)) * 100.0
+        analysis.update({'historical_accuracy': accuracy, 'wins': wins, 'losses': losses, 'theoretical_roi_pct': roi})
+
+    print("\n📊 EV-Based Spread Threshold Analysis:")
+    print(f"   - Optimal threshold: {analysis['threshold']:.3f}")
+    print(f"   - Min edge required: {analysis['min_edge']*100:.1f}%")
+    print(f"   - Bets triggered: {analysis['bets_triggered']}/{analysis['total_games']} ({analysis['bet_percentage']:.1f}%)")
+    if 'historical_accuracy' in analysis:
+        print(f"   - Historical accuracy on +EV bets: {analysis['historical_accuracy']*100:.1f}%")
+        print(f"   - Theoretical ROI: {analysis['theoretical_roi_pct']:.2f}%")
+
+    return optimal_threshold, analysis
+
+
+# Use EV-based approach (recommended). Falls back to 50% when no +EV bets found.
+print("\nCalculating EV-based threshold for spread betting (recommended)")
+optimal_spread_threshold, spread_ev_analysis = calculate_spread_ev_threshold(
+    model_spread, X_test_spread, y_spread_test, spread_lines=X_test_spread.get('spread_line') if isinstance(X_test_spread, pd.DataFrame) else None, min_edge=0.02
+)
 
 # Totals threshold optimization
 y_totals_proba = model_totals.predict_proba(X_test_tot)[:, 1]
@@ -719,6 +747,11 @@ metrics = {
     "Optimal Moneyline Threshold": float(optimal_moneyline_threshold),
     "Optimal Totals Threshold": float(optimal_totals_threshold)
 }
+# Include EV analysis if available
+try:
+    metrics['Spread_EV_Analysis'] = spread_ev_analysis
+except Exception:
+    pass
 with open(path.join(DATA_DIR, 'model_metrics.json'), 'w') as f:
     json.dump(metrics, f, indent=2)
 
