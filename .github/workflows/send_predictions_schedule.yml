@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          lfs: false  # Skip LFS to avoid bandwidth limits
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v4
