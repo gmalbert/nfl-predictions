@@ -13,6 +13,8 @@ import xgboost as xgb
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
+from footer import add_betting_oracle_footer
+
 # Page config
 st.set_page_config(
     page_title="Player Props | NFL Predictions",
@@ -1429,8 +1431,8 @@ def main():
                     else:
                         st.info("Data not loaded")
     
-    # Footer
-   
+    # Add footer to the page
+    add_betting_oracle_footer()
 
 if __name__ == "__main__":
     main()

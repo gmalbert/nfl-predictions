@@ -5,6 +5,8 @@ import re
 from os import path
 from datetime import datetime
 
+from footer import add_betting_oracle_footer
+
 st.set_page_config(
     page_title="Historical Data - NFL Predictor",
     page_icon="📊",
@@ -773,3 +775,6 @@ if 'game_date' in historical_data.columns:
 else:
     # Fallback: show all data without date filtering
     st.dataframe(historical_data.head(50), hide_index=True)
+
+# Add footer to the page
+add_betting_oracle_footer()
