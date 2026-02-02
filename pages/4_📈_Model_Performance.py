@@ -18,6 +18,8 @@ import os
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from footer import add_betting_oracle_footer
+
 try:
     from player_props.backtest import (
         run_weekly_accuracy_check,
@@ -629,7 +631,5 @@ elif analysis_type == "ROI Analysis":
     display_roi_analysis(selected_week, selected_season)
 
 
-# Footer
-st.markdown("---")
-# st.markdown("*Dashboard automatically updates when new accuracy analyses are run.*")
-st.markdown("*ROI calculations assume standard -110 American odds.*")
+# Add footer to the page
+add_betting_oracle_footer()

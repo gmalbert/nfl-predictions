@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 
+from footer import add_betting_oracle_footer
+
 st.title("🎲 Parlay Builder")
 
 # Load predictions
@@ -298,3 +300,6 @@ else:
     for _, row in top_picks.iterrows():
         trend_emoji = row.get('trend', '➡️')
         st.write(f"**{row['display_name']}** ({row['team']}) - {row['prop_type'].replace('_', ' ').title()} {row['recommendation']} {row['line_value']} {trend_emoji} ({row['confidence']:.1%})")
+
+# Add footer to the page
+add_betting_oracle_footer()

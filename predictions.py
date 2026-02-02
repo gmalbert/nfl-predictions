@@ -59,6 +59,8 @@ import threading
 import time
 import functools
 
+from footer import add_betting_oracle_footer
+
 # Application-level startup log and uncaught exception hook so Cloud logs
 # include clear tracebacks when the app crashes during startup.
 try:
@@ -4712,3 +4714,6 @@ with adv_tab2:
                     'features': st.column_config.TextColumn('Features', width='large')
                 }
             )
+
+# Add footer to the page
+add_betting_oracle_footer()
