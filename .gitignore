@@ -3,9 +3,11 @@
 /Include/*
 /pyvenv.cfg
 /share/*
-.github/*
-!.github/copilot-instructions.md
-!.github/workflows/send_predictions_schedule.yml
+# .github/*
+# !.github/copilot-instructions.md
+# !.github/workflows/send_predictions_schedule.yml
+.github/workflows/rss-test.yml
+# !.github/workflows/update_schedule.yml
 .venv/*
 venv/
 
