@@ -1,0 +1,54 @@
+name: RSS Feed Test
+
+on:
+  push:
+    branches: [ main, feature/** ]
+  workflow_dispatch: {}
+
+jobs:
+  rss-test:
+    runs-on: ubuntu-latest
+    env:
+      # Provide a repository secret named ALERTS_SITE_URL to validate links
+      # Example: https://your-deployed-app.example.com/
+      ALERTS_SITE_URL: ${{ secrets.ALERTS_SITE_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: false  # Skip LFS to avoid bandwidth limits
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install minimal dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas requests
+
+      - name: Confirm ALERTS_SITE_URL presence
+        run: |
+          python - <<'PY'
+          import os
+          v = os.environ.get('ALERTS_SITE_URL')
+          if v:
+              print('ALERTS_SITE_URL is set (secret present).')
+          else:
+              print('ALERTS_SITE_URL is not set — the test will validate against localhost by default.')
+          PY
+
+      - name: Generate RSS feed
+        run: |
+          python scripts/generate_rss.py
+
+      - name: Run RSS link resolution test
+        run: |
+          python tests/test_rss_links.py
+
+      - name: Upload generated RSS as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: alerts-feed
+          path: data_files/alerts_feed.xml
