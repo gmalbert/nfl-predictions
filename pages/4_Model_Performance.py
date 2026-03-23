@@ -18,10 +18,14 @@ import os
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from footer import add_betting_oracle_footer
+
 try:
     from player_props.backtest import (
         run_weekly_accuracy_check,
         load_accuracy_history,
+        load_accuracy_results_for_week,
+        save_accuracy_results,
         calculate_hit_rate,
         calculate_roi,
         profitable_subset,
@@ -31,6 +35,8 @@ except ImportError:
     st.error("❌ Could not import backtest module. Please ensure player_props/backtest.py exists.")
     st.stop()
 
+# Set page to wide layout for better chart display
+
 st.title("📈 Model Performance Dashboard")
 
 st.markdown("""
@@ -38,16 +44,161 @@ Track prediction accuracy, ROI analysis, and model calibration over time.
 Validate that our model improvements are actually working!
 """)
 
+
+def get_current_nfl_week() -> int:
+    """
+    Calculate the current NFL week based on the actual date.
+
+    NFL season structure:
+    - Regular season: 18 weeks (Weeks 1-18)
+    - Playoffs: Weeks 19-22 (Wild Card, Divisional, Conference Championships, Super Bowl)
+
+    Returns:
+        Current NFL week number (1-22)
+    """
+    today = datetime.now()
+
+    # Determine NFL season year
+    # NFL season runs from September to February, so if we're in Jan-Feb, it's the previous year
+    if today.month <= 2:  # January-February
+        season_year = today.year - 1
+    else:
+        season_year = today.year
+
+    # NFL season typically starts on the first Thursday in September
+    # Find the first Thursday in September of the season year
+    from datetime import date
+    import calendar
+
+    # Start from September 1st of the season year
+    sept_1 = date(season_year, 9, 1)
+
+    # Find the first Thursday in September
+    # weekday() returns 0=Monday, 3=Thursday
+    days_to_first_thursday = (3 - sept_1.weekday()) % 7
+    season_start = sept_1 + timedelta(days=days_to_first_thursday)
+
+    # If we're before the season start, return week 1
+    if today.date() < season_start:
+        return 1
+
+    # Calculate weeks since season start
+    days_since_start = (today.date() - season_start).days
+    weeks_since_start = days_since_start // 7 + 1  # +1 because week 1 starts immediately
+
+    # NFL regular season is 18 weeks, then playoffs
+    if weeks_since_start <= 18:
+        return min(weeks_since_start, 18)  # Cap at 18 for regular season
+    else:
+        # Playoffs: Week 19 = Wild Card, 20 = Divisional, 21 = Conference Championships, 22 = Super Bowl
+        playoff_week = 18 + ((weeks_since_start - 18) // 7) + 1
+        return min(playoff_week, 22)  # Cap at 22 for Super Bowl week
+
+
+def get_season_for_week(week: int) -> int:
+    """
+    Determine the NFL season year for a given week number.
+
+    This accounts for the fact that playoff games (weeks 19-22) from season N
+    are played in January/February of year N+1.
+
+    Args:
+        week: NFL week number (1-22)
+
+    Returns:
+        Season year for the given week
+    """
+    current_week = get_current_nfl_week()
+    today = datetime.now()
+
+    # Determine current season year
+    # NFL season runs from September to February
+    if today.month <= 2:  # January-February (playoffs)
+        current_season = today.year - 1  # 2025 season plays in Jan/Feb 2026
+    else:
+        current_season = today.year
+
+    # If the requested week is <= current week, it's from the current season
+    if week <= current_week:
+        return current_season
+
+    # If the requested week > current week, we need to look backwards
+    # This handles historical analysis (e.g., analyzing week 18 when we're in week 19)
+    else:
+        # For now, assume we're only looking at recent weeks within the same season
+        # If we need to analyze older seasons, this logic would need enhancement
+        return current_season
+
+def get_dataframe_height(df, row_height=35, header_height=38, padding=2, max_height=600):
+    """
+    Calculate the optimal height for a Streamlit dataframe based on number of rows.
+    
+    Args:
+        df (pd.DataFrame): The dataframe to display
+        row_height (int): Height per row in pixels. Default: 35
+        header_height (int): Height of header row in pixels. Default: 38
+        padding (int): Extra padding in pixels. Default: 2
+        max_height (int): Maximum height cap in pixels. Default: 600 (None for no limit)
+    
+    Returns:
+        int: Calculated height in pixels
+    
+    Example:
+        height = get_dataframe_height(my_df)
+        st.dataframe(my_df, height=height)
+    """
+    num_rows = len(df)
+    calculated_height = (num_rows * row_height) + header_height + padding
+    
+    if max_height is not None:
+        return min(calculated_height, max_height)
+    return calculated_height
+
 # Sidebar controls
 st.sidebar.header("📊 Analysis Controls")
 
-# Week selection
-current_week = 19  # This should be dynamic based on NFL schedule
+# Season selection - current season and two prior seasons
+today = datetime.now()
+if today.month <= 2:  # January-February (playoffs)
+    current_season = today.year - 1
+else:
+    current_season = today.year
+
+available_seasons = [current_season - 2, current_season - 1, current_season]
+season_labels = {
+    current_season - 2: f"{current_season - 2} Season",
+    current_season - 1: f"{current_season - 1} Season",
+    current_season: f"{current_season} Season"
+}
+
+selected_season_idx = st.sidebar.selectbox(
+    "Select Season to Analyze",
+    options=range(len(available_seasons)),
+    format_func=lambda i: season_labels[available_seasons[i]],
+    index=len(available_seasons)-1,  # Default to current season
+    help="Choose which NFL season to analyze. Note: Current season data may not be available yet from the API."
+)
+selected_season = available_seasons[selected_season_idx]
+
+# Week selection - show appropriate weeks for selected season
+if selected_season == 2025:
+    # Current season - we're in week 19 (playoffs)
+    current_week = get_current_nfl_week()
+    max_week = min(current_week, 18)  # Regular season only for now
+    st.sidebar.info(f"ℹ️ **2025 Season Note**: We're currently in Week {current_week}. Data for 2025 may not be available yet. If analysis fails, try 2024 Season.")
+elif selected_season == 2024:
+    max_week = 18  # Full regular season available
+elif selected_season == 2023:
+    max_week = 18  # Full regular season available
+else:
+    max_week = 18
+
+available_weeks = list(range(1, max_week + 1))
 selected_week = st.sidebar.selectbox(
     "Select Week to Analyze",
-    options=list(range(current_week, current_week-8, -1)),  # Last 8 weeks
-    index=0,
-    help="Choose which week's predictions to analyze against actual results"
+    options=available_weeks,
+    index=len(available_weeks)-1,  # Default to most recent
+    help=f"Choose which week from {selected_season} season to analyze against actual results"
 )
 
 # Analysis type
@@ -58,65 +209,95 @@ analysis_type = st.sidebar.radio(
 )
 
 # Auto-run analysis button
-if st.sidebar.button("🔄 Run Fresh Analysis", help="Re-run accuracy analysis for selected week"):
-    with st.spinner("Running accuracy analysis..."):
-        accuracy_results = run_weekly_accuracy_check(selected_week)
-        if accuracy_results:
-            st.sidebar.success(f"✅ Analysis complete for Week {selected_week}")
-            st.rerun()
+if st.sidebar.button("🔄 Run Fresh Analysis", help="Re-run accuracy analysis for selected week and update cached results"):
+    with st.spinner("Running fresh accuracy analysis..."):
+        # First check if we can collect actual results
+        test_df, error_msg = collect_actual_results(selected_week, selected_season)
+
+        if test_df.empty and error_msg:
+            st.sidebar.error(f"❌ **Data Collection Failed**: {error_msg}")
+            st.sidebar.info("💡 **Troubleshooting Tips:**\n"
+                           "- Check your internet connection\n"
+                           "- The NFL data API may be temporarily unavailable\n"
+                           "- Historical data may not be available for recent seasons\n"
+                           "- Try selecting an earlier week with completed games")
         else:
-            st.sidebar.error("❌ Analysis failed - check data availability")
+            accuracy_results = run_weekly_accuracy_check(selected_week, selected_season)
+            if accuracy_results:
+                st.sidebar.success(f"✅ Fresh analysis complete for Week {selected_week} (results cached)")
+                st.rerun()
+            else:
+                st.sidebar.error("❌ Analysis failed - check data availability")
 
-# Function definitions will go here
 
-def display_current_week_analysis(week: int):
+def display_current_week_analysis(week: int, season: int):
     """Display accuracy analysis for a specific week."""
     st.header(f"🎯 Week {week} Accuracy Analysis")
 
-    # Load predictions and actual results
-    predictions_file = f"data_files/player_props_predictions_week{week}.csv"
-    if not Path(predictions_file).exists():
-        predictions_file = "data_files/player_props_predictions.csv"
+    # First check for cached results
+    cached_results = load_accuracy_results_for_week(week, season)
+    
+    if cached_results:
+        st.info(f"📋 **Using cached results** from previous analysis. Click '🔄 Run Fresh Analysis' in sidebar to recalculate.")
+        accuracy_metrics = cached_results
+    else:
+        st.info("🔄 **Calculating fresh analysis** for this week...")
+        
+        # Load predictions and actual results
+        predictions_file = f"data_files/player_props_predictions_week{week}.csv"
+        if not Path(predictions_file).exists():
+            predictions_file = "data_files/player_props_predictions.csv"
 
-    if not Path(predictions_file).exists():
-        st.error(f"❌ No predictions file found for Week {week}")
-        return
+        if not Path(predictions_file).exists():
+            st.error(f"❌ No predictions file found for Week {week}")
+            return
 
-    predictions_df = pd.read_csv(predictions_file)
+        predictions_df = pd.read_csv(predictions_file)
 
-    # Filter to high-confidence predictions
-    high_conf_predictions = predictions_df[predictions_df['confidence'] >= 0.55]
+        # Filter to high-confidence predictions
+        high_conf_predictions = predictions_df[predictions_df['confidence'] >= 0.55]
 
-    if high_conf_predictions.empty:
-        st.warning(f"⚠️ No high-confidence predictions (≥55%) found for Week {week}")
-        return
+        if high_conf_predictions.empty:
+            st.warning(f"⚠️ No high-confidence predictions (≥55%) found for Week {week}")
+            return
 
-    # Collect actual results
-    actuals_df = collect_actual_results(week)
+        # Collect actual results
+        actuals_df, error_msg = collect_actual_results(week, season)
 
-    if actuals_df.empty:
-        st.info(f"ℹ️ Actual results for Week {week} are not yet available. Games may still be in progress.")
-        st.markdown("**Preview Analysis** (based on available data)")
+        if actuals_df.empty:
+            if error_msg:
+                st.error(f"❌ **Data Collection Failed**: {error_msg}")
+                st.info("💡 **Troubleshooting Tips:**\n"
+                       "- Check your internet connection\n"
+                       "- The NFL data API may be temporarily unavailable\n"
+                       "- Historical data may not be available for recent seasons\n"
+                       "- Try selecting an earlier week with completed games")
+            else:
+                st.info(f"ℹ️ Actual results for Week {week} are not yet available. Games may still be in progress.")
+            st.markdown("**Preview Analysis** (based on available data)")
 
-        # Show prediction distribution
-        fig = px.histogram(
-            high_conf_predictions,
-            x='confidence',
-            nbins=20,
-            title=f"Week {week} Prediction Confidence Distribution",
-            labels={'confidence': 'Model Confidence', 'count': 'Number of Predictions'}
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            # Show prediction distribution
+            fig = px.histogram(
+                high_conf_predictions,
+                x='confidence',
+                nbins=20,
+                title=f"Week {week} Prediction Confidence Distribution",
+                labels={'confidence': 'Model Confidence', 'count': 'Number of Predictions'}
+            )
+            st.plotly_chart(fig, width='stretch')
 
-        return
+            return
 
-    # Calculate accuracy metrics
-    accuracy_metrics = calculate_hit_rate(high_conf_predictions, actuals_df)
+        # Calculate accuracy metrics
+        accuracy_metrics = calculate_hit_rate(high_conf_predictions, actuals_df)
 
-    if accuracy_metrics['total_predictions'] == 0:
-        st.warning("⚠️ No matching predictions found with actual results")
-        return
+        if accuracy_metrics['total_predictions'] == 0:
+            st.warning("⚠️ No matching predictions found with actual results")
+            return
 
+        # Save results for future caching
+        save_accuracy_results(accuracy_metrics, week)
+    
     # Display key metrics
     col1, col2, col3, col4 = st.columns(4)
 
@@ -171,100 +352,13 @@ def display_current_week_analysis(week: int):
             color_continuous_scale='RdYlGn'
         )
         fig.update_layout(yaxis_tickformat='.1%')
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         # Show as table too
         st.dataframe(
             conf_df.style.format({'Accuracy': '{:.1%}'}),
-        st.warning(f"⚠️ No high-confidence predictions (≥55%) found for Week {week}")
-        return
-
-    # Collect actual results
-    actuals_df = collect_actual_results(week)
-
-    if actuals_df.empty:
-        st.info(f"ℹ️ Actual results for Week {week} are not yet available. Games may still be in progress.")
-        st.markdown("**Preview Analysis** (based on available data)")
-
-        # Show prediction distribution
-        fig = px.histogram(
-            high_conf_predictions,
-            x='confidence',
-            nbins=20,
-            title=f"Week {week} Prediction Confidence Distribution",
-            labels={'confidence': 'Model Confidence', 'count': 'Number of Predictions'}
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        return
-
-    # Calculate accuracy metrics
-    accuracy_metrics = calculate_hit_rate(high_conf_predictions, actuals_df)
-
-    if accuracy_metrics['total_predictions'] == 0:
-        st.warning("⚠️ No matching predictions found with actual results")
-        return
-
-    # Display key metrics
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric(
-            "Overall Accuracy",
-            f"{accuracy_metrics['overall_accuracy']:.1%}",
-            help="Percentage of predictions that were correct"
-        )
-
-    with col2:
-        st.metric(
-            "Total Predictions",
-            accuracy_metrics['total_predictions'],
-            help="Number of predictions evaluated"
-        )
-
-    with col3:
-        # Calculate average confidence
-        avg_conf = accuracy_metrics['detailed_results']['confidence'].mean()
-        st.metric(
-            "Avg Confidence",
-            f"{avg_conf:.1%}",
-            help="Average model confidence for evaluated predictions"
-        )
-
-    with col4:
-        # Calculate ROI
-        roi_metrics = calculate_roi(accuracy_metrics['detailed_results'])
-        st.metric(
-            "Hypothetical ROI",
-            f"{roi_metrics['roi']:.1f}%",
-            delta=f"{roi_metrics['roi']:.1f}%" if roi_metrics['roi'] != 0 else None,
-            help=f"ROI at -110 odds. Breakeven: {roi_metrics['breakeven_rate']:.1f}%"
-        )
-
-    # Accuracy by confidence tier
-    st.subheader("🎯 Accuracy by Confidence Tier")
-
-    if not accuracy_metrics['by_confidence_tier'].empty:
-        # Create bar chart
-        conf_df = accuracy_metrics['by_confidence_tier'].reset_index()
-        conf_df.columns = ['Confidence Tier', 'Accuracy']
-
-        fig = px.bar(
-            conf_df,
-            x='Confidence Tier',
-            y='Accuracy',
-            title="Prediction Accuracy by Confidence Level",
-            labels={'Accuracy': 'Hit Rate'},
-            color='Accuracy',
-            color_continuous_scale='RdYlGn'
-        )
-        fig.update_layout(yaxis_tickformat='.1%')
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Show as table too
-        st.dataframe(
-            conf_df.style.format({'Accuracy': '{:.1%}'}),
-            use_container_width=True,
+            width=400,
+            height=get_dataframe_height(conf_df),
             hide_index=True
         )
     else:
@@ -290,7 +384,7 @@ def display_current_week_analysis(week: int):
             color_continuous_scale='RdYlGn'
         )
         fig.update_layout(yaxis_tickformat='.1%')
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     else:
         st.info("Not enough data for prop type analysis")
 
@@ -306,6 +400,8 @@ def display_current_week_analysis(week: int):
     detailed_df['confidence'] = detailed_df['confidence'].map('{:.1%}'.format)
     detailed_df['hit'] = detailed_df['hit'].map({True: '✅', False: '❌'})
 
+    height = get_dataframe_height(detailed_df)
+
     st.dataframe(
         detailed_df,
         column_config={
@@ -318,7 +414,8 @@ def display_current_week_analysis(week: int):
             'hit': st.column_config.TextColumn('Hit', width='small'),
             'confidence': st.column_config.TextColumn('Confidence', width='small'),
         },
-        use_container_width=True,
+        width=1000,
+        height=height,
         hide_index=True
     )
 
@@ -369,7 +466,7 @@ def display_historical_trends():
     )
     fig.update_layout(yaxis_tickformat='.1%')
     fig.update_xaxes(tickmode='linear')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     # Volume trend
     st.subheader("📈 Prediction Volume Trend")
@@ -382,7 +479,7 @@ def display_historical_trends():
         labels={'week': 'NFL Week', 'total_predictions': 'Predictions'}
     )
     fig.update_xaxes(tickmode='linear')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     # Historical data table
     st.subheader("📋 Historical Results")
@@ -397,14 +494,14 @@ def display_historical_trends():
             'week': st.column_config.NumberColumn('Week', width='small'),
             'overall_accuracy': st.column_config.TextColumn('Accuracy', width='small'),
             'total_predictions': st.column_config.NumberColumn('Predictions', width='small'),
-            'timestamp': st.column_config.TextColumn('Analysis Date', width='medium'),
+            'timestamp': st.column_config.TextColumn('Analysis Date', width='medium', help='When the accuracy analysis was run'),
         },
-        use_container_width=True,
+        width=600,
         hide_index=True
     )
 
 
-def display_roi_analysis(week: int):
+def display_roi_analysis(week: int, season: int):
     """Display ROI analysis for different confidence thresholds."""
     st.header("💰 ROI Analysis")
 
@@ -418,10 +515,18 @@ def display_roi_analysis(week: int):
         return
 
     predictions_df = pd.read_csv(predictions_file)
-    actuals_df = collect_actual_results(week)
+    actuals_df, error_msg = collect_actual_results(week, season)
 
     if actuals_df.empty:
-        st.info(f"ℹ️ Actual results for Week {week} are not yet available for ROI analysis.")
+        if error_msg:
+            st.error(f"❌ **Data Collection Failed**: {error_msg}")
+            st.info("💡 **Troubleshooting Tips:**\n"
+                   "- Check your internet connection\n"
+                   "- The NFL data API may be temporarily unavailable\n"
+                   "- Historical data may not be available for recent seasons\n"
+                   "- Try selecting an earlier week with completed games")
+        else:
+            st.info(f"ℹ️ Actual results for Week {week} are not yet available for ROI analysis.")
         return
 
     # Calculate accuracy metrics
@@ -454,7 +559,7 @@ def display_roi_analysis(week: int):
             'roi': st.column_config.TextColumn('ROI', width='small'),
             'breakeven_rate': st.column_config.TextColumn('Breakeven', width='small'),
         },
-        use_container_width=True
+        width='stretch',
     )
 
     # Find best performing threshold
@@ -477,7 +582,7 @@ def display_roi_analysis(week: int):
     )
     fig.add_hline(y=0, line_dash="dash", line_color="red", annotation_text="Breakeven")
     fig.update_layout(yaxis_tickformat='.1f')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     # Hit Rate vs Confidence Threshold
     st.subheader("🎯 Hit Rate vs Confidence Threshold")
@@ -491,7 +596,7 @@ def display_roi_analysis(week: int):
         markers=True
     )
     fig.update_layout(yaxis_tickformat='.1%')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     # Betting strategy recommendations
     st.subheader("🎲 Betting Strategy Insights")
@@ -514,7 +619,16 @@ def display_roi_analysis(week: int):
         st.write("• Consider adjusting confidence thresholds")
 
 
-# Footer
-st.markdown("---")
-st.markdown("*Dashboard automatically updates when new accuracy analyses are run.*")
-st.markdown("*ROI calculations assume standard -110 American odds.*")
+# Main content based on analysis type
+if analysis_type == "Current Week":
+    display_current_week_analysis(selected_week, selected_season)
+
+elif analysis_type == "Historical Trends":
+    display_historical_trends()
+
+elif analysis_type == "ROI Analysis":
+    display_roi_analysis(selected_week, selected_season)
+
+
+# Add footer to the page
+add_betting_oracle_footer()

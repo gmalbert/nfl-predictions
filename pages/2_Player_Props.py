@@ -16,11 +16,6 @@ sys.path.append(str(Path(__file__).parent.parent))
 from footer import add_betting_oracle_footer
 
 # Page config
-st.set_page_config(
-    page_title="Player Props | NFL Predictions",
-    page_icon="🎯",
-    layout="wide"
-)
 
 # ============================================================================
 # DATA LOADING (Lazy with Caching)

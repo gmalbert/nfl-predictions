@@ -7,11 +7,6 @@ from datetime import datetime
 
 from footer import add_betting_oracle_footer
 
-st.set_page_config(
-    page_title="Historical Data - NFL Predictor",
-    page_icon="📊",
-    layout="wide"
-)
 
 DATA_DIR = 'data_files/'
 
