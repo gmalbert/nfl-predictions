@@ -9,6 +9,11 @@ import os
 from datetime import datetime
 import requests
 from xgboost import XGBClassifier
+try:
+    import lightgbm as lgb
+    _LGBM_AVAILABLE = True
+except ImportError:
+    _LGBM_AVAILABLE = False
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, accuracy_score
 from sklearn.inspection import permutation_importance
@@ -16,6 +21,14 @@ import json
 from sklearn.model_selection import cross_val_score
 import random
 from sklearn.calibration import CalibratedClassifierCV
+
+
+def _blend_proba(xgb_model, lgbm_model, X):
+    """Return soft-voted probability (class=1) from XGB + optional LGBM ensemble."""
+    p = xgb_model.predict_proba(X)[:, 1]
+    if lgbm_model is not None:
+        p = (p + lgbm_model.predict_proba(X)[:, 1]) / 2.0
+    return p
 
 DATA_DIR = 'data_files/'
 
@@ -268,9 +281,10 @@ print(y_train_tot.value_counts())
 
 # Train and calibrate models for each target
 # Use isotonic calibration (better for well-separated probabilities) with 5-fold CV
+print("Training XGBoost models ...")
 model_spread = CalibratedClassifierCV(
-    XGBClassifier(eval_metric='logloss', n_estimators=150, max_depth=6, learning_rate=0.1), 
-    method='isotonic', 
+    XGBClassifier(eval_metric='logloss', n_estimators=150, max_depth=6, learning_rate=0.1),
+    method='isotonic',
     cv=5
 )
 model_spread.fit(X_train_spread, y_spread_train)
@@ -281,53 +295,84 @@ class_weights = compute_class_weight('balanced', classes=np.unique(y_train_ml), 
 scale_pos_weight = class_weights[1] / class_weights[0]
 
 model_moneyline = CalibratedClassifierCV(
-    XGBClassifier(eval_metric='logloss', scale_pos_weight=scale_pos_weight, n_estimators=150, max_depth=6, learning_rate=0.1), 
-    method='isotonic', 
+    XGBClassifier(eval_metric='logloss', scale_pos_weight=scale_pos_weight, n_estimators=150, max_depth=6, learning_rate=0.1),
+    method='isotonic',
     cv=5
 )
 model_moneyline.fit(X_train_ml, y_train_ml)
 
 model_totals = CalibratedClassifierCV(
-    XGBClassifier(eval_metric='logloss', n_estimators=150, max_depth=6, learning_rate=0.1), 
-    method='isotonic', 
+    XGBClassifier(eval_metric='logloss', n_estimators=150, max_depth=6, learning_rate=0.1),
+    method='isotonic',
     cv=5
 )
 model_totals.fit(X_train_tot, y_train_tot)
 
+# Train LightGBM ensemble models (optional — falls back to XGB-only if unavailable)
+lgbm_spread = lgbm_moneyline = lgbm_totals = None
+if _LGBM_AVAILABLE:
+    print("Training LightGBM ensemble models ...")
+    lgbm_spread = CalibratedClassifierCV(
+        lgb.LGBMClassifier(n_estimators=150, max_depth=6, learning_rate=0.1, verbosity=-1),
+        method='isotonic',
+        cv=5
+    )
+    lgbm_spread.fit(X_train_spread, y_spread_train)
+
+    lgbm_moneyline = CalibratedClassifierCV(
+        lgb.LGBMClassifier(
+            n_estimators=150, max_depth=6, learning_rate=0.1,
+            scale_pos_weight=scale_pos_weight, verbosity=-1
+        ),
+        method='isotonic',
+        cv=5
+    )
+    lgbm_moneyline.fit(X_train_ml, y_train_ml)
+
+    lgbm_totals = CalibratedClassifierCV(
+        lgb.LGBMClassifier(n_estimators=150, max_depth=6, learning_rate=0.1, verbosity=-1),
+        method='isotonic',
+        cv=5
+    )
+    lgbm_totals.fit(X_train_tot, y_train_tot)
+    print("LightGBM ensemble training complete.")
+else:
+    print("LightGBM not available; using XGBoost-only models.")
+
 # Predict
 
-# Predict on test sets
-y_spread_pred = model_spread.predict(X_test_spread)
-y_moneyline_pred = model_moneyline.predict(X_test_ml)
-y_totals_pred = model_totals.predict(X_test_tot)
+# Predict on test sets using ensemble probabilities
+y_spread_pred = (_blend_proba(model_spread, lgbm_spread, X_test_spread) >= 0.5).astype(int)
+y_moneyline_pred = (_blend_proba(model_moneyline, lgbm_moneyline, X_test_ml) >= 0.5).astype(int)
+y_totals_pred = (_blend_proba(model_totals, lgbm_totals, X_test_tot) >= 0.5).astype(int)
 
 # Validate calibration quality
 print("\nCalibration Validation:")
 from sklearn.calibration import calibration_curve
 
 # Spread calibration check
-y_spread_proba_test = model_spread.predict_proba(X_test_spread)[:, 1]
+y_spread_proba_test = _blend_proba(model_spread, lgbm_spread, X_test_spread)
 fraction_of_positives, mean_predicted_value = calibration_curve(y_spread_test, y_spread_proba_test, n_bins=5)
-print(f"Spread Model - Calibration Error: {np.abs(fraction_of_positives - mean_predicted_value).mean():.3f}")
+print(f"Spread Ensemble - Calibration Error: {np.abs(fraction_of_positives - mean_predicted_value).mean():.3f}")
 print(f"  Predicted avg: {mean_predicted_value.mean():.3f}, Actual avg: {fraction_of_positives.mean():.3f}")
 
 # Moneyline calibration check
-y_ml_proba_test = model_moneyline.predict_proba(X_test_ml)[:, 1]
+y_ml_proba_test = _blend_proba(model_moneyline, lgbm_moneyline, X_test_ml)
 fraction_of_positives_ml, mean_predicted_value_ml = calibration_curve(y_test_ml, y_ml_proba_test, n_bins=5)
-print(f"Moneyline Model - Calibration Error: {np.abs(fraction_of_positives_ml - mean_predicted_value_ml).mean():.3f}")
+print(f"Moneyline Ensemble - Calibration Error: {np.abs(fraction_of_positives_ml - mean_predicted_value_ml).mean():.3f}")
 print(f"  Predicted avg: {mean_predicted_value_ml.mean():.3f}, Actual avg: {fraction_of_positives_ml.mean():.3f}")
 
 # Totals calibration check
-y_totals_proba_test = model_totals.predict_proba(X_test_tot)[:, 1]
+y_totals_proba_test = _blend_proba(model_totals, lgbm_totals, X_test_tot)
 fraction_of_positives_tot, mean_predicted_value_tot = calibration_curve(y_test_tot, y_totals_proba_test, n_bins=5)
-print(f"Totals Model - Calibration Error: {np.abs(fraction_of_positives_tot - mean_predicted_value_tot).mean():.3f}")
+print(f"Totals Ensemble - Calibration Error: {np.abs(fraction_of_positives_tot - mean_predicted_value_tot).mean():.3f}")
 print(f"  Predicted avg: {mean_predicted_value_tot.mean():.3f}, Actual avg: {fraction_of_positives_tot.mean():.3f}")
 
 # Optimize thresholds using F1-score for all three models
 from sklearn.metrics import f1_score
 
 # Moneyline threshold optimization
-y_moneyline_proba = model_moneyline.predict_proba(X_test_ml)[:, 1]
+y_moneyline_proba = _blend_proba(model_moneyline, lgbm_moneyline, X_test_ml)
 thresholds = np.arange(0.1, 0.6, 0.02)
 f1_scores = []
 for threshold in thresholds:
@@ -337,13 +382,13 @@ for threshold in thresholds:
 best_threshold = thresholds[np.argmax(f1_scores)]
 optimal_moneyline_threshold = best_threshold
 
-def calculate_spread_ev_threshold(model, X_test, y_test, spread_lines=None, min_edge=0.02):
+def calculate_spread_ev_threshold(model, X_test, y_test, spread_lines=None, min_edge=0.02, lgbm_model=None):
     """
     Calculate an EV-based spread threshold.
 
     Returns (optimal_threshold, analysis_dict).
     """
-    probs = model.predict_proba(X_test)[:, 1]
+    probs = _blend_proba(model, lgbm_model, X_test)
 
     # Default implied probability for -110
     implied_prob = 0.5238
@@ -392,11 +437,14 @@ def calculate_spread_ev_threshold(model, X_test, y_test, spread_lines=None, min_
 # Use EV-based approach (recommended). Falls back to 50% when no +EV bets found.
 print("\nCalculating EV-based threshold for spread betting (recommended)")
 optimal_spread_threshold, spread_ev_analysis = calculate_spread_ev_threshold(
-    model_spread, X_test_spread, y_spread_test, spread_lines=X_test_spread.get('spread_line') if isinstance(X_test_spread, pd.DataFrame) else None, min_edge=0.02
+    model_spread, X_test_spread, y_spread_test,
+    spread_lines=X_test_spread.get('spread_line') if isinstance(X_test_spread, pd.DataFrame) else None,
+    min_edge=0.02,
+    lgbm_model=lgbm_spread
 )
 
 # Totals threshold optimization
-y_totals_proba = model_totals.predict_proba(X_test_tot)[:, 1]
+y_totals_proba = _blend_proba(model_totals, lgbm_totals, X_test_tot)
 f1_scores_totals = []
 for threshold in thresholds:
     y_pred_thresh = (y_totals_proba >= threshold).astype(int)
@@ -406,9 +454,9 @@ best_totals_threshold = thresholds[np.argmax(f1_scores_totals)]
 optimal_totals_threshold = best_totals_threshold
 
 # Predict probabilities for all data
-historical_game_level_data['prob_underdogCovered'] = model_spread.predict_proba(X_spread)[:, 1]
-historical_game_level_data['prob_underdogWon'] = model_moneyline.predict_proba(X_moneyline)[:, 1]
-historical_game_level_data['prob_overHit'] = model_totals.predict_proba(X_totals)[:, 1]
+historical_game_level_data['prob_underdogCovered'] = _blend_proba(model_spread, lgbm_spread, X_spread)
+historical_game_level_data['prob_underdogWon'] = _blend_proba(model_moneyline, lgbm_moneyline, X_moneyline)
+historical_game_level_data['prob_overHit'] = _blend_proba(model_totals, lgbm_totals, X_totals)
 
 # FIX: Invert spread predictions (model is backwards due to target variable definition)
 # Testing showed 66% ROI with inversion vs -90% without

@@ -96,6 +96,14 @@ jobs:
           echo "Running build and train pipeline..."
           python build_and_train_pipeline.py
         timeout-minutes: 30  # Pipeline takes ~5 min but allow buffer
+
+      - name: Retrain player prop models
+        if: steps.season_check.outputs.in_season == 'true'
+        run: |
+          echo "Retraining player prop models..."
+          python player_props/train_models.py --skip-aggregation
+        timeout-minutes: 20
+        continue-on-error: true  # Don't fail nightly run if prop retraining fails
       
       - name: Upload updated predictions
         if: steps.season_check.outputs.in_season == 'true'
@@ -107,6 +115,7 @@ jobs:
             data_files/model_metrics.json
             data_files/model_feature_importances.csv
             data_files/betting_recommendations_log.csv
+            player_props/models/model_metrics.json
           retention-days: 7
       
       - name: Commit and push changes (optional)

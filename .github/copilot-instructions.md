@@ -13,7 +13,8 @@ Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predi
 - `predictions.py` → Main dashboard (betting tabs, metrics, PDF exports)
 - `pages/1_📊_Historical_Data.py` → Advanced filtering over 196k+ play-by-play records
 - `pages/2_🎯_Player_Props.py` → Player performance predictions (yards, TDs)
-  - **New**: includes a `DK Pick 6 Calculator` tab for entering DraftKings Pick 6 over/under lines and receiving an OVER/UNDER recommendation. The calculator uses cached XGBoost models located in `player_props/models` (loaded via `load_xgb_models()` in the page) and falls back to a Laplace-smoothed historical hit rate when a model/tier is unavailable.
+  - **New**: includes a `DK Pick 6 Calculator` tab for entering DraftKings Pick 6 over/under lines and receiving an OVER/UNDER recommendation. The calculator uses cached ensemble models located in `player_props/models` and falls back to a Laplace-smoothed historical hit rate when a model/tier is unavailable.
+  - The player props system now supports XGBoost + LightGBM soft-voting ensembles and includes usage features like `target_share` to improve receiving predictions.
 - `pages/3_🎲_Parlay_Builder.py` → Multi-bet parlay construction and analysis
 - `pages/4_📈_Model_Performance.py` → Model evaluation and calibration metrics
 - All data loaded via `@st.cache_data` decorators (never at module level)
@@ -108,6 +109,7 @@ def generate_pdf_bytes(df_upcoming) -> bytes:
 - **Run app**: `streamlit run predictions.py`
 - **Generate predictions / Build & Train (single-step)**: `python build_and_train_pipeline.py` (takes ~5 min)
   - To run training only (features + models): `python nfl-gather-data.py`
+  - To retrain player prop models: `python player_props/train_models.py --skip-aggregation`
 - **Python version**: Must use 3.12
 - **Local testing**: Activate venv, run above commands
 - **Deployment**: Streamlit Cloud, all data files committed
@@ -153,7 +155,7 @@ def generate_pdf_bytes(df_upcoming) -> bytes:
 ## Integration Points
 - **External data**: All historical/play-by-play data is pre-fetched and stored in `data_files/`. No runtime API calls except ESPN scores for completed games.
 - **Feature importances/metrics**: Stored in `model_feature_importances.csv` and `model_metrics.json`.
-- **Automated workflows**: GitHub Actions run nightly updates during NFL season (Sept-Feb), including ESPN scores, smart play-by-play data updates, and model predictions. Weekly email predictions sent Wednesdays at 8 PM ET.
+- **Automated workflows**: GitHub Actions run nightly updates during NFL season (Sept-Feb), including ESPN scores, smart play-by-play data updates, model predictions, and nightly player prop retraining. A new weekly workflow also runs model backtests and persists accuracy reports.
 - **Email notifications**: Enhanced HTML emails with clear betting recommendations:
   - Format: "**TEN +2.5** to cover (69.1%) 🔥 ELITE" instead of cryptic probabilities
   - Individual confidence badges per bet (ELITE ≥65%, STRONG 60-65%, GOOD 55-60%)
