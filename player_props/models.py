@@ -8,6 +8,11 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import xgboost as xgb
+try:
+    import lightgbm as lgb
+    LGBM_AVAILABLE = True
+except ImportError:
+    LGBM_AVAILABLE = False
 import json
 from datetime import datetime
 
@@ -161,7 +166,8 @@ def prepare_training_features(df, stat_type='passing'):
         extra_cols = [
             'rec_tds_L3', 'rec_tds_L5',
             'receptions_L3', 'receptions_L5',
-            'targets_L3', 'targets_L5'
+            'targets_L3', 'targets_L5',
+            'target_share_L3', 'target_share_L5'
         ]
     
     # Only add features that exist in the dataframe
@@ -259,7 +265,9 @@ def prepare_receptions_training_features(df):
         'rec_tds_L3', 
         'rec_tds_L5',
         'targets_L3', 
-        'targets_L5'
+        'targets_L5',
+        'target_share_L3',
+        'target_share_L5'
     ]
     
     # Add matchup and situational features
@@ -283,48 +291,51 @@ def prepare_receptions_training_features(df):
 
 def train_prop_model(df, features, target_col, model_name):
     """
-    Train XGBoost model for a specific prop line.
-    
+    Train an XGBoost + LightGBM soft-voting ensemble for a specific prop line.
+    Both models are saved; inference averages their predicted probabilities.
+
     Args:
         df: DataFrame with features and target
         features: List of feature column names
         target_col: Target column name
-        model_name: Name for saving model
-        
+        model_name: Name for saving model (e.g. 'passing_yards_elite_qb')
+
     Returns:
-        Trained model, metrics dict
+        Trained XGB model (primary), metrics dict
     """
     # Remove rows with missing features or target
     df_clean = df[features + [target_col]].dropna()
-    
+
     if len(df_clean) < 100:
-        print(f"⚠️  Not enough data for {target_col}: {len(df_clean)} rows")
+        print(f"Warning: Not enough data for {target_col}: {len(df_clean)} rows")
         return None, None
-    
+
     X = df_clean[features]
     y = df_clean[target_col]
-    
+
     # Check class balance
     class_dist = y.value_counts()
-    print(f"\n📊 Target distribution for {target_col}:")
+    print(f"\nTarget distribution for {target_col}:")
     print(f"   Over (1): {class_dist.get(1, 0):,} ({class_dist.get(1, 0)/len(y)*100:.1f}%)")
     print(f"   Under (0): {class_dist.get(0, 0):,} ({class_dist.get(0, 0)/len(y)*100:.1f}%)")
-    
+
     # Skip if too imbalanced (less than 10% of either class)
     if min(class_dist.get(0, 0), class_dist.get(1, 0)) / len(y) < 0.1:
-        print(f"⚠️  Skipping {target_col}: too imbalanced")
+        print(f"Warning: Skipping {target_col}: too imbalanced")
         return None, None
-    
-    # Train/test split (chronological would be better but requires date sorting)
+
+    # Train/test split
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
     )
-    
+
     # Calculate scale_pos_weight for imbalanced classes
     scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
-    
-    # Train XGBoost model
-    model = xgb.XGBClassifier(
+
+    # ------------------------------------------------------------------
+    # XGBoost model
+    # ------------------------------------------------------------------
+    xgb_model = xgb.XGBClassifier(
         n_estimators=100,
         max_depth=4,
         learning_rate=0.1,
@@ -332,39 +343,59 @@ def train_prop_model(df, features, target_col, model_name):
         random_state=RANDOM_STATE,
         eval_metric='logloss'
     )
-    
-    model.fit(X_train, y_train)
-    
-    # Predictions
-    y_pred = model.predict(X_test)
-    y_pred_proba = model.predict_proba(X_test)[:, 1]
-    
-    # Metrics
+    xgb_model.fit(X_train, y_train)
+    xgb_proba = xgb_model.predict_proba(X_test)[:, 1]
+
+    # ------------------------------------------------------------------
+    # LightGBM model (optional — falls back to XGB-only if unavailable)
+    # ------------------------------------------------------------------
+    ensemble_proba = xgb_proba
+    if LGBM_AVAILABLE:
+        lgbm_model = lgb.LGBMClassifier(
+            n_estimators=100,
+            max_depth=4,
+            learning_rate=0.1,
+            scale_pos_weight=scale_pos_weight,
+            random_state=RANDOM_STATE,
+            verbosity=-1
+        )
+        lgbm_model.fit(X_train, y_train)
+        lgbm_proba = lgbm_model.predict_proba(X_test)[:, 1]
+        # Soft-vote: equal weight average
+        ensemble_proba = (xgb_proba + lgbm_proba) / 2.0
+        # Persist LGBM model alongside XGB
+        lgbm_path = MODELS_DIR / f'{model_name}_lgbm.txt'
+        lgbm_model.booster_.save_model(str(lgbm_path))
+
+    y_pred = (ensemble_proba >= 0.5).astype(int)
+
+    # Metrics computed on ensemble output
     metrics = {
         'model_name': model_name,
         'target': target_col,
-        'train_samples': len(X_train),
-        'test_samples': len(X_test),
-        'accuracy': accuracy_score(y_test, y_pred),
-        'precision': precision_score(y_test, y_pred, zero_division=0),
-        'recall': recall_score(y_test, y_pred, zero_division=0),
-        'f1': f1_score(y_test, y_pred, zero_division=0),
-        'roc_auc': roc_auc_score(y_test, y_pred_proba)
+        'train_samples': int(len(X_train)),
+        'test_samples': int(len(X_test)),
+        'accuracy': float(accuracy_score(y_test, y_pred)),
+        'precision': float(precision_score(y_test, y_pred, zero_division=0)),
+        'recall': float(recall_score(y_test, y_pred, zero_division=0)),
+        'f1': float(f1_score(y_test, y_pred, zero_division=0)),
+        'roc_auc': float(roc_auc_score(y_test, ensemble_proba)),
+        'ensemble': LGBM_AVAILABLE
     }
-    
-    print(f"\n✅ {model_name} Results:")
+
+    print(f"\n{model_name} Results (ensemble={LGBM_AVAILABLE}):")
     print(f"   Accuracy: {metrics['accuracy']:.3f}")
     print(f"   Precision: {metrics['precision']:.3f}")
     print(f"   Recall: {metrics['recall']:.3f}")
     print(f"   F1: {metrics['f1']:.3f}")
     print(f"   ROC-AUC: {metrics['roc_auc']:.3f}")
-    
-    # Save model
+
+    # Persist XGB model (always present)
     model_path = MODELS_DIR / f'{model_name}.json'
-    model.save_model(model_path)
-    print(f"💾 Saved model to {model_path}")
-    
-    return model, metrics
+    xgb_model.save_model(model_path)
+    print(f"Saved XGB model to {model_path}")
+
+    return xgb_model, metrics
 
 
 # ============================================================================

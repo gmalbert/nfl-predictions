@@ -49,8 +49,6 @@ Notes for developers:
 - [📁 Recent Updates](#-recent-updates)
 - [🎯 Getting Started](#-getting-started)
 - [🔧 Troubleshooting](#-troubleshooting)
-- [⚠️ Responsible Gambling Notice](#️-responsible-gambling-notice)
-- [🤝 Contributing](#-contributing)
 
 ## 🎯 Key Features
 
@@ -76,8 +74,9 @@ Notes for developers:
 ### 🤖 **Advanced Machine Learning**
 - **Three Specialized Models**: Separate XGBoost models for spread, moneyline, and over/under predictions
 - **F1-Score Optimization**: All models use F1-score maximization to find optimal betting thresholds
-- **Optimized XGBoost Models** with production-ready hyperparameters and probability calibration
+- **Optimized XGBoost + LightGBM Ensemble** for both game-level and player prop models
 - **Enhanced Monte Carlo Feature Selection** testing 200 iterations with 15-feature subsets
+- **Player usage trend features** added to prop models including `target_share` and rolling usage metrics
 - **Data Leakage Prevention**: Strict temporal boundaries ensuring only pre-game information
 - **Class Balancing** with computed scale weights for imbalanced datasets
 - **Multi-Target Prediction**: Spread (56.3%), moneyline (64.2%), totals (56.2%) accuracy
@@ -133,6 +132,9 @@ python build_and_train_pipeline.py
 # Train the models (build features and train)
 python nfl-gather-data.py
 
+# Train player prop models independently when needed:
+python player_props/train_models.py --skip-aggregation
+
 # Launch the dashboard
 streamlit run predictions.py
 ```
@@ -143,7 +145,11 @@ streamlit run predictions.py
 
 ### **Automated Data Updates (GitHub Actions)**
 
-The repository includes a GitHub Actions workflow (`.github/workflows/nightly-update.yml`) that automatically updates predictions during football season:
+The repository includes these GitHub Actions workflows:
+- `.github/workflows/nightly-update.yml`: nightly prediction updates during football season
+- `.github/workflows/weekly-model-performance.yml`: weekly backtests and accuracy persistence
+
+The nightly workflow automatically updates predictions during football season:
 
 - **Schedule**: Runs nightly at 3:00 AM UTC (Sept 1 - Feb 15)
 - **Season Detection**: Automatically skips runs outside football season (March-August)
@@ -347,15 +353,6 @@ ROI Expectation: 60.9% based on historical performance
 - **Production Ready**: No future information leakage, realistic performance expectations
 
 [⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
-
-## 📁 **Project Structure**
-
-```
-nfl-predictions/
-├── nfl-gather-data.py      # Main model training script
-├── predictions.py          # Streamlit dashboard
-├── data_files/            # Data storage directory
-```
 
 ## 🔧 **Technical Architecture**
 
@@ -688,22 +685,6 @@ nfl-predictions/
 - **Memory Management**: Dashboard automatically handles large datasets with chunking
 - **Feature Selection**: Start with smaller Monte Carlo iterations (50-100) for faster testing
 
-## ⚠️ **Responsible Gambling Notice**
-
-This tool is for educational and analytical purposes. While our backtesting shows strong historical performance:
-- **Past performance doesn't guarantee future results**
-- **Only bet what you can afford to lose**
-- **Consider this one factor in your betting decisions**
-- **Gambling involves risk - bet responsibly**
-
-## 🤝 **Contributing**
-
-This project welcomes contributions! Areas for improvement:
-- Additional data sources (weather, injuries, etc.)
-- Enhanced feature engineering
-- Alternative modeling approaches
-- UI/UX improvements
-
 ---
 
 [⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
@@ -781,13 +762,16 @@ python build_and_train_pipeline.py   # builds predictions/data if needed (single
 streamlit run predictions.py
 ```
 
+## 📅 Recent Changes (Apr 2026)
+
+- Added `lightgbm` to `requirements.txt` and implemented XGBoost + LightGBM soft-voting ensembles for both main game models and player prop models.
+- Added `player_props/train_models.py`, a dedicated player prop model training pipeline with full aggregation, rolling features, and matchup preparation.
+- Updated the nightly GitHub Actions workflow to retrain player prop models and upload `player_props/models/model_metrics.json`.
+- Added `.github/workflows/weekly-model-performance.yml` to automate weekly backtests and persist accuracy reports.
+- Added `docs/LSTM_TRANSFORMER_ROADMAP.md` as a new off-season planning document for future sequence models.
+- Fixed invalid page navigation in `pages/1_Historical_Data.py` by removing the unsupported `st.switch_page()` call.
+
 ## 📅 Recent Changes (Dec 11, 2025)
-
-- **Icon Consistency**: All download buttons and PDF generate button now use embedded icons (`csv_icon.png`, `pdf_icon.png`) with proper fallback to `favicon.ico` for professional appearance. Fixed incorrect fallback icon path from `favicon.png` to `favicon.ico`.
-- **PDF Generate Button**: Updated to use HTML with embedded PDF icon instead of emoji, matching the visual style of download buttons.
-- **Download UX**: Sidebar download controls are rendered from placeholders and populated only after `predictions_df` and the betting log finish loading to avoid rendering heavy widgets during initial load.
-
-## 📅 Recent Changes (Nov 25, 2025)
 
 - **Per-Game Detail Page**: Added a dedicated per-game view reachable with `?game=<game_id>` showing matchup summary, model predictions, and a shareable link. The per-game page uses lazy loading and intentionally avoids loading the full play-by-play dataset by default to reduce memory pressure.
 - **Underdog Labeling**: Per-game header now highlights the underdog in bold using spread-first logic and a moneyline fallback when spreads are unavailable.

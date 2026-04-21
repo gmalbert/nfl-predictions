@@ -13,6 +13,8 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
+DATA_DIR = Path(__file__).parent.parent / 'data_files'
+
 
 def aggregate_passing_stats(pbp: pd.DataFrame) -> pd.DataFrame:
     """
@@ -141,7 +143,16 @@ def aggregate_receiving_stats(pbp: pd.DataFrame) -> pd.DataFrame:
     
     # Count targets (all passes to this receiver, caught or not)
     receiving_plays['target'] = 1
-    
+
+    # Compute team-level total targets per game for target_share calculation
+    team_game_targets = (
+        receiving_plays.groupby(['game_id', 'posteam'], observed=True)['pass_attempt']
+        .transform('sum')
+    )
+    receiving_plays['target_share'] = (
+        receiving_plays['pass_attempt'] / team_game_targets.replace(0, np.nan)
+    )
+
     agg_stats = receiving_plays.groupby([
         'receiver_player_id',
         'receiver_player_name',
@@ -155,13 +166,14 @@ def aggregate_receiving_stats(pbp: pd.DataFrame) -> pd.DataFrame:
         'complete_pass': 'sum',  # Receptions = completed passes
         'pass_touchdown': 'sum',  # Receiving TDs
         'pass_attempt': 'sum',    # Targets
+        'target_share': 'mean',   # Player's share of team targets in this game
         'game_date': 'first'
     }).reset_index()
     
     agg_stats.columns = [
         'player_id', 'player_name', 'game_id', 'season', 'week',
-        'team', 'opponent', 'receiving_yards', 'receptions', 
-        'rec_tds', 'targets', 'game_date'
+        'team', 'opponent', 'receiving_yards', 'receptions',
+        'rec_tds', 'targets', 'target_share', 'game_date'
     ]
     
     # Calculate yards per reception
@@ -228,31 +240,63 @@ def calculate_rolling_averages(
 def add_matchup_features(df: pd.DataFrame, stat_type: str, all_stats: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     """
     Add matchup and situational features to player stats DataFrame.
-    
+
+    - is_home: 1 if the player's team was the home team, determined by joining
+      with the schedule/game data loaded from ``data_files/nfl_games_historical.csv``.
+      Falls back to 0 when a match cannot be found.
+    - days_rest: calendar days between this game and the player's previous game
+      (capped at 21; defaults to 7 for season openers).
+    - opponent_def_rank: rolling opponent defensive rank for the stat category.
+
     Args:
-        df: Player stats DataFrame
+        df: Player stats DataFrame (must include game_id, team, season, week)
         stat_type: 'passing', 'rushing', or 'receiving'
         all_stats: Dict of all stat DataFrames for defense ranking calculation
-    
+
     Returns:
         DataFrame with added matchup features
     """
     df = df.copy()
-    
-    # Add is_home (1 if team is home, 0 if away)
-    # We need game info to determine this. For now, we'll use a simple heuristic
-    # In a real implementation, you'd join with game data
-    df['is_home'] = np.random.choice([0, 1], size=len(df))  # Placeholder - should be calculated from game data
-    
-    # Add opponent defense rank
+
+    # ------------------------------------------------------------------
+    # is_home: load game schedule and join on game_id
+    # ------------------------------------------------------------------
+    historical_path = DATA_DIR / 'nfl_games_historical.csv'
+    if historical_path.exists():
+        try:
+            schedule = pd.read_csv(historical_path, sep='\t',
+                                   usecols=['game_id', 'home_team'],
+                                   low_memory=False)
+            schedule['home_team'] = schedule['home_team'].astype(str)
+            df = df.merge(schedule[['game_id', 'home_team']], on='game_id', how='left')
+            df['is_home'] = (df['team'] == df['home_team']).astype('Int8')
+            df.drop(columns=['home_team'], inplace=True)
+        except Exception:
+            df['is_home'] = 0
+    else:
+        df['is_home'] = 0
+
+    # ------------------------------------------------------------------
+    # days_rest: days since player's previous game date
+    # ------------------------------------------------------------------
+    if 'game_date' in df.columns:
+        df['game_date'] = pd.to_datetime(df['game_date'], errors='coerce')
+        df = df.sort_values(['player_id', 'season', 'week'])
+        df['prev_game_date'] = df.groupby('player_id')['game_date'].shift(1)
+        df['days_rest'] = (df['game_date'] - df['prev_game_date']).dt.days.clip(upper=21)
+        df['days_rest'] = df['days_rest'].fillna(7).astype('float32')
+        df.drop(columns=['prev_game_date'], inplace=True)
+    else:
+        df['days_rest'] = 7.0
+
+    # ------------------------------------------------------------------
+    # opponent_def_rank: rolling defense rank for this stat category
+    # ------------------------------------------------------------------
     df['opponent_def_rank'] = df.apply(
         lambda row: get_opponent_defense_rank_static(row['opponent'], stat_type, all_stats),
         axis=1
     )
-    
-    # Add days rest (simplified - would need proper game scheduling)
-    df['days_rest'] = 7  # Default - in real implementation, calculate from game dates
-    
+
     return df
 
 

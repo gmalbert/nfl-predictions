@@ -216,9 +216,8 @@ def _scan_all_pbp_files_for_latest_season(sample_rows=5000):
 st.title("📊 Historical Data & Filters")
 st.write("Historical play-by-play data and game summaries")
 
-# Link back to predictions page
-if st.button("🏈 Back to Predictions", type="secondary"):
-    st.switch_page("predictions.py")
+# Navigation back to the main app is handled through the Streamlit page menu.
+# Direct root navigation from a page to the main app script is not supported by st.switch_page().
 
 # Do not load the large play-by-play data automatically. Load on demand from the UI.
 if 'historical_data' not in st.session_state or st.session_state.get('historical_data') is None:
