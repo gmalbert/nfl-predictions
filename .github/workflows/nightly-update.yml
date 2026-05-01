@@ -134,6 +134,21 @@ jobs:
             git push
           fi
         continue-on-error: true  # Don't fail if nothing to commit
+
+      - name: Export best bets for Sports Picks Grid
+        if: steps.season_check.outputs.in_season == 'true'
+        run: python scripts/export_best_bets.py
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Commit best_bets_today.json
+        if: steps.season_check.outputs.in_season == 'true' && github.ref == 'refs/heads/main'
+        run: |
+          git add data_files/best_bets_today.json
+          git diff --staged --quiet || git commit -m "chore: update best_bets_today [skip ci]"
+          git push
+        continue-on-error: true
       
       - name: Summary
         if: steps.season_check.outputs.in_season == 'true'
