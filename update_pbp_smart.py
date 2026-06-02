@@ -182,7 +182,7 @@ def is_lfs_pointer(filepath):
         if filepath.stat().st_size < 1000:
             return True
         return False
-    except:
+    except Exception:
         return False
 
 def main():

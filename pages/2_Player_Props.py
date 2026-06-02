@@ -878,7 +878,7 @@ def main():
                 
                 st.dataframe(
                     game_log.rename(columns=rename_map),
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True
                 )
                 

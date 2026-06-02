@@ -417,7 +417,7 @@ def load_accuracy_history() -> pd.DataFrame:
                 # Format as readable datetime: 20260110 -> 2026-01-10, 141431 -> 14:14:31
                 try:
                     formatted_timestamp = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]} {time_str[:2]}:{time_str[2:4]}:{time_str[4:]}"
-                except:
+                except Exception:
                     formatted_timestamp = f"{date_str} {time_str}"
             else:
                 formatted_timestamp = data.get('timestamp', 'Unknown')

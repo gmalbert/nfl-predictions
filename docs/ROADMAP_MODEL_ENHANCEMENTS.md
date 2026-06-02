@@ -501,7 +501,7 @@ fig = px.bar(
 )
 fig.add_hline(y=0.5, line_dash="dash", line_color="red", annotation_text="Break-even")
 fig.update_layout(yaxis_tickformat=".0%")
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width='stretch')
 ```
 
 ---

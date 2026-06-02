@@ -81,7 +81,7 @@ if game_id not in st.session_state.notified_games:
 tab1, tab2 = st.tabs(["Spread Bets", "Moneyline Bets"])
 with tab1:
     if predictions_df is not None:
-        st.dataframe(predictions_df, use_container_width=True)
+        st.dataframe(predictions_df, width='stretch')
 
 # In-app pipeline trigger
 ```python
