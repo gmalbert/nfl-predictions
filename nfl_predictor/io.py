@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import gzip
+import os
 from pathlib import Path
 from typing import Any
 
@@ -35,16 +36,20 @@ def read_table(path: str | Path, *, low_memory: bool = False) -> pd.DataFrame:
 def write_table(frame: pd.DataFrame, path: str | Path) -> None:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
     if destination.suffix == ".parquet":
-        frame.to_parquet(destination, index=False)
+        frame.to_parquet(temporary, index=False)
     else:
-        frame.to_csv(destination, index=False)
+        frame.to_csv(temporary, index=False)
+    os.replace(temporary, destination)
 
 
 def write_json(payload: Any, path: str | Path) -> None:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(payload, indent=2, default=_json_default), encoding="utf-8")
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, default=_json_default), encoding="utf-8")
+    os.replace(temporary, destination)
 
 
 def _json_default(value: Any) -> Any:

@@ -10,9 +10,11 @@ import pandas as pd
 
 from .features import build_pregame_features, feature_columns
 from .io import read_table, write_json, write_table
+from .ingestion import ingest_file
 from .modeling import IsotonicProbabilityCalibrator, ScoreDistributionForecaster
 from .validation import probability_metrics, season_walk_forward_splits
 from .warehouse import initialize
+from .warehouse import connect, foreign_key_violations
 
 
 DEFAULT_GAMES = Path("data_files/nfl_games_historical.csv")
@@ -33,6 +35,24 @@ def build_features(args: argparse.Namespace) -> int:
 def init_database(args: argparse.Namespace) -> int:
     initialize(args.database)
     print(f"initialized v2 warehouse at {args.database}")
+    return 0
+
+
+def ingest(args: argparse.Namespace) -> int:
+    initialize(args.database)
+    with connect(args.database) as connection:
+        run_id, rows = ingest_file(
+            connection,
+            path=args.input,
+            source_name=args.source_name,
+            source_uri=args.source_uri,
+            available_at=args.available_at,
+            kind=args.kind,
+        )
+        violations = foreign_key_violations(connection)
+        if not violations.empty:
+            raise RuntimeError(f"foreign-key violations after ingestion: {violations.to_dict('records')}")
+    print(f"ingested {rows:,} {args.kind} rows in source run {run_id}")
     return 0
 
 
@@ -132,6 +152,15 @@ def parser() -> argparse.ArgumentParser:
     database = commands.add_parser("init-db", help="initialize the normalized SQLite warehouse")
     database.add_argument("--database", type=Path, default=Path("data_files/v2/nfl_v2.sqlite3"))
     database.set_defaults(handler=init_database)
+
+    loader = commands.add_parser("ingest", help="register a local source file and load normalized facts")
+    loader.add_argument("--database", type=Path, default=Path("data_files/v2/nfl_v2.sqlite3"))
+    loader.add_argument("--input", type=Path, required=True)
+    loader.add_argument("--kind", choices=("games", "markets"), required=True)
+    loader.add_argument("--source-name", required=True)
+    loader.add_argument("--source-uri")
+    loader.add_argument("--available-at", required=True, help="UTC timestamp when this file became usable")
+    loader.set_defaults(handler=ingest)
 
     backtest = commands.add_parser("walk-forward", help="run expanding-season score backtest")
     backtest.add_argument("--games", type=Path, default=DEFAULT_GAMES)

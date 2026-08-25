@@ -27,8 +27,12 @@ def connect(path: str | Path) -> sqlite3.Connection:
 
 
 def initialize(path: str | Path) -> None:
-    with connect(path) as connection:
+    connection = connect(path)
+    try:
         connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        connection.commit()
+    finally:
+        connection.close()
 
 
 def append_frame(connection: sqlite3.Connection, table: str, frame: pd.DataFrame) -> int:
