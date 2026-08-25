@@ -16,10 +16,10 @@ The immediate goal is therefore **a trustworthy research-to-publication pipeline
 |---|---|---|
 | V2 contracts, features, market math, modeling, backtesting, warehouse DDL, CLI | **Complete (foundation)** | `nfl_predictor/` and deterministic V2 test modules are present, but uncommitted. |
 | V2 CI workflow | **Complete (foundation)** | `.github/workflows/v2-quality.yml` installs requirements, compiles, and runs V2 tests. |
-| V2 test verification in this review environment | **Partial** | 14 individual tests passed; 4 modules could not import because this bundled interpreter lacks `scikit-learn`. Verify inside the project environment/CI. |
+| V2 test verification in this review environment | **Complete (foundation)** | A pinned V2 environment is declared in `requirements-v2.txt`; all 31 deterministic V2 tests pass in the review environment. |
 | Legacy game prediction and player-prop UI | **Partial** | Product pages and models exist, but legacy evaluation/publishing controls do not meet release gates. |
-| Point-in-time source ingestion and warehouse loading | **Open** | Schema exists; no production adapters/manifests/load jobs were found. |
-| Immutable prediction publishing, decision journal, settlement and CLV record | **Open** | Utilities exist; they are not operating as a production workflow. |
+| Point-in-time source ingestion and warehouse loading | **Partial** | Local game and market CSV loaders now create hashed source-run records and quality events. Availability/player sources and scheduled source acquisition remain open. |
+| Immutable prediction publishing, decision journal, settlement and CLV record | **Partial** | Atomic manifests and database-backed pass/shadow decision writes exist; a scheduled prediction publisher and final-result/closing-quote settlement job remain open. |
 | Streamlit refactor and read-only artifact consumption | **Open** | `predictions.py` remains monolithic and performs operational work. |
 | New data families and frontier models | **Blocked/Open** | Require source, licensing, availability-time reconstruction, and baseline ablation. |
 
@@ -29,29 +29,29 @@ The immediate goal is therefore **a trustworthy research-to-publication pipeline
 
 | Order | Work item | Current status | Deliverable / acceptance criteria |
 |---:|---|---|---|
-| 0.1 | Commit and protect the V2 foundation | Complete (foundation) | Commit `nfl_predictor/`, V2 tests, V2 docs, and the quality workflow in one reviewable change. CI passes on a clean checkout. |
-| 0.2 | Make local verification reproducible | Partial | Provide one documented project-environment command; it installs pinned dependencies and runs all V2 tests. Avoid relying on the desktop bundled interpreter. |
+| 0.1 | Commit and protect the V2 foundation | **Complete** | Committed as `c1a34ee`; CI runs compilation and the deterministic V2 suite. |
+| 0.2 | Make local verification reproducible | **Complete** | `requirements-v2.txt` pins the V2 runtime and the full V2 suite passes locally. |
 | 0.3 | Freeze and label legacy outputs | Open | Preserve current model artifacts with commit/hash metadata; label all legacy picks, ROI, confidence, and bankroll content “research only.” Remove unsupported positive-ROI / leakage-free claims. |
-| 0.4 | Disable unvalidated bet sizing and promotion language | Open | Production UI shows no Kelly recommendation, “elite” tier, or actionable return claim unless it references a passed policy gate. Default is `NO BET / RESEARCH`. |
+| 0.4 | Disable unvalidated bet sizing and promotion language | **Partial** | The main app now has a research-only warning, research labels, and a disabled bankroll tool. Remaining legacy recommendation language requires the P3 product migration. |
 | 0.5 | Fix workflow ownership and failure visibility | Open | One writer promotes generated artifacts; scheduled workflows have concurrency controls, tracked scripts, and fail on missing/stale required inputs. No broad `continue-on-error` for core data. |
 
 ### P1 — Build the point-in-time data spine (weeks 2–5)
 
 | Order | Work item | Current status | Deliverable / acceptance criteria |
 |---:|---|---|---|
-| 1.1 | Source-run manifests | Open | Every schedule, PBP, odds, roster/injury, and participation fetch records URI/version/license, observed/available times, hash, row count, and failure state. |
-| 1.2 | Warehouse loaders and quality checks | Open | Idempotent loaders populate `game`, `team_game`, `market_snapshot`, and `data_quality_event`; `foreign_key_check`, duplicate-key, staleness, and row-count checks run in CI/scheduled jobs. |
+| 1.1 | Source-run manifests | **Partial** | Local game/market CSV ingestion records URI, availability time, content hash, row count, status, and errors. License metadata and remaining sources are open. |
+| 1.2 | Warehouse loaders and quality checks | **Partial** | Game and market loaders, FK validation, duplicate handling, and quality events exist. Team/player/availability loaders and scheduled staleness checks are open. |
 | 1.3 | Timestamped market capture | Open | At least one reproducible legal provider; snapshots at open, declared checkpoints, decision time, and close with book, side, line, price, observed time, and available time. |
-| 1.4 | Immutable artifact publishing | Open | Every run emits a versioned manifest containing source-run IDs/hashes, feature schema hash, code commit, cutoff, model configuration, calibration period, and metrics. Write atomically. |
-| 1.5 | Prediction journal and settlement | Open | Log every prediction/pass/shadow decision before kickoff with its exact quote and model run; settle final/push/void, record closing quote and CLV without overwriting history. |
+| 1.4 | Immutable artifact publishing | **Partial** | Atomic JSON/table writers and a replay manifest are implemented. The scheduled publisher still needs feature-schema and source-hash enrichment. |
+| 1.5 | Prediction journal and settlement | **Partial** | Database-backed shadow/pass decisions require a real prediction and market snapshot. Automated final-result settlement and close capture are open. |
 
 ### P2 — Prove the V2 baseline before adding features (weeks 5–8)
 
 | Order | Work item | Current status | Deliverable / acceptance criteria |
 |---:|---|---|---|
-| 2.1 | Re-run season-forward replay from manifests | Partial | Produce out-of-sample prediction snapshots for every declared horizon. All joined data satisfies `available_at <= cutoff_at`. |
-| 2.2 | Benchmark report | Open | Compare home-rate, Elo, no-vig moneyline, spread/total market, rolling form, PBP-only, and combined V2 models. Report Brier, log loss, AUC, calibration, margin/total error, decision count, CLV, ROI, drawdown, and uncertainty. |
-| 2.3 | Predeclare policy selection | Open | Select thresholds, pricing, staking, and slices using calibration data only; evaluate once on untouched seasons. Pushes and actual vig are first-class. |
+| 2.1 | Re-run season-forward replay from manifests | **Partial** | A 2023–2025, 855-prediction close-benchmark replay now executes and writes an atomic manifest. Earlier decision horizons await timestamped source adapters. |
+| 2.2 | Benchmark report | **Partial** | A predeclared overall/by-season probability report is implemented and generated; market comparisons are marked unavailable until timestamped price inputs exist. Elo/form/PBP ablations remain open. |
+| 2.3 | Predeclare policy selection | **Partial** | Flat-stake shadow decisions and a fail-closed evidence gate are implemented. A policy can only be selected after real calibration and price data are ingested. |
 | 2.4 | Shadow mode | Open | Publish no-stake, immutable, time-stamped predictions through at least two forward seasons. Use flat tracking stakes only. |
 | 2.5 | Promotion gate | Foundation complete; operation open | Promote a market only with 500+ settled decisions (or approved exception), positive mean CLV, reproducible positive post-vig ROI, acceptable drawdown, stable calibration, and no critical data-quality events. |
 

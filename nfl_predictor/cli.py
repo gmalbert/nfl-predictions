@@ -11,6 +11,8 @@ import pandas as pd
 from .features import build_pregame_features, feature_columns
 from .io import read_table, write_json, write_table
 from .ingestion import ingest_file
+from .publication import publish_manifest
+from .research import benchmark_by_season, benchmark_report
 from .modeling import IsotonicProbabilityCalibrator, ScoreDistributionForecaster
 from .validation import probability_metrics, season_walk_forward_splits
 from .warehouse import initialize
@@ -135,7 +137,24 @@ def walk_forward(args: argparse.Namespace) -> int:
         },
         args.metrics_output,
     )
+    if args.manifest_output:
+        publish_manifest(
+            args.manifest_output,
+            artifact_type="walk_forward_predictions",
+            source_run_ids=args.source_run_id,
+            feature_set_version=args.feature_set_version,
+            cutoff_at="close_benchmark",
+            metrics={"prediction_rows": len(predictions), "folds": len(reports)},
+        )
     print(f"wrote {len(predictions):,} out-of-sample predictions")
+    return 0
+
+
+def benchmark(args: argparse.Namespace) -> int:
+    predictions = read_table(args.predictions)
+    report = {"overall": benchmark_report(predictions), "by_season": benchmark_by_season(predictions)}
+    write_json(report, args.output)
+    print(f"wrote predeclared benchmark report to {args.output}")
     return 0
 
 
@@ -177,7 +196,15 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("data_files/v2/walk_forward_metrics.json"),
     )
+    backtest.add_argument("--source-run-id", action="append", default=[])
+    backtest.add_argument("--feature-set-version", default="v2.game_features")
+    backtest.add_argument("--manifest-output", type=Path)
     backtest.set_defaults(handler=walk_forward)
+
+    benchmark_command = commands.add_parser("benchmark", help="report model versus declared market baselines")
+    benchmark_command.add_argument("--predictions", type=Path, required=True)
+    benchmark_command.add_argument("--output", type=Path, default=Path("data_files/v2/benchmark_report.json"))
+    benchmark_command.set_defaults(handler=benchmark)
     return root
 
 

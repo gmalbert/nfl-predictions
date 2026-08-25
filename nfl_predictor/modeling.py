@@ -203,6 +203,10 @@ class ScoreDistributionForecaster:
     def _numeric_frame(self, frame: pd.DataFrame, *, fitting: bool) -> pd.DataFrame:
         if fitting:
             numeric = frame.select_dtypes(include=["number", "bool"]).copy()
+            # Source-gated feature families are often present as entirely null
+            # columns.  HistGradientBoosting cannot bin such a column, and it
+            # carries no predictive information in this fold.
+            numeric = numeric.dropna(axis=1, how="all")
             if numeric.empty:
                 raise ValueError("score model requires numeric features")
             self.feature_names_ = numeric.columns.tolist()

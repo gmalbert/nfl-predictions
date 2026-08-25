@@ -72,9 +72,34 @@ def create_model_run(connection, *, model_name: str, model_version: str, feature
 def publish_predictions(connection, predictions: pd.DataFrame) -> int:
     """Append validated prediction snapshots; historical keys cannot be overwritten."""
 
-    checked = PREDICTION_SNAPSHOT_CONTRACT.validate(predictions)
-    if "prediction_id" not in checked or checked["prediction_id"].isna().any():
-        checked["prediction_id"] = [str(uuid4()) for _ in range(len(checked))]
+    candidate = predictions.copy()
+    if "prediction_id" not in candidate:
+        candidate["prediction_id"] = [str(uuid4()) for _ in range(len(candidate))]
+    elif candidate["prediction_id"].isna().any():
+        candidate.loc[candidate["prediction_id"].isna(), "prediction_id"] = [
+            str(uuid4()) for _ in range(int(candidate["prediction_id"].isna().sum()))
+        ]
+    checked = PREDICTION_SNAPSHOT_CONTRACT.validate(candidate)
     with connection:
         checked.to_sql("prediction_snapshot", connection, if_exists="append", index=False, method="multi")
     return int(len(checked))
+
+
+def record_shadow_decisions(connection, decisions: pd.DataFrame, *, policy_version: str) -> int:
+    """Append passes and flat-stake shadow decisions tied to quoted snapshots."""
+
+    required = {
+        "prediction_id", "market_snapshot_id", "decision", "edge", "expected_profit_per_unit", "stake_fraction",
+    }
+    missing = sorted(required - set(decisions.columns))
+    if missing:
+        raise ValueError(f"shadow decisions missing columns: {missing}")
+    payload = decisions[list(required)].copy()
+    if not payload["decision"].isin(["pass", "shadow"]).all():
+        raise ValueError("shadow journal only accepts pass or shadow decisions")
+    payload["bet_decision_id"] = [str(uuid4()) for _ in range(len(payload))]
+    payload["decided_at"] = utc_now()
+    payload["policy_version"] = policy_version
+    with connection:
+        payload.to_sql("bet_decision", connection, if_exists="append", index=False, method="multi")
+    return int(len(payload))

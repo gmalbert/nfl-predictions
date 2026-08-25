@@ -208,7 +208,7 @@ The checked-in code was exercised against `data_files/nfl_games_historical.csv`,
 - 194 eligible numeric pregame features remained after outcomes and provider identifiers were denied;
 - the compressed historical PBP delimiter was detected correctly;
 - all 12 normalized SQLite tables initialized in memory with zero foreign-key violations;
-- 23 deterministic v2 tests passed;
+- 31 deterministic V2 tests pass in the pinned V2 environment (`requirements-v2.txt`);
 - the 2023-2025 expanding-season replay produced 855 strictly out-of-sample predictions with a separate prior-season calibration fold.
 
 Smoke-test Brier scores (1,000 simulation draws per game) were:

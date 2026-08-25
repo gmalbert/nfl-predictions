@@ -17,8 +17,8 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Install runtime dependencies
-        run: pip install -r requirements.txt
+      - name: Install pinned V2 dependencies
+        run: pip install -r requirements-v2.txt
       - name: Compile Python sources
         run: python -m compileall -q nfl_predictor scripts/nfl_v2.py
       - name: Run deterministic v2 tests

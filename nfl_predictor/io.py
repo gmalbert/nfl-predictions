@@ -36,7 +36,7 @@ def read_table(path: str | Path, *, low_memory: bool = False) -> pd.DataFrame:
 def write_table(frame: pd.DataFrame, path: str | Path) -> None:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary = destination.with_name(destination.stem + ".tmp" + destination.suffix)
     if destination.suffix == ".parquet":
         frame.to_parquet(temporary, index=False)
     else:

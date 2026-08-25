@@ -39,6 +39,15 @@ class ModelingTests(unittest.TestCase):
         self.assertTrue(((simulation.home_win_probability >= 0) & (simulation.home_win_probability <= 1)).all())
         self.assertEqual(len(simulation.expected_margin), 3)
 
+    def test_score_model_drops_all_missing_source_gated_features(self):
+        rng = np.random.default_rng(7)
+        rows = 120
+        features = pd.DataFrame({"signal": rng.normal(size=rows), "unavailable_source": np.nan})
+        model = ScoreDistributionForecaster(max_iter=20).fit(
+            features, 3 * features["signal"] + rng.normal(size=rows), 44 + rng.normal(size=rows)
+        )
+        self.assertNotIn("unavailable_source", model.feature_names_)
+
 
 if __name__ == "__main__":
     unittest.main()
