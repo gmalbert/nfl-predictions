@@ -1,5 +1,7 @@
 # NFL Predictions — Model Suggested Enhancements
 
+> **Implementation review — 2026-08-24.** Basic market implied/no-vig probabilities, continuous weather, rest/context, underdog targets, and calibration/CLV primitives exist in V2. DVOA, ESPN-QBR, PFF OL grades, opponent-CB matchup features, red-zone receiving features, weekly UI calibration, and reliable closing-line ingestion remain unimplemented. The legacy 28%/50% thresholds should not be treated as validated betting policies.
+
 ## Priority 1: Spread Model (Current Threshold: 50%)
 
 ### DVOA Integration

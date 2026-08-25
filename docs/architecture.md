@@ -1,5 +1,7 @@
 # NFL Predictions — Architecture
 
+> **Implementation review — 2026-08-24.** This describes the legacy architecture and is incomplete as a current-state document. A separate V2 package now provides contracts, feature engineering, markets, validation, modeling, backtesting, SQLite storage, and a CLI, but has not replaced this two-step CSV pipeline or the monolithic `predictions.py` UI. The stated “all features are pre-game only” claim is not supported for the legacy path because its evaluation remains randomly split and lacks availability timestamps. This document should be superseded by the migration priorities after V2 is integrated.
+
 ## Overview
 Multi-page Streamlit app for NFL betting predictions using XGBoost models. Predicts outcomes for spread, moneyline, over/under markets, and player props. All data and models are pre-computed locally.
 
