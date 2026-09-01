@@ -741,9 +741,22 @@ print("Top 5 Important Features for Totals Prediction:")
 for idx in sorted_idx_totals[:5]:
     print(f"{best_features_totals[idx]}: {feature_importance_totals[idx]:.4f}")
     
-# Assign predictions to the correct rows in the DataFrame
-historical_game_level_data['predictedSpreadCovered'] = np.nan
-historical_game_level_data['predictedOverHit'] = np.nan
+# The feature-engineering stage adds many columns individually.  Consolidate
+# them before appending result columns so pandas does not repeatedly split the
+# DataFrame into small internal blocks.
+historical_game_level_data = historical_game_level_data.copy()
+
+# Assign predictions to the correct rows in the DataFrame.
+prediction_results = pd.DataFrame(
+    {
+        'predictedSpreadCovered': np.nan,
+        'predictedOverHit': np.nan,
+    },
+    index=historical_game_level_data.index,
+)
+historical_game_level_data = pd.concat(
+    [historical_game_level_data, prediction_results], axis=1
+)
 historical_game_level_data.loc[X_test_spread.index, 'predictedSpreadCovered'] = y_spread_pred
 historical_game_level_data.loc[X_test_tot.index, 'predictedOverHit'] = y_totals_pred
 
