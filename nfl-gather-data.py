@@ -457,6 +457,10 @@ for threshold in thresholds:
 best_totals_threshold = thresholds[np.argmax(f1_scores_totals)]
 optimal_totals_threshold = best_totals_threshold
 
+# Feature engineering above adds many columns one at a time. Consolidate once
+# before adding prediction, EV, and simulation outputs below.
+historical_game_level_data = historical_game_level_data.copy()
+
 # Predict probabilities for all data
 historical_game_level_data['prob_underdogCovered'] = _blend_proba(model_spread, lgbm_spread, X_spread)
 historical_game_level_data['prob_underdogWon'] = _blend_proba(model_moneyline, lgbm_moneyline, X_moneyline)
@@ -741,12 +745,7 @@ print("Top 5 Important Features for Totals Prediction:")
 for idx in sorted_idx_totals[:5]:
     print(f"{best_features_totals[idx]}: {feature_importance_totals[idx]:.4f}")
     
-# The feature-engineering stage adds many columns individually.  Consolidate
-# them before appending result columns so pandas does not repeatedly split the
-# DataFrame into small internal blocks.
-historical_game_level_data = historical_game_level_data.copy()
-
-# Assign predictions to the correct rows in the DataFrame.
+# Append the test-set prediction outputs together.
 prediction_results = pd.DataFrame(
     {
         'predictedSpreadCovered': np.nan,
