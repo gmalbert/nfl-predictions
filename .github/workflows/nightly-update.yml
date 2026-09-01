@@ -76,13 +76,6 @@ jobs:
           restore-keys: |
             pbp-historical-2020-2024-
       
-      - name: Fetch latest ESPN scores and odds
-        if: steps.season_check.outputs.in_season == 'true'
-        run: |
-          echo "Fetching ESPN weekly scores..."
-          python fetch_espn_weekly_scores.py
-        continue-on-error: true  # Don't fail if ESPN API is temporarily down
-      
       - name: Update play-by-play data
         if: steps.season_check.outputs.in_season == 'true'
         run: |

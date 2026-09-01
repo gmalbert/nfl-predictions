@@ -197,8 +197,16 @@ historical_game_level_data['isExtremeWeather'] = np.where(
     (historical_game_level_data['temp'] <= 25) | (historical_game_level_data['wind'] >= 20), 1, 0
 )
 
-historical_game_level_data.fillna(0, inplace=True)
-historical_game_level_data.replace([np.inf, -np.inf], 0, inplace=True)
+# Pandas 3 uses strict Arrow-backed string columns.  Filling the entire
+# dataframe with the numeric sentinel ``0`` therefore fails for missing text
+# values (for example, a missing quarterback name).  Only model features need
+# numeric imputation, so leave text columns unchanged.
+numeric_columns = historical_game_level_data.select_dtypes(include=[np.number]).columns
+historical_game_level_data[numeric_columns] = (
+    historical_game_level_data[numeric_columns]
+    .replace([np.inf, -np.inf], 0)
+    .fillna(0)
+)
 # Load best feature subsets from disk
 def load_best_features(filename, all_features):
     try:
