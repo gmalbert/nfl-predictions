@@ -75,13 +75,12 @@ historical_game_level_data['isCloseSpread'] = np.where(historical_game_level_dat
 historical_game_level_data['isMediumSpread'] = np.where((historical_game_level_data['spreadSize'] > 3) & (historical_game_level_data['spreadSize'] <= 7), 1, 0)
 historical_game_level_data['isLargeSpread'] = np.where(historical_game_level_data['spreadSize'] > 7, 1, 0)
 def calc_rolling_stat(df, team_col, stat_col):
-    # For each row, calculate stat for team using only games prior to that row's week/season
+    # Kickoff ordering remains correct when postseason week numbers restart at 1.
     stats = []
+    game_dates = pd.to_datetime(df['gameday'], errors='coerce')
     for idx, row in df.iterrows():
         team = row[team_col]
-        week = row['week']
-        season = row['season']
-        prior_games = df[(df[team_col] == team) & ((df['season'] < season) | ((df['season'] == season) & (df['week'] < week)))]
+        prior_games = df[(df[team_col] == team) & (game_dates < game_dates.loc[idx])]
         if len(prior_games) == 0:
             stats.append(0)
         else:
@@ -90,22 +89,20 @@ def calc_rolling_stat(df, team_col, stat_col):
 
 def calc_rolling_count(df, team_col):
     counts = []
+    game_dates = pd.to_datetime(df['gameday'], errors='coerce')
     for idx, row in df.iterrows():
         team = row[team_col]
-        week = row['week']
-        season = row['season']
-        prior_games = df[(df[team_col] == team) & ((df['season'] < season) | ((df['season'] == season) & (df['week'] < week)))]
+        prior_games = df[(df[team_col] == team) & (game_dates < game_dates.loc[idx])]
         counts.append(len(prior_games))
     return counts
 
 def calc_momentum_stat(df, team_col, stat_col, num_games=3):
     """Calculate stat over last N games for momentum tracking"""
     stats = []
+    game_dates = pd.to_datetime(df['gameday'], errors='coerce')
     for idx, row in df.iterrows():
         team = row[team_col]
-        week = row['week']
-        season = row['season']
-        prior_games = df[(df[team_col] == team) & ((df['season'] < season) | ((df['season'] == season) & (df['week'] < week)))]
+        prior_games = df[(df[team_col] == team) & (game_dates < game_dates.loc[idx])].sort_values('gameday')
         if len(prior_games) == 0:
             stats.append(0)
         else:
@@ -117,16 +114,15 @@ def calc_momentum_stat(df, team_col, stat_col, num_games=3):
 def calc_point_diff_trend(df, team_col, num_games=3):
     """Calculate if point differential is improving or declining"""
     trends = []
+    game_dates = pd.to_datetime(df['gameday'], errors='coerce')
     for idx, row in df.iterrows():
         team = row[team_col]
-        week = row['week']
-        season = row['season']
         
         # Get games for this team (home or away)
         prior_games = df[
-            ((df['home_team'] == team) | (df['away_team'] == team)) & 
-            ((df['season'] < season) | ((df['season'] == season) & (df['week'] < week)))
-        ].copy()
+            ((df['home_team'] == team) | (df['away_team'] == team)) &
+            (game_dates < game_dates.loc[idx])
+        ].sort_values('gameday').copy()
         
         if len(prior_games) < num_games:
             trends.append(0)
@@ -163,16 +159,16 @@ historical_game_level_data['homeTeamAvgPointSpread'] = calc_rolling_stat(histori
 historical_game_level_data['awayTeamAvgPointSpread'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'spread_line')
 historical_game_level_data['homeTeamAvgTotal'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'total')
 historical_game_level_data['awayTeamAvgTotal'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'total')
-historical_game_level_data['homeTeamFavoredPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['homeFavored'].mean())
-historical_game_level_data['awayTeamFavoredPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['awayFavored'].mean())
-historical_game_level_data['homeTeamSpreadCoveredPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['spreadCovered'].mean())
-historical_game_level_data['awayTeamSpreadCoveredPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['spreadCovered'].mean())
-historical_game_level_data['homeTeamOverHitPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['overHit'].mean())
-historical_game_level_data['awayTeamOverHitPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['overHit'].mean())
-historical_game_level_data['homeTeamUnderHitPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['underHit'].mean())
-historical_game_level_data['awayTeamUnderHitPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['underHit'].mean())
-historical_game_level_data['homeTeamTotalHitPct'] = historical_game_level_data['home_team'].map(historical_game_level_data.groupby('home_team')['totalHit'].mean())
-historical_game_level_data['awayTeamTotalHitPct'] = historical_game_level_data['away_team'].map(historical_game_level_data.groupby('away_team')['totalHit'].mean())
+historical_game_level_data['homeTeamFavoredPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'homeFavored')
+historical_game_level_data['awayTeamFavoredPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'awayFavored')
+historical_game_level_data['homeTeamSpreadCoveredPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'spreadCovered')
+historical_game_level_data['awayTeamSpreadCoveredPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'spreadCovered')
+historical_game_level_data['homeTeamOverHitPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'overHit')
+historical_game_level_data['awayTeamOverHitPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'overHit')
+historical_game_level_data['homeTeamUnderHitPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'underHit')
+historical_game_level_data['awayTeamUnderHitPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'underHit')
+historical_game_level_data['homeTeamTotalHitPct'] = calc_rolling_stat(historical_game_level_data, 'home_team', 'totalHit')
+historical_game_level_data['awayTeamTotalHitPct'] = calc_rolling_stat(historical_game_level_data, 'away_team', 'totalHit')
 
 # Add momentum features - last 3 games performance
 print("Calculating momentum features (last 3 games)...")
@@ -196,13 +192,21 @@ historical_game_level_data['awayTeamShortRest'] = np.where(historical_game_level
 # Add weather impact features (already have temp and wind from data)
 print("Adding weather impact features...")
 historical_game_level_data['isColdWeather'] = np.where(historical_game_level_data['temp'] <= 32, 1, 0)
-historical_game_level_data['isWindy'] = np.where(historical_game_level_data['temp'] >= 15, 1, 0)
+historical_game_level_data['isWindy'] = np.where(historical_game_level_data['wind'] >= 15, 1, 0)
 historical_game_level_data['isExtremeWeather'] = np.where(
     (historical_game_level_data['temp'] <= 25) | (historical_game_level_data['wind'] >= 20), 1, 0
 )
 
-historical_game_level_data.fillna(0, inplace=True)
-historical_game_level_data.replace([np.inf, -np.inf], 0, inplace=True)
+# Pandas 3 uses strict Arrow-backed string columns.  Filling the entire
+# dataframe with the numeric sentinel ``0`` therefore fails for missing text
+# values (for example, a missing quarterback name).  Only model features need
+# numeric imputation, so leave text columns unchanged.
+numeric_columns = historical_game_level_data.select_dtypes(include=[np.number]).columns
+historical_game_level_data[numeric_columns] = (
+    historical_game_level_data[numeric_columns]
+    .replace([np.inf, -np.inf], 0)
+    .fillna(0)
+)
 # Load best feature subsets from disk
 def load_best_features(filename, all_features):
     try:

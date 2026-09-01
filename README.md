@@ -4,9 +4,11 @@
   <img src="data_files/gridiron-oracle-transparent.png" alt="NFL Predictions Logo" width="300" />
 </p>
 
-[📍 View the Product Roadmap](./ROADMAP.md)
+[📍 View the Product Roadmap](docs/ROADMAP.md)
 
-A sophisticated NFL analytics platform that uses advanced machine learning to identify profitable betting opportunities. This system analyzes historical NFL data with **50+ enhanced features** across multiple time scales to predict game outcomes and provides actionable betting insights with proven **60.9% ROI** performance on data-leakage-free models.
+An NFL analytics research platform with game-market forecasts, player props, historical play-by-play exploration, performance tracking, exports, email, and RSS workflows.
+
+> **Research status:** Legacy performance claims in older release notes are not verified out of sample. The saved spread decision-policy audit is 28-26 from 54 bets (51.85%) with -1.01% theoretical ROI at -110. The legacy pipeline contains temporal leakage and test-set tuning, so it must not be described as proven or leakage-free. Use the new [comprehensive review](docs/COMPREHENSIVE_REPOSITORY_REVIEW_2026.md), [research benchmark](docs/PREDICTIVE_BETTING_RESEARCH_AND_GITHUB_BENCHMARKS.md), and [v2 implementation guide](docs/V2_IMPLEMENTATION_AND_MIGRATION_GUIDE.md) for the trustworthy migration path.
 
 **Now featuring a multi-page Streamlit app** with dedicated Historical Data page for advanced filtering and analysis of 196k+ play-by-play records.
 
@@ -29,9 +31,9 @@ Notes for developers:
 
 - [🎯 Key Features](#-key-features)
   - [📊 Interactive Dashboard](#-interactive-dashboard)
-  - [💰 Proven Betting Strategy](#-proven-betting-strategy)
+  - [💰 Betting Research Workflow](#-betting-research-workflow)
   - [🤖 Advanced Machine Learning](#-advanced-machine-learning)
-- [📈 Model Performance](#-model-performance-data-leakage-free)
+- [📈 Model Performance](#-model-performance-research-baseline)
 - [📊 Data Sources](#-data-sources)
   - [Primary Data: NFLverse](#primary-data-nflverse)
   - [Betting Lines: ESPN](#betting-lines-espn)
@@ -54,7 +56,7 @@ Notes for developers:
 
 ### 📊 **Interactive Dashboard**
 - **🔥 Next 10 Underdog Bets**: Actionable moneyline betting opportunities with complete payout calculations
-- **🎯 Next 10 Spread Bets**: NEW high-performance spread betting section with 91.9% historical win rate
+- **🎯 Spread Research View**: Candidate spread decisions with model probability and price context
 - **Confidence Tiers**: Visual indicators (🔥 Elite, ⭐ Strong, 📈 Good) for bet prioritization
 - **Live Game Predictions**: Real-time probability calculations for upcoming NFL games
 - **Enhanced Betting Signals**: Dual-strategy recommendations with proper spread/moneyline logic
@@ -63,40 +65,35 @@ Notes for developers:
 - **Monte Carlo Feature Selection**: Interactive experimentation with feature combinations for model optimization
 - **Enhanced Reliability**: Robust error handling and graceful fallbacks for uninterrupted analysis
 
-### 💰 **Proven Betting Strategy**
-- **Triple Strategy Success**: Moneyline (65.4% ROI) + Spread (75.5% ROI) + Over/Under betting
-- **Elite Spread Performance**: 91.9% win rate on high-confidence spread bets (≥54% threshold)
-- **Moneyline Strategy**: 59.5% win rate on underdog picks with 28% F1-optimized threshold
-- **Over/Under Model**: NEW totals betting with F1-optimized thresholds and value edge calculations
-- **Professional-Grade Validation**: Data leakage eliminated, realistic performance metrics
-- **Selective Betting**: High-confidence filtering for maximum profitability
+### 💰 **Betting Research Workflow**
+- **Price-aware evaluation**: Moneyline, spread, and total decisions require the quoted line and price
+- **Season-forward validation**: The v2 path separates training, calibration, and untouched test seasons
+- **Correct settlement**: Moneyline, spread, and total pushes are explicit
+- **Market baselines**: De-vigged probabilities, Elo, spread, and total lines are declared benchmarks
+- **Risk controls**: Flat shadow stakes are the default until sample-size, CLV, ROI, and calibration gates pass
+- **Immutable journal design**: Predictions, decisions, quotes, and settlement are separate records
 
 ### 🤖 **Advanced Machine Learning**
 - **Three Specialized Models**: Separate XGBoost models for spread, moneyline, and over/under predictions
-- **F1-Score Optimization**: All models use F1-score maximization to find optimal betting thresholds
+- **Legacy threshold optimization**: Existing models use F1/EV thresholds; the v2 path tunes only on held-out calibration data
 - **Optimized XGBoost + LightGBM Ensemble** for both game-level and player prop models
 - **Enhanced Monte Carlo Feature Selection** testing 200 iterations with 15-feature subsets
 - **Player usage trend features** added to prop models including `target_share` and rolling usage metrics
-- **Data Leakage Prevention**: Strict temporal boundaries ensuring only pre-game information
+- **Point-in-time v2 features**: Shifted rolling windows and availability-time contracts prevent future outcomes from entering features
 - **Class Balancing** with computed scale weights for imbalanced datasets
-- **Multi-Target Prediction**: Spread (56.3%), moneyline (64.2%), totals (56.2%) accuracy
+- **Coherent v2 targets**: Home margin and total distributions generate consistent moneyline, spread, and total probabilities
 
 [⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
-## 📈 **Model Performance** (Data Leakage Free)
+## 📈 **Model Performance** (Research Baseline)
 
-| Prediction Type | Cross-Val Accuracy | Betting Performance | ROI | Key Insight |
-|----------------|-------------------|---------------------|-----|-------------|
-| **Spread** | 58.9% | **91.9% win rate** (≥54% threshold) | **75.5%** | Elite performance through selective betting |
-| **Moneyline** | 64.2% | 59.5% win rate (≥28% threshold) | **65.4%** | Strong underdog value identification |
-| **Over/Under** | 56.2% | F1-optimized thresholds | TBD | NEW - Totals betting with value edge analysis |
+| Prediction Type | Saved accuracy | Verified betting result | Current interpretation |
+|----------------|---------------:|------------------------:|------------------------|
+| **Spread** | 52.80% | 28-26, -1.01% theoretical ROI | Below -110 break-even; no-bet research baseline |
+| **Moneyline** | 66.37% | Not established | Accuracy lacks selected-price and CLV context |
+| **Over/Under** | 52.21% | Not established | Below typical -110 break-even |
 
-### **Major Performance Breakthrough (November 2025)**
-- **Spread Model Fixed**: Corrected inverted predictions from 3.6% to 91.9% win rate
-- **Dual Strategy Success**: Both spread and moneyline betting now highly profitable
-- **Data Leakage Free**: Strict temporal boundaries ensure production reliability
-- **Survivorship Bias Awareness**: 91.9% rate is on selective 33% of games, not overall performance
-- **Confidence Calibration**: Model knows when it's likely to be right vs wrong
+The metrics above come from `data_files/model_metrics.json`. They are not a final model card because the legacy split and threshold workflow is not season-forward. Reproduce performance with `python scripts/nfl_v2.py walk-forward` before making any profitability claim.
 
 ## 📊 **Data Sources**
 
@@ -251,7 +248,7 @@ The primary predictions interface with tab-based navigation for betting analysis
 #### **📈 Tab: Spread Bets** ⭐ *ELITE PERFORMANCE*
 - **Next 15 Spread Betting Opportunities**: High-confidence spread recommendations
 - **Confidence Tiers**: 🔥 Elite (75%+), ⭐ Strong (65-74%), 📈 Good (54-64%)
-- **Historical Performance**: 91.9% win rate on high-confidence bets, 75.5% ROI
+- **Historical Performance UI**: Displays the legacy audit artifacts; these figures are not promotion evidence and must be interpreted using the research-status warning above
 - **Smart Sorting**: Ordered by confidence level for optimal bet selection
 - **Spread Explanation**: Team can lose game but still "cover" (e.g., lose by less than spread)
 
@@ -307,9 +304,9 @@ Game: Chiefs @ Raiders
 Model Probability (Underdog Win): 30%
 Sportsbook Implied Probability: 22%
 Betting Signal: 1 (BET ON RAIDERS)
-Threshold: ≥28% (F1-optimized, leak-free)
+Threshold: example only; tune inside each historical training fold
 Expected Value: Positive due to 8% edge
-ROI Expectation: 60.9% based on historical performance
+ROI Expectation: unknown until a price-aware, out-of-sample backtest passes promotion gates
 ```
 
 ## 🔬 **Technical Features**
@@ -320,7 +317,7 @@ ROI Expectation: 60.9% based on historical performance
   - L1/L2 regularization (`reg_alpha=0.1`, `reg_lambda=1.0`)
   - Subsampling (`subsample=0.8`, `colsample_bytree=0.8`)
 - **Calibrated Probability Outputs** using sigmoid/isotonic scaling
-- **Enhanced Feature Engineering**: 50+ leak-free temporal features
+- **Enhanced Feature Engineering**: 50+ point-in-time features in the v2 pipeline; legacy columns remain under audit
 - **Time-Series Aware Cross-Validation** preventing future data leakage
 
 ### **🆕 Enhanced Predictive Features (Latest Update)**
@@ -339,18 +336,18 @@ ROI Expectation: 60.9% based on historical performance
 - **Historical Matchup Performance**: How teams have performed against each other over time
 
 #### **Technical Implementation**
-- **Temporal Integrity**: All features maintain strict data leakage prevention
+- **Temporal Integrity**: V2 features shift before rolling; legacy seasonal and head-to-head features remain subject to the review findings
 - **Multi-Scale Analysis**: Current season trends + historical season records + specific matchup history
 - **Automated Integration**: Features automatically included in Monte Carlo feature selection
 
 ### **Data Pipeline**
 - **Automated Feature Creation**: Rolling averages, win percentages, trends with strict temporal controls
-- **Data Leakage Prevention**: All statistics use only prior games (`season < current` OR `week < current`)
+- **Data Leakage Prevention**: V2 uses prior kickoff time and explicit cutoffs; known legacy rate features were corrected, but the legacy evaluator is still not promotion-safe
 - **Enhanced Validation**: Real-time feature availability and XGBoost compatibility checks
 - **Quality Assurance**: Removes games with missing betting lines, validates data integrity
-- **Threshold Optimization**: F1-score maximization finds optimal decision boundary (28%)
+- **Threshold Optimization**: The legacy 28% threshold was selected on test data and is not reusable; v2 policies must be selected on calibration folds
 - **Robust Error Handling**: Graceful fallbacks for missing data and feature inconsistencies
-- **Production Ready**: No future information leakage, realistic performance expectations
+- **Research Ready**: Point-in-time contracts and season-forward tests exist in v2; production promotion still requires the documented gates
 
 [⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
@@ -363,31 +360,32 @@ ROI Expectation: 60.9% based on historical performance
   - **Monte Carlo Parameters**: 100 estimators, 0.1 learning rate for feature selection
 - **Model Calibration**: CalibratedClassifierCV with sigmoid method for accurate probabilities
 - **Feature Selection**: Monte Carlo optimization (200 iterations, 15-feature subsets)
-- **Cross-Validation**: Time-series aware splits preventing data leakage
+- **Cross-Validation**: Season-forward train/calibration/test folds in v2; the legacy script still contains shuffled splits
 - **Class Handling**: Weighted models addressing favorite/underdog imbalance (~70/30 split)
 
 ### **Data Engineering**
 - **Primary Source**: NFLverse (nfl_data_py) - official NFL play-by-play data
 - **Betting Data**: ESPN odds and lines (2020-2024 seasons)  
 - **Feature Types**: Rolling statistics, head-to-head records, seasonal performance
-- **Data Integrity**: Strict temporal boundaries prevent future data leakage
-- **Data Quality**: ~4,000+ games with complete betting line information
+- **Data Integrity**: Explicit v2 temporal boundaries and leakage denylist; legacy fields remain under audit
+- **Data Quality**: 1,693 schedule/game rows were exercised by the v2 feature smoke test
 - **Storage**: Git LFS integration for large datasets (>50MB)
 
 ### **Betting Strategy Architecture**
-- **Threshold Optimization**: F1-score maximization finds 28% probability threshold (not 50%)
-- **Selective Betting**: ~72% of games generate betting signals (selective strategy)
+- **Threshold Optimization**: The legacy 28% threshold is retained only as historical context, not a promoted rule
+- **Selective Betting**: Candidate frequency is policy-dependent and must be reported out of sample
 - **Edge Calculation**: `model_prob - implied_odds_prob` for value identification
-- **ROI Focus**: Optimizes for profit margin, not raw accuracy percentage
+- **Economic Evaluation**: V2 evaluates quoted-price EV, CLV, ROI, drawdown, and sample size after probability scoring
 
 [⬆️ Back to Top](#-nfl-betting-analytics--predictions-dashboard)
 
 ## 📁 Recent Updates
 
 ### **🔧 Dec 13, 2025 — Critical Model Fix & New Features**
+> Historical release note: the performance figures below were not produced by the v2 season-forward evaluator and must not be treated as verified betting evidence.
 - **Critical Model Fix:** Resolved inverted spread predictions caused by a mislabeled target in the training pipeline; applied the correction `prob_underdogCovered = 1 - prob_underdogCovered` immediately after model prediction in the data pipeline.
-- **Impact:** Model betting ROI improved dramatically (from -90% → **+60%**), 62 of 63 remaining games flagged as profitable, maximum model confidence increased to **89.5%**, and calibration error improved from **45% → 28%**.
-- **New Features (18 total):** Added momentum (8), rest-advantage (5), and weather-impact (3) features. All features were engineered to avoid data leakage — see `NEW_FEATURES_DEC13.md` for details.
+- **Legacy reported impact (unverified):** The release reported -90% to +60% ROI, 62 of 63 games flagged, 89.5% maximum confidence, and 45% to 28% calibration error; the comprehensive review explains why those figures are not valid promotion evidence.
+- **New Features (18 total):** Added momentum (8), rest-advantage (5), and weather-impact (3) features. V2 now supplies the enforceable prior-only implementation and tests.
 - **UI & Workflow Improvements:** Added an EV explanation expander, changed spread-bet sorting to date-ascending, fixed unicode/icon issues, and improved PDF/CSV export UX.
 - **Documentation:** Full technical analysis and remediation plan available in `MODEL_FIX_PLAN.md`. The copilot instructions and README have been updated to reflect the fix and next steps.
 - **Next Steps:** Optional hyperparameter tuning and ensemble approaches are documented for incremental gains; momentum features will strengthen as the 2025 season progresses.
@@ -514,12 +512,13 @@ ROI Expectation: 60.9% based on historical performance
 - **Improved Error Handling**: Better validation for column existence before accessing dataframe columns
 - **Type Safety**: Enhanced Pylance compatibility with proper variable extraction patterns
 
-### **🔥 CRITICAL: Data Leakage Elimination (October 2025)**
+### **Critical: Data Leakage Remediation (October 2025-August 2026)**
 - **Issue Discovered**: Historical statistics were using ALL-TIME data (including future games during training)
 - **Impact**: Models appeared to have 70%+ accuracy but would fail in production
-- **Solution**: Implemented strict temporal boundaries - only prior games used for all statistics
-- **Result**: More realistic 56-64% accuracy BUT **60.9% ROI** (up from 27.8%) due to higher quality signals
-- **Production Ready**: Models now perform consistently with live data
+- **Legacy remediation**: Converted known full-history rate features to prior-only calculations and corrected the wind flag
+- **V2 solution**: Added immutable cutoffs, shifted rolling features, season-forward train/calibration/test folds, correct pushes, quoted-price EV, and bankroll-aware settlement
+- **Current evidence**: The saved spread audit is negative after standard -110 pricing; no profitability claim is accepted without fresh out-of-sample evidence
+- **Promotion status**: Research-only until the gates in `docs/V2_IMPLEMENTATION_AND_MIGRATION_GUIDE.md` pass
 
 ### **⚡ Optimal XGBoost Parameters Implementation (October 2025)**
 - **Upgraded**: From basic `eval_metric='logloss'` to production-tuned hyperparameters
@@ -544,8 +543,7 @@ ROI Expectation: 60.9% based on historical performance
 
 ### **✅ Fixed Threshold Documentation (October 2025)**
 - **Discovered**: Dashboard was showing inconsistent threshold information
-- **Fixed**: Updated to reflect actual F1-optimized threshold (now 28% after leakage fixes)
-- **Impact**: Users now see accurate betting strategy information
+- **Legacy update**: Documentation was changed to 28%, but the threshold was selected on test data and is now explicitly research-only
 
 ### **✅ Streamlit Compatibility Updates (October 2025)**
 - **Fixed**: Deprecated `use_container_width` and `width='stretch'` parameters
@@ -568,7 +566,7 @@ ROI Expectation: 60.9% based on historical performance
 - **Current Season Performance**: Added real-time team form tracking within current season
 - **Prior Season Records**: Incorporated previous season's final win percentages for baseline metrics
 - **Head-to-Head History**: Added historical matchup performance between specific teams
-- **Technical Benefits**: Multi-scale temporal analysis with strict data leakage prevention
+- **Technical Benefits**: Multi-scale temporal analysis; use the v2 shifted windows for enforceable point-in-time behavior
 - **Model Impact**: Richer context for predictions across multiple time horizons
 
 ### **🔧 System Reliability & Error Resolution (October 2025)**

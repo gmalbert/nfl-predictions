@@ -1,0 +1,25 @@
+name: V2 quality checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install pinned V2 dependencies
+        run: pip install -r requirements-v2.txt
+      - name: Compile Python sources
+        run: python -m compileall -q nfl_predictor scripts/nfl_v2.py
+      - name: Run deterministic v2 tests
+        run: python -m unittest discover -s tests -p 'test_v2_*.py' -v

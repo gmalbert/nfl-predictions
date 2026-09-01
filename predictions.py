@@ -127,6 +127,12 @@ except Exception:
 
 DATA_DIR = 'data_files/'
 
+st.warning(
+    "Research-only predictions: legacy probabilities, confidence tiers, and historical returns "
+    "are not promotion evidence. No bankroll sizing or live-bet recommendation is enabled "
+    "until the V2 shadow period passes its documented calibration, CLV, ROI, and sample-size gates."
+)
+
 # Define features list before loading best features - matches nfl-gather-data.py
 features = [
     # Pregame features only (removed 'total' as it's actual game total, causing data leakage)
@@ -712,15 +718,11 @@ def add_spread_confidence_tiers(df):
         (df['prob_underdogCovered'] >= 0.50) & (df['prob_underdogCovered'] < 0.52),
     ]
     
-    choices = ['🔥 Elite', '⭐ Strong', '📈 Good', '⚖️ Lean']
+    choices = ['Research A', 'Research B', 'Research C', 'Research D']
     
     df['spread_confidence_tier'] = np.select(conditions, choices, default='')
     
-    # Add recommended bet sizing
-    # Elite: 3-5% of bankroll
-    # Strong: 2-3% of bankroll
-    # Good: 1-2% of bankroll
-    # Lean: 0.5-1% of bankroll
+    # No bankroll sizing is allowed while V2 is in shadow mode.
     
     unit_conditions = [
         df['prob_underdogCovered'] >= 0.60,
@@ -729,7 +731,7 @@ def add_spread_confidence_tiers(df):
         (df['prob_underdogCovered'] >= 0.50) & (df['prob_underdogCovered'] < 0.52),
     ]
     
-    unit_choices = ['3-5%', '2-3%', '1-2%', '0.5-1%']
+    unit_choices = ['Shadow only', 'Shadow only', 'Shadow only', 'Shadow only']
     
     df['recommended_bet_size'] = np.select(unit_conditions, unit_choices, default='')
     
@@ -3071,7 +3073,7 @@ def home_page():
         "🎯 Over/Under Bets",
         "📋 Betting Log",
         "📈 Model Performance",
-        "💰 Bankroll Management"
+        "🛡️ Research Safety"
     ])
 
     with pred_tab1:
@@ -4116,8 +4118,12 @@ def home_page():
             st.warning("Betting log file not found. Performance dashboard will be available once betting recommendations are generated.")
 
     with pred_tab9:
-        st.write("### 💰 Bankroll Management Tool")
-        st.write("*Smart position sizing for elite bets to optimize risk and reward*")
+        st.write("### 🛡️ Research Safety")
+        st.warning(
+            "Bankroll sizing is disabled. The legacy model has not met the V2 promotion gate. "
+            "Record only flat-stake shadow decisions with an immutable quote and prediction snapshot."
+        )
+        st.stop()
 
         # Bankroll input
         col1, col2 = st.columns([2, 1])

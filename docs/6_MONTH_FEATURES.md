@@ -1,5 +1,7 @@
 # NFL Predictions — 6-Month Feature Roadmap
 
+> **Implementation review — 2026-08-24.** Completed/partially completed legacy product items: main slate predictions, player-props page, parlay builder, historical/model-performance pages, email/RSS scripts, and scheduled GitHub workflows. V2 adds weather/rest/context and PBP-derived team features but does not yet expose them in the app. Injury report integration with timestamped evidence, CLV charting, correlated same-game parlay math, validated Kelly sizing, and an atomic, observable nightly pipeline remain open.
+
 ## Month 1: Week-Opening Experience (Tuesday)
 
 - **This Week's slate** — All games with model spread, moneyline, and O/U picks with confidence tiers.
