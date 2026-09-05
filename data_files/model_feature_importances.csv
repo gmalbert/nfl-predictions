@@ -15,10 +15,10 @@ homeTeamSpreadCoveredPct,0.109965466,moneyline
 homeTeamOverHitPct,0.10705745,moneyline
 homeTeamBlowoutPct,0.103928044,moneyline
 homeTeamAvgTotal,0.10391273,moneyline
-total_line,0.20326191,totals
-homeTeamOverHitPct,0.14030714,totals
-awayTeamAvgTotal,0.13776405,totals
-homeTeamAvgPointSpread,0.13508758,totals
-over_odds,0.13214903,totals
-awayTeamBlowoutPct,0.13162269,totals
-home_spread_odds,0.119807646,totals
+total_line,0.21033645,totals
+awayTeamAvgTotal,0.14246437,totals
+homeTeamOverHitPct,0.13931292,totals
+awayTeamBlowoutPct,0.13277796,totals
+homeTeamAvgPointSpread,0.13119528,totals
+over_odds,0.12875287,totals
+home_spread_odds,0.11516014,totals
