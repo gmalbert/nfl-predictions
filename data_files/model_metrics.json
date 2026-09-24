@@ -1,22 +1,22 @@
 {
-  "Spread Accuracy": 0.5750636132315522,
-  "Moneyline Accuracy": 0.7048346055979644,
-  "Totals Accuracy": 0.5903307888040712,
-  "Spread MAE": 0.42493638676844786,
-  "Moneyline MAE": 0.2951653944020356,
-  "Totals MAE": 0.40966921119592875,
-  "Optimal Spread Threshold": 0.5991605625321479,
-  "Optimal Moneyline Threshold": 0.28,
-  "Optimal Totals Threshold": 0.28,
+  "Spread Accuracy": 0.5699745547073791,
+  "Moneyline Accuracy": 0.7099236641221374,
+  "Totals Accuracy": 0.5801526717557252,
+  "Spread MAE": 0.4300254452926209,
+  "Moneyline MAE": 0.2900763358778626,
+  "Totals MAE": 0.4198473282442748,
+  "Optimal Spread Threshold": 0.5476154257357131,
+  "Optimal Moneyline Threshold": 0.24000000000000002,
+  "Optimal Totals Threshold": 0.30000000000000004,
   "Spread_EV_Analysis": {
-    "threshold": 0.5991605625321479,
+    "threshold": 0.5476154257357131,
     "min_edge": 0.02,
-    "bets_triggered": 4,
+    "bets_triggered": 8,
     "total_games": 393,
-    "bet_percentage": 1.0178117048346056,
-    "historical_accuracy": 0.5,
-    "wins": 2,
-    "losses": 2,
-    "theoretical_roi_pct": -4.545000000000002
+    "bet_percentage": 2.035623409669211,
+    "historical_accuracy": 0.375,
+    "wins": 3,
+    "losses": 5,
+    "theoretical_roi_pct": -28.408749999999998
   }
 }
