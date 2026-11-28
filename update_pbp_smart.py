@@ -16,18 +16,12 @@ import requests
 import sys
 import json
 
+from nfl_schedule_data import get_current_season
+
 DATA_DIR = Path('data_files')
 PBP_FILE = DATA_DIR / 'nfl_play_by_play_historical.csv.gz'
 METADATA_FILE = DATA_DIR / 'pbp_metadata.json'
 HISTORICAL_CACHE = DATA_DIR / 'nfl_play_by_play_historical_2020_2024.csv.gz'
-
-def get_current_season():
-    """Get current NFL season year"""
-    now = datetime.now()
-    if now.month <= 2:  # Jan-Feb
-        return now.year - 1
-    else:
-        return now.year
 
 def read_metadata():
     """Read metadata file to get last update info"""

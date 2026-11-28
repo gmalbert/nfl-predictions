@@ -1,23 +1,17 @@
-import nfl_data_py as nfl
-import pandas as pd
-from os import path
+from pathlib import Path
 
-import os
-from datetime import datetime
-import requests
+from nfl_schedule_data import get_current_season, load_schedules
 
-DATA_DIR = 'data_files/'
-current_year = datetime.now().year
-YEARS = range(2020, current_year + 1)
+DATA_DIR = Path("data_files")
 
-# Get game summaries for 2020-2025
-seasons = list(range(2020, current_year + 1))
-games = nfl.import_schedules(seasons)
 
-# Show a sample
-print(games.tail(15))
+def main():
+    seasons = range(2020, get_current_season() + 1)
+    games = load_schedules(seasons)
+    out_path = DATA_DIR / "nfl_games_historical.csv"
+    games.to_csv(out_path, index=False, sep="\t")
+    print(f"Saved {len(games)} game summaries to {out_path}")
 
-# Save to CSV
-out_path = "nfl_games_historical.csv"
-games.to_csv(path.join(DATA_DIR, out_path), index=False, sep='\t')
-print(f"Saved game summaries to {out_path}")
+
+if __name__ == "__main__":
+    main()
